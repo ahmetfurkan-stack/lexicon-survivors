@@ -30,119 +30,119 @@ func setup_type():
 	var dmg_mult = diff_data.get("enemy_damage_mult", 1.0)
 	
 	if enemy_type == "Typo Slime":
-		max_health = (70.0 + (StatsManager.current_wave - 1) * 18.0) * hp_mult
+		max_health = (140.0 + (StatsManager.current_wave - 1) * 36.0) * hp_mult
 		speed = (80.0 + (StatsManager.current_wave - 1) * 3.5) * spd_mult
-		damage_to_player = 15.0 * dmg_mult
+		damage_to_player = 30.0 * dmg_mult
 		ink_reward = 3
 		if sprite:
 			sprite.texture = load("res://assets/sprites/typo_slime.png")
 		if label:
 			label.text = typo_words[randi() % typo_words.size()]
 	elif enemy_type == "Grammar Goblin":
-		max_health = (45.0 + (StatsManager.current_wave - 1) * 14.0) * hp_mult
+		max_health = (90.0 + (StatsManager.current_wave - 1) * 28.0) * hp_mult
 		speed = (138.0 + (StatsManager.current_wave - 1) * 6.0) * spd_mult
-		damage_to_player = 14.0 * dmg_mult
+		damage_to_player = 28.0 * dmg_mult
 		ink_reward = 3
 		if sprite:
 			sprite.texture = load("res://assets/sprites/grammar_goblin.png")
 		if label:
 			label.text = grammar_pairs[randi() % grammar_pairs.size()]
 	elif enemy_type == "Typo Splinter":
-		max_health = (25.0 + StatsManager.current_wave * 6.0) * hp_mult
+		max_health = (50.0 + StatsManager.current_wave * 12.0) * hp_mult
 		speed = (150.0 + StatsManager.current_wave * 5.0) * spd_mult
-		damage_to_player = 9.0 * dmg_mult
+		damage_to_player = 18.0 * dmg_mult
 		ink_reward = 1
 		if sprite:
 			sprite.texture = load("res://assets/sprites/typo_splinter.png")
 		if label:
 			label.text = "Splinter"
 	elif enemy_type == "Punctuation Phantom":
-		max_health = (55.0 + (StatsManager.current_wave - 1) * 16.0) * hp_mult
+		max_health = (110.0 + (StatsManager.current_wave - 1) * 32.0) * hp_mult
 		speed = (105.0 + (StatsManager.current_wave - 1) * 4.0) * spd_mult
-		damage_to_player = 16.0 * dmg_mult
+		damage_to_player = 32.0 * dmg_mult
 		ink_reward = 4
 		if sprite:
 			sprite.texture = load("res://assets/sprites/punctuation_phantom.png")
 		if label:
 			label.text = "?"
 	elif enemy_type == "Syntax Titan":
-		max_health = (280.0 + (StatsManager.current_wave - 1) * 75.0) * hp_mult
+		max_health = (560.0 + (StatsManager.current_wave - 1) * 150.0) * hp_mult
 		speed = (65.0 + (StatsManager.current_wave - 1) * 3.0) * spd_mult
-		damage_to_player = 28.0 * dmg_mult
+		damage_to_player = 56.0 * dmg_mult
 		ink_reward = 8
 		if sprite:
 			sprite.texture = load("res://assets/sprites/syntax_titan.png")
 		if label:
 			label.text = "SYNTAX TITAN"
 	elif enemy_type == "Spelling Spectre":
-		max_health = (70.0 + (StatsManager.current_wave - 1) * 18.0) * hp_mult
+		max_health = (140.0 + (StatsManager.current_wave - 1) * 36.0) * hp_mult
 		speed = (120.0 + (StatsManager.current_wave - 1) * 5.0) * spd_mult
-		damage_to_player = 18.0 * dmg_mult
+		damage_to_player = 36.0 * dmg_mult
 		ink_reward = 5
 		if sprite:
 			sprite.texture = load("res://assets/sprites/spelling_spectre.png")
 		if label:
 			label.text = "Spectre"
 	elif enemy_type == "Red Pen Boss":
-		var hp_base = 750.0 if StatsManager.current_wave <= 3 else 1800.0
+		var hp_base = 2250.0 if StatsManager.current_wave <= 3 else 5400.0
 		max_health = hp_base * hp_mult
 		speed = 85.0 * spd_mult
-		damage_to_player = 32.0 * dmg_mult
+		damage_to_player = 96.0 * dmg_mult
 		ink_reward = 35
 		if sprite:
 			sprite.texture = load("res://assets/sprites/red_pen_boss.png")
 		if label:
 			label.text = "RED PEN BOSS"
 	elif enemy_type == "Oxymoron Ogre":
-		max_health = (340.0 + (StatsManager.current_wave - 1) * 80.0) * hp_mult
+		max_health = (680.0 + (StatsManager.current_wave - 1) * 160.0) * hp_mult
 		speed = 70.0 * spd_mult
-		damage_to_player = 30.0 * dmg_mult
+		damage_to_player = 60.0 * dmg_mult
 		ink_reward = 10
 		if sprite:
 			sprite.texture = load("res://assets/sprites/oxymoron_ogre.png")
 		if label:
 			label.text = "OXYMORON OGRE"
 	elif enemy_type == "Vocabulary Void":
-		max_health = (200.0 + (StatsManager.current_wave - 1) * 50.0) * hp_mult
+		max_health = (400.0 + (StatsManager.current_wave - 1) * 100.0) * hp_mult
 		speed = 60.0 * spd_mult
-		damage_to_player = 24.0 * dmg_mult
+		damage_to_player = 48.0 * dmg_mult
 		ink_reward = 8
 		if sprite:
 			sprite.texture = load("res://assets/sprites/vocabulary_void.png")
 		if label:
 			label.text = "VOCAB VOID"
 	elif enemy_type == "Malapropism Mimic":
-		max_health = (110.0 + (StatsManager.current_wave - 1) * 25.0) * hp_mult
+		max_health = (220.0 + (StatsManager.current_wave - 1) * 50.0) * hp_mult
 		speed = 130.0 * spd_mult
-		damage_to_player = 22.0 * dmg_mult
+		damage_to_player = 44.0 * dmg_mult
 		ink_reward = 6
 		if sprite:
 			sprite.texture = load("res://assets/sprites/malapropism_mimic.png")
 		if label:
 			label.text = "MIMIC"
 	elif enemy_type == "Homophone Harpy":
-		max_health = (85.0 + (StatsManager.current_wave - 1) * 20.0) * hp_mult
+		max_health = (170.0 + (StatsManager.current_wave - 1) * 40.0) * hp_mult
 		speed = 150.0 * spd_mult
-		damage_to_player = 18.0 * dmg_mult
+		damage_to_player = 36.0 * dmg_mult
 		ink_reward = 6
 		if sprite:
 			sprite.texture = load("res://assets/sprites/homophone_harpy.png")
 		if label:
 			label.text = "HARPY"
 	elif enemy_type == "Idiom Imp":
-		max_health = (60.0 + (StatsManager.current_wave - 1) * 15.0) * hp_mult
+		max_health = (120.0 + (StatsManager.current_wave - 1) * 30.0) * hp_mult
 		speed = 160.0 * spd_mult
-		damage_to_player = 14.0 * dmg_mult
+		damage_to_player = 28.0 * dmg_mult
 		ink_reward = 4
 		if sprite:
 			sprite.texture = load("res://assets/sprites/idiom_imp.png")
 		if label:
 			label.text = "IDIOM IMP"
 	elif enemy_type == "Lexicon Dragon Boss":
-		var dragon_hp = 4200.0 if StatsManager.current_wave <= 50 else 8500.0
+		var dragon_hp = 12600.0 if StatsManager.current_wave <= 50 else 25500.0
 		max_health = dragon_hp * hp_mult
 		speed = 95.0 * spd_mult
-		damage_to_player = 45.0 * dmg_mult
+		damage_to_player = 135.0 * dmg_mult
 		ink_reward = 80
 		if sprite:
 			sprite.texture = load("res://assets/sprites/lexicon_dragon_boss.png")
