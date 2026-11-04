@@ -122,6 +122,223 @@ class SoundManager {
 const sounds = new SoundManager();
 
 // =========================================
+// 1.5 PROCEDURAL MEDIEVAL BGM SYNTHESIZER
+// =========================================
+class MedievalBGM {
+  constructor(soundManager) {
+    this.sm = soundManager;
+    this.isPlaying = false;
+    this.isMuted = false;
+    this.volume = 0.24;
+    this.mode = "peaceful"; // "peaceful" | "battle" | "boss"
+    this.step = 0;
+    this.timerId = null;
+
+    this.notes = {
+      D2: 73.42, F2: 87.31, G2: 98.00, A2: 110.00, Bb2: 116.54, C3: 130.81,
+      D3: 146.83, E3: 164.81, F3: 174.61, G3: 196.00, A3: 220.00, Bb3: 233.08, C4: 261.63,
+      D4: 293.66, E4: 329.63, F4: 349.23, G4: 392.00, A4: 440.00, C5: 523.25
+    };
+
+    this.harpPatterns = {
+      peaceful: [
+        "D3", "F3", "A3", "D4", "F3", "A3", "D4", "A3",
+        "D3", "F3", "A3", "F4", "D4", "A3", "F3", "A3",
+        "Bb2", "D3", "F3", "Bb3", "D4", "F3", "Bb3", "D4",
+        "Bb2", "F3", "Bb3", "D4", "F4", "D4", "Bb3", "F3",
+        "C3", "E3", "G3", "C4", "E4", "G3", "C4", "E4",
+        "C3", "G3", "C4", "E4", "G4", "E4", "C4", "G3",
+        "A2", "C3", "E3", "A3", "C4", "E3", "A3", "C4",
+        "A2", "E3", "A3", "C4", "E4", "C4", "A3", "E3"
+      ],
+      battle: [
+        "D3", "A3", "D4", "F4", "D4", "A3", "D4", "A3",
+        "D3", "A3", "F4", "A4", "F4", "D4", "A3", "D4",
+        "Bb2", "F3", "Bb3", "D4", "F4", "D4", "Bb3", "D4",
+        "Bb2", "F3", "D4", "F4", "D4", "Bb3", "F3", "Bb3",
+        "C3", "G3", "C4", "E4", "G4", "E4", "C4", "E4",
+        "C3", "G3", "E4", "G4", "E4", "C4", "G3", "C4",
+        "A2", "E3", "A3", "C4", "E4", "C4", "A3", "E3",
+        "A2", "E3", "G3", "A3", "C4", "E4", "A4", "E4"
+      ],
+      boss: [
+        "D2", "D3", "F3", "D3", "A3", "D3", "F3", "D3",
+        "D2", "D3", "G2", "D3", "A3", "D3", "C4", "A3",
+        "Bb2", "Bb3", "D4", "Bb3", "F4", "Bb3", "D4", "Bb3",
+        "A2", "A3", "C4", "A3", "E4", "A3", "G4", "E4"
+      ]
+    };
+
+    this.bassNotes = {
+      peaceful: ["D2", "Bb2", "C3", "A2"],
+      battle: ["D2", "Bb2", "C3", "A2"],
+      boss: ["D2", "D2", "Bb2", "A2"]
+    };
+  }
+
+  start() {
+    if (this.isPlaying) return;
+    this.sm.init();
+    if (!this.sm.ctx) return;
+    this.isPlaying = true;
+    this.step = 0;
+    this.tick();
+  }
+
+  stop() {
+    this.isPlaying = false;
+    if (this.timerId) {
+      clearTimeout(this.timerId);
+      this.timerId = null;
+    }
+  }
+
+  setMode(newMode) {
+    if (this.harpPatterns[newMode]) {
+      this.mode = newMode;
+    }
+  }
+
+  toggleMute() {
+    this.isMuted = !this.isMuted;
+    return !this.isMuted;
+  }
+
+  tick() {
+    if (!this.isPlaying) return;
+    const ctx = this.sm.ctx;
+    if (!ctx) return;
+
+    const pattern = this.harpPatterns[this.mode] || this.harpPatterns.peaceful;
+    const totalSteps = pattern.length;
+    const currentNoteName = pattern[this.step % totalSteps];
+    const bpm = this.mode === "boss" ? 140 : (this.mode === "battle" ? 122 : 94);
+    const stepDuration = 60 / bpm / 4;
+
+    if (!this.isMuted && this.volume > 0) {
+      const now = ctx.currentTime;
+      if (currentNoteName && this.notes[currentNoteName]) {
+        this.playPluckedString(this.notes[currentNoteName], now, stepDuration * 2.5, 0.08 * this.volume);
+      }
+
+      if (this.step % 16 === 0) {
+        const barIdx = Math.floor((this.step % totalSteps) / 16);
+        const bList = this.bassNotes[this.mode] || this.bassNotes.peaceful;
+        const bNote = bList[barIdx % bList.length];
+        if (bNote && this.notes[bNote]) {
+          this.playBassDrone(this.notes[bNote], now, stepDuration * 15, 0.12 * this.volume);
+        }
+      }
+
+      if (this.mode !== "peaceful") {
+        const stepInBar = this.step % 16;
+        if (stepInBar === 0 || stepInBar === 8) {
+          this.playDrumKick(now, 0.13 * this.volume);
+        }
+        if (stepInBar === 4 || stepInBar === 12) {
+          this.playPercTick(now, 0.06 * this.volume);
+        }
+        if (this.mode === "boss" && (stepInBar === 6 || stepInBar === 14)) {
+          this.playPercTick(now, 0.08 * this.volume);
+        }
+      }
+    }
+
+    this.step++;
+    this.timerId = setTimeout(() => this.tick(), stepDuration * 1000);
+  }
+
+  playPluckedString(freq, time, dur, gainVal) {
+    try {
+      const ctx = this.sm.ctx;
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.type = "triangle";
+      osc.frequency.setValueAtTime(freq, time);
+
+      gain.gain.setValueAtTime(0.0001, time);
+      gain.gain.linearRampToValueAtTime(gainVal, time + 0.012);
+      gain.gain.exponentialRampToValueAtTime(0.0001, time + dur);
+
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      osc.start(time);
+      osc.stop(time + dur);
+    } catch(e) {}
+  }
+
+  playBassDrone(freq, time, dur, gainVal) {
+    try {
+      const ctx = this.sm.ctx;
+      const osc = ctx.createOscillator();
+      const filter = ctx.createBiquadFilter();
+      const gain = ctx.createGain();
+
+      osc.type = "sawtooth";
+      osc.frequency.setValueAtTime(freq, time);
+
+      filter.type = "lowpass";
+      filter.frequency.setValueAtTime(260, time);
+
+      gain.gain.setValueAtTime(0.0001, time);
+      gain.gain.linearRampToValueAtTime(gainVal, time + 0.1);
+      gain.gain.exponentialRampToValueAtTime(0.0001, time + dur);
+
+      osc.connect(filter);
+      filter.connect(gain);
+      gain.connect(ctx.destination);
+      osc.start(time);
+      osc.stop(time + dur);
+    } catch(e) {}
+  }
+
+  playDrumKick(time, gainVal) {
+    try {
+      const ctx = this.sm.ctx;
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.type = "sine";
+      osc.frequency.setValueAtTime(115, time);
+      osc.frequency.exponentialRampToValueAtTime(36, time + 0.12);
+
+      gain.gain.setValueAtTime(gainVal, time);
+      gain.gain.exponentialRampToValueAtTime(0.0001, time + 0.14);
+
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      osc.start(time);
+      osc.stop(time + 0.14);
+    } catch(e) {}
+  }
+
+  playPercTick(time, gainVal) {
+    try {
+      const ctx = this.sm.ctx;
+      const osc = ctx.createOscillator();
+      const filter = ctx.createBiquadFilter();
+      const gain = ctx.createGain();
+
+      osc.type = "square";
+      osc.frequency.setValueAtTime(800 + Math.random() * 200, time);
+
+      filter.type = "highpass";
+      filter.frequency.setValueAtTime(1200, time);
+
+      gain.gain.setValueAtTime(gainVal, time);
+      gain.gain.exponentialRampToValueAtTime(0.0001, time + 0.05);
+
+      osc.connect(filter);
+      filter.connect(gain);
+      gain.connect(ctx.destination);
+      osc.start(time);
+      osc.stop(time + 0.05);
+    } catch(e) {}
+  }
+}
+
+const bgm = new MedievalBGM(sounds);
+
+// =========================================
 // 2. CHARACTERS & DIFFICULTIES (BALANCED)
 // =========================================
 const CHARACTERS = {
@@ -175,6 +392,57 @@ const CHARACTERS = {
     passive: "Sözlük Kalkanı: Aegis Kalkanı ile başlar, ağır darbe soğurma.",
     sprite: "player_knight.png",
     color: "#81c784"
+  },
+  rune_sorceress: {
+    id: "rune_sorceress",
+    name: "Rune Sorceress",
+    title: "Kadim Rün Büyücüsü (Mystic Archmage)",
+    desc: "Büyülü rünlerle geniş alan hasarı, +%30 Hasar ve Rün Küresi ile başlar.",
+    hp: 105,
+    speed: 245,
+    damage_mult: 1.30,
+    attack_speed_mult: 1.10,
+    armor: 0.05,
+    crit_chance: 0.15,
+    starting_weapon: "rune_orb",
+    starting_gadget: "ink_cataclysm",
+    passive: "Rün İnfilakı: Düşmanları alt ettiğinde sıçrayan rün patlamaları.",
+    sprite: "player_sorceress.png",
+    color: "#c084fc"
+  },
+  lexicon_alchemist: {
+    id: "lexicon_alchemist",
+    name: "Alchemist",
+    title: "Sözlük Simyacısı (Resource Alchemist)",
+    desc: "+%40 Mürekkep Kazanımı, Gramer Mıknatısı ve Mürekkep Alevi ile başlar.",
+    hp: 115,
+    speed: 240,
+    damage_mult: 1.10,
+    attack_speed_mult: 1.20,
+    armor: 0.12,
+    crit_chance: 0.12,
+    starting_weapon: "ink_flamethrower",
+    starting_gadget: "grammar_magnet",
+    passive: "Simya Özütü: Her dalga başında +10 Mürekkep, can iksirleri +%50 etkili.",
+    sprite: "player_alchemist.png",
+    color: "#34d399"
+  },
+  shadow_lexicographer: {
+    id: "shadow_lexicographer",
+    name: "Shadow Scribe",
+    title: "Gölge Hattatı (Critical Assassin)",
+    desc: "290 Hız, +%35 Kritik Vuruş Şansı ve Hattat Katanası ile seri ölümcül kesişler.",
+    hp: 90,
+    speed: 290,
+    damage_mult: 1.45,
+    attack_speed_mult: 1.25,
+    armor: 0.0,
+    crit_chance: 0.35,
+    starting_weapon: "calligraphy_katana",
+    starting_gadget: "eraser_dash",
+    passive: "Kritik İnfaz: Kritik vuruşlar %250 hasar verir ve düşmanı yavaşlatır.",
+    sprite: "player_assassin.png",
+    color: "#f43f5e"
   }
 };
 
@@ -494,6 +762,7 @@ for (let i = 0; i < 45; i++) {
 const images = {};
 const spriteList = [
   "player.png", "player_quillmaster.png", "player_knight.png",
+  "player_sorceress.png", "player_alchemist.png", "player_assassin.png",
   // 14 Weapons
   "quill_blaster.png", "syllable_shotgun.png", "lexicon_beam.png",
   "punctuation_bomb.png", "punctuation_mine.png", "dictionary_blade.png",
@@ -514,6 +783,8 @@ const spriteList = [
   "lexicon_dragon_boss.png", "elite_crown.png",
   // Environment & UI
   "tile_floor.png", "tile_library_parquet.png", "magical_rune_circle.png",
+  "tile_dungeon_stone.png", "magical_rune_cyan.png",
+  "tile_astral_observatory.png", "magical_rune_astral.png",
   "bookshelf_wall.png", "wax_seal.png"
 ];
 
@@ -571,6 +842,21 @@ if (touchToggleBtn) {
   };
 }
 
+const musicBtn = document.getElementById("music-btn");
+if (musicBtn) {
+  musicBtn.onclick = (e) => {
+    e.stopPropagation();
+    sounds.init();
+    if (!bgm.isPlaying) {
+      bgm.start();
+      musicBtn.textContent = "🎵 MÜZİK";
+    } else {
+      const isUnmuted = bgm.toggleMute();
+      musicBtn.textContent = isUnmuted ? "🎵 MÜZİK" : "🔇 MÜZİK";
+    }
+  };
+}
+
 // Inventory modal toggle
 document.getElementById("inventory-btn").onclick = () => toggleInventoryModal();
 document.getElementById("close-inventory-btn").onclick = () => toggleInventoryModal(false);
@@ -583,6 +869,7 @@ function toggleInventoryModal(forcedState) {
   if (!isVisible) {
     renderInventoryView();
   }
+  syncMobileControlsVisibility();
 }
 
 // Scribe's Mistake Notebook (Hata Defteri & Pekiştirme)
@@ -601,6 +888,7 @@ function toggleMistakesModal(forcedState) {
   if (!isVisible) {
     renderMistakesList();
   }
+  syncMobileControlsVisibility();
 }
 
 function renderMistakesList() {
@@ -847,26 +1135,64 @@ function initTouchControls() {
 }
 
 // =========================================
-// 8. TITLE & START GAME
+// 7.8 MOBILE CONTROLS VISIBILITY SYNC
+// =========================================
+function syncMobileControlsVisibility() {
+  const controls = document.getElementById("mobile-touch-controls");
+  if (!controls) return;
+  const isTouch = ('ontouchstart' in window) || (navigator.maxTouchPoints > 0) || window.innerWidth <= 820;
+  const isOverlayOpen =
+    (document.getElementById("title-screen") && document.getElementById("title-screen").style.display !== "none") ||
+    (document.getElementById("shop-screen") && document.getElementById("shop-screen").style.display !== "none") ||
+    (document.getElementById("game-over-screen") && document.getElementById("game-over-screen").style.display !== "none") ||
+    (document.getElementById("quiz-modal") && document.getElementById("quiz-modal").style.display === "flex") ||
+    (document.getElementById("inventory-modal") && document.getElementById("inventory-modal").style.display === "flex") ||
+    (document.getElementById("mistakes-modal") && document.getElementById("mistakes-modal").style.display === "flex");
+
+  if (state.is_wave_active && !isOverlayOpen && isTouch) {
+    controls.style.display = "block";
+  } else {
+    controls.style.display = "none";
+  }
+}
+
+// =========================================
+// 8. TITLE & START GAME (6 CHARACTERS)
 // =========================================
 function initTitleScreen() {
+  syncMobileControlsVisibility();
   const charGrid = document.getElementById("char-selection-grid");
   charGrid.innerHTML = "";
-  ["inky", "quillmaster", "word_knight"].forEach(cid => {
+  ["inky", "quillmaster", "word_knight", "rune_sorceress", "lexicon_alchemist", "shadow_lexicographer"].forEach(cid => {
     const c = CHARACTERS[cid];
     const card = document.createElement("div");
     card.className = "choice-card" + (cid === state.selected_char ? " selected" : "");
     card.innerHTML = `
-      <h3>${c.name}</h3>
-      <div class="subtitle">${c.title}</div>
-      <div class="stats-text">❤️ ${c.hp} HP | ⚡ ${c.speed} HIZ<br>⚔️ ${c.damage_mult}x HASAR | 🏹 ${c.attack_speed_mult}x ATIŞ ${c.armor > 0 ? '| 🛡️ +%' + Math.round(c.armor*100) + ' ZIRH' : ''}</div>
-      <div class="desc">${c.desc}</div>
-      <div class="passive">✦ ${c.passive}</div>
+      <div style="display: flex; justify-content: space-between; align-items: center; width: 100%;">
+        <div style="display: flex; align-items: center; gap: 8px;">
+          <img src="assets/sprites/${c.sprite}" style="width: 26px; height: 26px; image-rendering: pixelated;" alt="${c.name}">
+          <div>
+            <h3 style="margin: 0; font-size: 13.5px;">${c.name}</h3>
+            <div class="subtitle" style="margin: 0; font-size: 10px;">${c.title}</div>
+          </div>
+        </div>
+        <div class="stats-text" style="font-size: 9.5px; text-align: right; line-height: 1.25;">
+          ❤️ ${c.hp} HP | ⚔️ ${c.damage_mult}x<br>⚡ ${c.speed} HIZ ${c.armor > 0 ? '| 🛡️ +%' + Math.round(c.armor*100) : ''}
+        </div>
+      </div>
+      <div class="desc" style="font-size: 10.5px; margin: 3px 0 2px 0;">${c.desc}</div>
+      <div class="passive" style="font-size: 9.5px; padding-top: 2px;">✦ ${c.passive}</div>
     `;
-    card.onclick = () => {
+
+    const pickChar = (e) => {
+      if (e) e.stopPropagation();
       state.selected_char = cid;
+      sounds.init();
+      sounds.playTone(480, "sine", 0.08, 0.15);
       initTitleScreen();
     };
+    card.onclick = pickChar;
+    card.addEventListener("pointerup", pickChar);
     charGrid.appendChild(card);
   });
 
@@ -877,20 +1203,31 @@ function initTitleScreen() {
     const btn = document.createElement("button");
     btn.className = "btn" + (did === state.difficulty ? " btn-seal" : "");
     btn.textContent = d.name;
-    btn.onclick = () => {
+    const pickDiff = (e) => {
+      if (e) e.stopPropagation();
       state.difficulty = did;
+      sounds.init();
+      sounds.playTone(420, "sine", 0.08, 0.15);
       initTitleScreen();
     };
+    btn.onclick = pickDiff;
+    btn.addEventListener("pointerup", pickDiff);
     diffContainer.appendChild(btn);
   });
 
   document.getElementById("diff-desc").textContent = DIFFICULTIES[state.difficulty].desc;
 }
 
-document.getElementById("start-game-btn").onclick = () => {
+const onStartGame = (e) => {
+  if (e) e.stopPropagation();
+  sounds.init();
+  bgm.start();
+  bgm.setMode("battle");
   document.getElementById("title-screen").style.display = "none";
   startGame();
 };
+document.getElementById("start-game-btn").onclick = onStartGame;
+document.getElementById("start-game-btn").addEventListener("pointerup", onStartGame);
 
 function resetStats() {
   const c = CHARACTERS[state.selected_char];
@@ -980,6 +1317,9 @@ function startWave() {
   state.is_wave_active = true;
   document.getElementById("shop-screen").style.display = "none";
   updateHUD();
+  syncMobileControlsVisibility();
+  bgm.start();
+  bgm.setMode(state.current_wave % 5 === 0 ? "boss" : "battle");
 
   // Milestone Boss every 5 waves
   if (state.current_wave % 5 === 0) {
@@ -996,6 +1336,8 @@ function endWave() {
   state.enemy_projectiles = [];
   state.active_boss = null;
   document.getElementById("boss-hp-container").style.display = "none";
+  syncMobileControlsVisibility();
+  bgm.setMode("peaceful");
 
   if (state.current_wave >= state.max_waves) {
     victoryScreen();
@@ -1913,6 +2255,8 @@ function takePlayerDamage(amount) {
 
 function gameOver() {
   state.is_wave_active = false;
+  bgm.setMode("peaceful");
+  syncMobileControlsVisibility();
   const modal = document.getElementById("game-over-screen");
   const title = document.getElementById("game-over-title");
   const summary = document.getElementById("game-over-summary");
@@ -1933,6 +2277,8 @@ function gameOver() {
 
 function victoryScreen() {
   state.is_wave_active = false;
+  bgm.setMode("peaceful");
+  syncMobileControlsVisibility();
   const modal = document.getElementById("game-over-screen");
   const title = document.getElementById("game-over-title");
   const summary = document.getElementById("game-over-summary");
@@ -1951,11 +2297,14 @@ function victoryScreen() {
   modal.style.display = "flex";
 }
 
-document.getElementById("restart-game-btn").onclick = () => {
+const onRestart = () => {
   document.getElementById("game-over-screen").style.display = "none";
   document.getElementById("title-screen").style.display = "flex";
   initTitleScreen();
+  syncMobileControlsVisibility();
 };
+document.getElementById("restart-game-btn").onclick = onRestart;
+document.getElementById("restart-game-btn").addEventListener("pointerup", onRestart);
 
 // =========================================
 // 13. SCRIPTORIUM BAZAAR, GADGETS & INVENTORY
@@ -1965,6 +2314,7 @@ let shopCards = [];
 
 function openShop() {
   document.getElementById("shop-screen").style.display = "flex";
+  syncMobileControlsVisibility();
   currentShopTab = "cards";
   highlightShopTabs();
   refreshShopCards();
@@ -2215,6 +2565,7 @@ function applyArtifact(art) {
 function openQuiz(card, cardIndex) {
   const modal = document.getElementById("quiz-modal");
   modal.style.display = "flex";
+  syncMobileControlsVisibility();
 
   document.getElementById("quiz-word-title").textContent = `${card.word} [${card.type} • ${card.level}]`;
   document.getElementById("quiz-question-text").textContent = card.question;
@@ -2303,6 +2654,7 @@ function openQuiz(card, cardIndex) {
     renderShopView();
     updateShopTopBar();
     updateHUD();
+    syncMobileControlsVisibility();
   };
 }
 
@@ -2580,10 +2932,29 @@ function render() {
   ctx.save();
   ctx.translate(cx - p.x, cy - p.y);
 
-  // Parquet floor
-  const parquetImg = images["tile_library_parquet.png"] || images["tile_floor.png"];
-  if (parquetImg) {
-    const pattern = ctx.createPattern(parquetImg, "repeat");
+  // Dynamic Arenas based on progression
+  let floorSprite = "tile_library_parquet.png";
+  let runeSprite = "magical_rune_circle.png";
+  let borderOuter = "#8c6d23";
+  let borderInner = "#d4af37";
+
+  if (state.current_wave >= 61) {
+    // Arena 3: Astral Observatory (Waves 61-100)
+    floorSprite = "tile_astral_observatory.png";
+    runeSprite = "magical_rune_astral.png";
+    borderOuter = "#4c1d95";
+    borderInner = "#f59e0b";
+  } else if (state.current_wave >= 26) {
+    // Arena 2: Forbidden Archives (Waves 26-60)
+    floorSprite = "tile_dungeon_stone.png";
+    runeSprite = "magical_rune_cyan.png";
+    borderOuter = "#0891b2";
+    borderInner = "#22d3ee";
+  }
+
+  const floorImg = images[floorSprite] || images["tile_library_parquet.png"] || images["tile_floor.png"];
+  if (floorImg) {
+    const pattern = ctx.createPattern(floorImg, "repeat");
     ctx.fillStyle = pattern;
     ctx.fillRect(-1200, -900, 2400, 1800);
   } else {
@@ -2593,7 +2964,7 @@ function render() {
 
   // Central Magical Rune Circle
   state.rune_rotation += 0.003;
-  const runeImg = images["magical_rune_circle.png"];
+  const runeImg = images[runeSprite] || images["magical_rune_circle.png"];
   if (runeImg) {
     ctx.save();
     ctx.translate(0, 0);
@@ -2615,9 +2986,9 @@ function render() {
   }
 
   // Gold Borders
-  ctx.strokeStyle = "#8c6d23"; ctx.lineWidth = 4;
+  ctx.strokeStyle = borderOuter; ctx.lineWidth = 4;
   ctx.strokeRect(-1180, -880, 2360, 1760);
-  ctx.strokeStyle = "#d4af37"; ctx.lineWidth = 1.5;
+  ctx.strokeStyle = borderInner; ctx.lineWidth = 1.5;
   ctx.strokeRect(-1174, -874, 2348, 1748);
 
   // Motes
