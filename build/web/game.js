@@ -733,6 +733,8 @@ const state = {
   ink_puddles: [],
   particles: [],
   ambient_motes: [],
+  telegraphs: [],
+  boss_lasers: [],
   active_boss: null,
 
   rune_rotation: 0,
@@ -792,6 +794,8 @@ const spriteList = [
   "tile_floor.png", "tile_library_parquet.png", "magical_rune_circle.png",
   "tile_dungeon_stone.png", "magical_rune_cyan.png",
   "tile_astral_observatory.png", "magical_rune_astral.png",
+  "tile_void_sanctum.png", "magical_rune_void.png",
+  "brazier_pedestal.png", "illuminated_lectern.png", "touch_weapon_icon.png",
   "bookshelf_wall.png", "wax_seal.png"
 ];
 
@@ -1171,6 +1175,170 @@ document.getElementById("inventory-btn").onclick = () => toggleInventoryModal();
 document.getElementById("close-inventory-btn").onclick = () => toggleInventoryModal(false);
 document.getElementById("gadget-panel").onclick = () => activateActiveGadget();
 
+// Mobile Quick Menu & Weapon Cycle
+function cycleActiveWeapon(dir = 1) {
+  if (state.weapons.length <= 1) return;
+  state.active_weapon_index = (state.active_weapon_index + dir + state.weapons.length) % state.weapons.length;
+  sounds.playTone(420, "sine", 0.07, 0.16);
+  updateHUD();
+}
+
+function toggleMobileQuickMenu(forcedState) {
+  const modal = document.getElementById("mobile-quick-menu");
+  if (!modal) return;
+  const isCurrentlyOpen = modal.style.display !== "none" && modal.style.display !== "";
+  const show = forcedState !== undefined ? forcedState : !isCurrentlyOpen;
+  modal.style.display = show ? "flex" : "none";
+  syncMobileControlsVisibility();
+  if (show) {
+    updateMobileQuickMenuUI();
+  }
+}
+
+function updateMobileQuickMenuUI() {
+  const speedOpts = document.querySelectorAll(".mobile-speed-opt");
+  speedOpts.forEach(btn => {
+    const spd = parseFloat(btn.dataset.speed);
+    if (Math.abs(spd - (state.game_speed || 1.0)) < 0.01) {
+      btn.classList.add("btn-seal");
+    } else {
+      btn.classList.remove("btn-seal");
+    }
+  });
+
+  const autoTurBtn = document.getElementById("mobile-toggle-autowave-btn");
+  if (autoTurBtn) {
+    autoTurBtn.textContent = state.auto_new_tur ? "🔄 Otomatik Yeni Tur: AÇIK" : "🔄 Otomatik Yeni Tur: KAPALI";
+    if (state.auto_new_tur) autoTurBtn.classList.add("btn-emerald");
+    else autoTurBtn.classList.remove("btn-emerald");
+  }
+
+  const autoRunBtn = document.getElementById("mobile-toggle-autorun-btn");
+  if (autoRunBtn) {
+    autoRunBtn.textContent = state.auto_new_run ? "⚡ Otomatik Yeni Run: AÇIK" : "⚡ Otomatik Yeni Run: KAPALI";
+    if (state.auto_new_run) autoRunBtn.classList.add("btn-emerald");
+    else autoRunBtn.classList.remove("btn-emerald");
+  }
+
+  const musicBtn = document.getElementById("mobile-toggle-music-btn");
+  if (musicBtn) {
+    musicBtn.textContent = bgm.enabled ? "🎵 Müzik: AÇIK" : "🎵 Müzik: KAPALI";
+  }
+
+  const joyBtn = document.getElementById("mobile-toggle-joy-btn");
+  if (joyBtn) {
+    const active = state.show_touch_controls !== false;
+    joyBtn.textContent = active ? "📱 Sanal Joystick: AÇIK" : "📱 Sanal Joystick: KAPALI";
+  }
+}
+
+const mobileMenuBtn = document.getElementById("mobile-menu-btn");
+if (mobileMenuBtn) {
+  mobileMenuBtn.onclick = (e) => {
+    e.stopPropagation();
+    toggleMobileQuickMenu();
+  };
+}
+
+const closeMobileMenuBtn = document.getElementById("close-mobile-menu-btn");
+if (closeMobileMenuBtn) {
+  closeMobileMenuBtn.onclick = (e) => {
+    e.stopPropagation();
+    toggleMobileQuickMenu(false);
+  };
+}
+
+const mobileAutoTurBtn = document.getElementById("mobile-toggle-autowave-btn");
+if (mobileAutoTurBtn) {
+  mobileAutoTurBtn.onclick = (e) => {
+    e.stopPropagation();
+    toggleAutoNewTur();
+    updateMobileQuickMenuUI();
+  };
+}
+
+const mobileAutoRunBtn = document.getElementById("mobile-toggle-autorun-btn");
+if (mobileAutoRunBtn) {
+  mobileAutoRunBtn.onclick = (e) => {
+    e.stopPropagation();
+    toggleAutoNewRun();
+    updateMobileQuickMenuUI();
+  };
+}
+
+const mobileMusicBtn = document.getElementById("mobile-toggle-music-btn");
+if (mobileMusicBtn) {
+  mobileMusicBtn.onclick = (e) => {
+    e.stopPropagation();
+    toggleMusic();
+    updateMobileQuickMenuUI();
+  };
+}
+
+const mobileOpenInvBtn = document.getElementById("mobile-open-inv-btn");
+if (mobileOpenInvBtn) {
+  mobileOpenInvBtn.onclick = (e) => {
+    e.stopPropagation();
+    toggleMobileQuickMenu(false);
+    toggleInventoryModal(true);
+  };
+}
+
+const mobileOpenMistakesBtn = document.getElementById("mobile-open-mistakes-btn");
+if (mobileOpenMistakesBtn) {
+  mobileOpenMistakesBtn.onclick = (e) => {
+    e.stopPropagation();
+    toggleMobileQuickMenu(false);
+    toggleMistakesModal(true);
+  };
+}
+
+const mobileToggleJoyBtn = document.getElementById("mobile-toggle-joy-btn");
+if (mobileToggleJoyBtn) {
+  mobileToggleJoyBtn.onclick = (e) => {
+    e.stopPropagation();
+    state.show_touch_controls = (state.show_touch_controls === false);
+    syncMobileControlsVisibility();
+    updateMobileQuickMenuUI();
+  };
+}
+
+const mobileToggleFsBtn = document.getElementById("mobile-toggle-fs-btn");
+if (mobileToggleFsBtn) {
+  mobileToggleFsBtn.onclick = (e) => {
+    e.stopPropagation();
+    if (!document.fullscreenElement) {
+      document.documentElement.requestFullscreen().catch(() => {});
+    } else {
+      document.exitFullscreen().catch(() => {});
+    }
+  };
+}
+
+document.querySelectorAll(".mobile-speed-opt").forEach(btn => {
+  btn.onclick = (e) => {
+    e.stopPropagation();
+    setGameSpeed(parseFloat(btn.dataset.speed));
+    updateMobileQuickMenuUI();
+  };
+});
+
+function triggerTacticalAlert(title, desc) {
+  const banner = document.getElementById("tactical-alert-banner");
+  const titleEl = document.getElementById("tactical-alert-title");
+  const descEl = document.getElementById("tactical-alert-desc");
+  if (!banner || !titleEl || !descEl) return;
+  titleEl.textContent = title;
+  descEl.textContent = desc;
+  banner.style.display = "block";
+  banner.style.opacity = "1";
+  if (state.alert_timeout) clearTimeout(state.alert_timeout);
+  state.alert_timeout = setTimeout(() => {
+    banner.style.opacity = "0";
+    setTimeout(() => { banner.style.display = "none"; }, 400);
+  }, 4200);
+}
+
 function toggleInventoryModal(forcedState) {
   const modal = document.getElementById("inventory-modal");
   const isVisible = forcedState !== undefined ? !forcedState : (modal.style.display === "flex");
@@ -1316,9 +1484,21 @@ function initTouchControls() {
   const joystickZone = document.getElementById("joystick-zone");
   const joystickBase = document.getElementById("joystick-base");
   const joystickKnob = document.getElementById("joystick-knob");
+  const touchSurface = document.getElementById("touch-joystick-surface");
+  const touchWeaponBtn = document.getElementById("touch-weapon-btn");
   const touchGadgetBtn = document.getElementById("touch-gadget-btn");
   const touchInvBtn = document.getElementById("touch-inv-btn");
   const touchMistakesBtn = document.getElementById("touch-mistakes-btn");
+
+  if (touchWeaponBtn) {
+    const cycleWeapon = (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      cycleActiveWeapon(1);
+    };
+    touchWeaponBtn.addEventListener("pointerdown", cycleWeapon);
+    touchWeaponBtn.addEventListener("touchstart", cycleWeapon, { passive: false });
+  }
 
   if (touchGadgetBtn) {
     const fireGadget = (e) => {
@@ -1385,15 +1565,46 @@ function initTouchControls() {
     activeTouchId = null;
     state.touch_dir = { x: 0, y: 0 };
     joystickKnob.style.transform = "translate(0px, 0px)";
+    joystickZone.style.opacity = "0.8";
+  }
+
+  const startFloatingAt = (clientX, clientY, identifier) => {
+    if (activeTouchId !== null) return;
+    activeTouchId = identifier;
+
+    // Dynamically anchor joystick base directly to thumb position
+    const container = document.getElementById("game-container") || document.body;
+    const cRect = container.getBoundingClientRect();
+    const relX = clientX - cRect.left;
+    const relY = clientY - cRect.top;
+
+    joystickZone.style.left = (relX - 60) + "px";
+    joystickZone.style.top = (relY - 60) + "px";
+    joystickZone.style.bottom = "auto";
+    joystickZone.style.opacity = "1";
+
+    centerX = clientX;
+    centerY = clientY;
+    updateJoystickPosition(clientX, clientY);
+  };
+
+  if (touchSurface) {
+    touchSurface.addEventListener("pointerdown", (e) => {
+      startFloatingAt(e.clientX, e.clientY, e.pointerId);
+      try { touchSurface.setPointerCapture(e.pointerId); } catch(err){}
+      e.preventDefault();
+    });
+
+    touchSurface.addEventListener("touchstart", (e) => {
+      const touch = e.changedTouches[0];
+      startFloatingAt(touch.clientX, touch.clientY, touch.identifier);
+      e.preventDefault();
+    }, { passive: false });
   }
 
   joystickZone.addEventListener("pointerdown", (e) => {
     if (activeTouchId !== null) return;
-    activeTouchId = e.pointerId;
-    const rect = joystickBase.getBoundingClientRect();
-    centerX = rect.left + rect.width / 2;
-    centerY = rect.top + rect.height / 2;
-    updateJoystickPosition(e.clientX, e.clientY);
+    startFloatingAt(e.clientX, e.clientY, e.pointerId);
     try { joystickZone.setPointerCapture(e.pointerId); } catch(err){}
     e.preventDefault();
   });
@@ -1412,17 +1623,6 @@ function initTouchControls() {
   };
   window.addEventListener("pointerup", endPointer);
   window.addEventListener("pointercancel", endPointer);
-
-  joystickZone.addEventListener("touchstart", (e) => {
-    if (activeTouchId !== null) return;
-    const touch = e.changedTouches[0];
-    activeTouchId = touch.identifier;
-    const rect = joystickBase.getBoundingClientRect();
-    centerX = rect.left + rect.width / 2;
-    centerY = rect.top + rect.height / 2;
-    updateJoystickPosition(touch.clientX, touch.clientY);
-    e.preventDefault();
-  }, { passive: false });
 
   window.addEventListener("touchmove", (e) => {
     if (activeTouchId === null) return;
@@ -1462,9 +1662,10 @@ function syncMobileControlsVisibility() {
     (document.getElementById("game-over-screen") && document.getElementById("game-over-screen").style.display !== "none") ||
     (document.getElementById("quiz-modal") && document.getElementById("quiz-modal").style.display === "flex") ||
     (document.getElementById("inventory-modal") && document.getElementById("inventory-modal").style.display === "flex") ||
-    (document.getElementById("mistakes-modal") && document.getElementById("mistakes-modal").style.display === "flex");
+    (document.getElementById("mistakes-modal") && document.getElementById("mistakes-modal").style.display === "flex") ||
+    (document.getElementById("mobile-quick-menu") && document.getElementById("mobile-quick-menu").style.display !== "none");
 
-  if (state.is_wave_active && !isOverlayOpen && isTouch) {
+  if (state.is_wave_active && !isOverlayOpen && isTouch && state.show_touch_controls !== false) {
     controls.style.display = "block";
   } else {
     controls.style.display = "none";
@@ -1638,6 +1839,28 @@ function startWave() {
   syncMobileControlsVisibility();
   bgm.start();
   bgm.setMode(state.current_wave % 5 === 0 ? "boss" : "battle");
+
+  // Tactical Alert Announcements on Key Waves
+  const w = state.current_wave;
+  if (w === 10) {
+    triggerTacticalAlert("⚔️ ELEBAŞI MUHAREBESİ: RED PEN INQUISITOR", "Elebaşının etrafında dönün ve kırmızı mermilerden sakının!");
+  } else if (w === 15) {
+    triggerTacticalAlert("🛡️ TAKTİKSEL TEHDİT: KALKANLI MUHAFIZLAR SAHADA!", "Ön zırhları %75 hasar emer! Arkadan vurun veya patlayıcı bomba kullanın!");
+  } else if (w === 25) {
+    triggerTacticalAlert("⚡ TEHLİKE: IŞINLANAN SUİKASTÇİLER & 3 ELEBAŞI!", "Kırmızı zemin işaretlerine dikkat edin, göründüğünde Silgi Atılımı yapın!");
+  } else if (w === 35) {
+    triggerTacticalAlert("🔮 ÖNCELİK HEDEF: AURA LİDERLERİ SAHADA!", "Etrafındaki canavarları %35 hızlandırır! Önce komutanları avlayın!");
+  } else if (w === 50) {
+    triggerTacticalAlert("🐉 BÜYÜK MUHAREBE: BÜYÜK LEKSİKON EJDERHASI & 4 ELEBAŞI!", "Lazer çizgilerinden kaçının, mermi fırtınasında atılımı doğru zamanlayın!");
+  } else if (w === 65) {
+    triggerTacticalAlert("💣 TAKTİKSEL FIRSAT: PATLAYICI GOLEMLER!", "Ölüm patlamalarını düşman sürülerine karşı lehinize kullanın!");
+  } else if (w === 75) {
+    triggerTacticalAlert("🌪️ ASTROLABE MERKEZİ: DUAL KOZMİK ELEBAŞLARI!", "Kozmik çekim ve spiral mermilere karşı hareketli kalın!");
+  } else if (w === 85) {
+    triggerTacticalAlert("⚠️ OMEGA TEHLİKE: ŞAMPİYONLAR ORDUSU!", "Kalkanlılar ve Aura liderleri bir arada! Taktiksel silah değişimi yapın!");
+  } else if (w === 100) {
+    triggerTacticalAlert("✦ NİHAİ KIYAMET: OMEGA EJDERHA & 7 ELEBAŞI KUŞATMASI! ✦", "Tüm cephaneliğinizi ve gadget cihazlarınızı konuşturun!");
+  }
 
   // Milestone Boss every 5 waves
   if (state.current_wave % 5 === 0) {
@@ -2149,7 +2372,23 @@ function updateProjectiles(dt) {
         const hitDist = (pr.size || 18) / 2 + (e.size || 34) / 2;
         if (Math.hypot(e.x - pr.x, e.y - pr.y) < hitDist) {
           pr.hitEnemies.add(e);
-          e.hp -= pr.dmg;
+          let effectiveDmg = pr.dmg;
+
+          // Tactical Shielded Affix Check
+          if (e.affix === "shielded") {
+            const facingLeft = e.facing_left;
+            const isFrontHit = facingLeft ? (pr.dx > 0) : (pr.dx < 0);
+            if (isFrontHit && pr.type !== "rocket" && pr.type !== "punctuation_bomb") {
+              effectiveDmg *= 0.25; // 75% absorbed by frontal shield!
+              sounds.playTone(650, "triangle", 0.05, 0.14);
+              state.particles.push({
+                x: pr.x, y: pr.y, radius: 4, max_radius: 18, alpha: 0.85,
+                color: "rgba(255, 215, 0, "
+              });
+            }
+          }
+
+          e.hp -= effectiveDmg;
           e.vx = pr.dx * 180;
           e.vy = pr.dy * 180;
           pr.pierce--;
@@ -2200,13 +2439,37 @@ const doubleNegPhrases = ["not impossible", "never not", "scarcely none", "hardl
 const runOnSentences = ["neverending runon sentence with no pauses", "the sun shone and the wind blew and we kept walking", "words words words chained endlessly without fullstops"];
 
 function getWaveHpMult(wave) {
-  return 1.0 + (wave - 1) * 0.08 + Math.pow((wave - 1) / 22.0, 1.8);
+  if (wave <= 25) {
+    return 1.0 + (wave - 1) * 0.10;
+  } else if (wave <= 50) {
+    return 3.5 + (wave - 25) * 0.22 + Math.pow((wave - 25) / 12.0, 1.8);
+  } else if (wave <= 75) {
+    return 9.8 + (wave - 50) * 0.42 + Math.pow((wave - 50) / 9.0, 2.0);
+  } else {
+    return 22.5 + (wave - 75) * 0.75 + Math.pow((wave - 75) / 7.0, 2.2);
+  }
 }
 function getWaveSpeedMult(wave) {
-  return 1.0 + Math.min(0.45, (wave - 1) * 0.005);
+  if (wave <= 25) {
+    return 1.0 + (wave - 1) * 0.006;
+  } else if (wave <= 50) {
+    return 1.15 + (wave - 25) * 0.012;
+  } else if (wave <= 75) {
+    return 1.45 + (wave - 50) * 0.010;
+  } else {
+    return 1.70 + Math.min(0.35, (wave - 75) * 0.012);
+  }
 }
 function getWaveDamageMult(wave) {
-  return 1.0 + (wave - 1) * 0.025;
+  if (wave <= 25) {
+    return 1.0 + (wave - 1) * 0.02;
+  } else if (wave <= 50) {
+    return 1.5 + (wave - 25) * 0.04;
+  } else if (wave <= 75) {
+    return 2.5 + (wave - 50) * 0.055;
+  } else {
+    return 3.9 + (wave - 75) * 0.07;
+  }
 }
 
 function updateBossHealthBar() {
@@ -2249,6 +2512,18 @@ function updateEnemies(dt) {
     return;
   }
 
+  // Update Active Tactical Telegraphs (Warning circles, bombs, lasers)
+  if (state.telegraphs) {
+    state.telegraphs.forEach(tg => {
+      tg.timer -= dt;
+      if (tg.timer <= 0 && !tg.executed) {
+        tg.executed = true;
+        if (tg.action) tg.action();
+      }
+    });
+    state.telegraphs = state.telegraphs.filter(tg => tg.timer > 0);
+  }
+
   // Hardcore Massive Horde Swarm Spawn Curve: rapid spawn rate & batch spawns
   spawnTimer -= dt;
   const diffFactor = state.difficulty === "easy" ? 1.15 : (state.difficulty === "hard" ? 0.75 : 1.0);
@@ -2270,6 +2545,18 @@ function updateEnemies(dt) {
   const p = state.player;
   const chronoMult = state.chrono_timer > 0 ? 0.15 : 1.0;
 
+  // Commander Aura buff reset & calculation
+  state.enemies.forEach(e => { e.is_buffed = false; });
+  state.enemies.forEach(e => {
+    if (e.affix === "commander" && !e.dead) {
+      state.enemies.forEach(other => {
+        if (other !== e && Math.hypot(other.x - e.x, other.y - e.y) < 160) {
+          other.is_buffed = true;
+        }
+      });
+    }
+  });
+
   state.enemies.forEach(e => {
     e.vx *= Math.pow(0.06, dt);
     e.vy *= Math.pow(0.06, dt);
@@ -2279,7 +2566,30 @@ function updateEnemies(dt) {
     const dirY = dist > 0.1 ? (p.y - e.y) / dist : 0;
     e.facing_left = dirX < 0;
 
-    const spd = e.speed * chronoMult;
+    let spd = e.speed * chronoMult;
+    if (e.is_buffed) spd *= 1.35; // Commander aura buff!
+
+    // Tactical Blinker Teleport
+    if (e.affix === "blinker" && !e.dead) {
+      e.blink_timer = (e.blink_timer || 3.8) - dt;
+      if (e.blink_timer <= 0 && dist < 450) {
+        e.blink_timer = 4.2;
+        const targetX = p.x - dirX * 50;
+        const targetY = p.y - dirY * 50;
+        state.telegraphs.push({
+          x: targetX, y: targetY, radius: 28, timer: 0.65, max_timer: 0.65,
+          action: () => {
+            if (e.dead) return;
+            e.x = targetX; e.y = targetY;
+            sounds.playTone(320, "sine", 0.10, 0.18);
+            state.particles.push({
+              x: targetX, y: targetY, radius: 8, max_radius: 35, alpha: 0.9,
+              color: "rgba(239, 68, 68, "
+            });
+          }
+        });
+      }
+    }
 
     switch (e.type) {
       case "Grammar Goblin": {
@@ -2406,21 +2716,76 @@ function updateEnemies(dt) {
       }
       case "Red Pen Boss":
       case "Lexicon Dragon Boss": {
+        // Enraged Phase 2 transition at < 50% HP
+        if (e.hp < e.max_hp * 0.5 && !e.enraged) {
+          e.enraged = true;
+          sounds.bossRoar();
+          e.speed *= 1.25;
+          for (let r = 20; r <= 100; r += 25) {
+            state.particles.push({
+              x: e.x, y: e.y, radius: r, max_radius: r + 40, alpha: 0.9,
+              color: "rgba(220, 38, 38, "
+            });
+          }
+          // Summon 2 elite guards
+          for (let g = 0; g < 2; g++) {
+            const ga = (g / 2) * Math.PI * 2;
+            state.enemies.push({
+              type: "Oxymoron Ogre",
+              x: e.x + Math.cos(ga) * 80, y: e.y + Math.sin(ga) * 80,
+              vx: 0, vy: 0,
+              hp: 450 * getWaveHpMult(state.current_wave),
+              max_hp: 450 * getWaveHpMult(state.current_wave),
+              speed: 95, damage: 45, ink_reward: 10,
+              label: "🛡️ ENRAGE GUARD", sprite: "oxymoron_ogre.png",
+              size: 54, affix: "shielded", is_elite: true, facing_left: false
+            });
+          }
+        }
+
+        // Enraged Telegraphed Red Line Judgment Laser
+        if (e.enraged) {
+          e.laser_cooldown = (e.laser_cooldown || 4.2) - dt;
+          if (e.laser_cooldown <= 0) {
+            e.laser_cooldown = 4.6;
+            const lDirX = dirX; const lDirY = dirY;
+            const lOrigX = e.x; const lOrigY = e.y;
+            state.telegraphs.push({
+              is_laser: true, x1: lOrigX, y1: lOrigY,
+              x2: lOrigX + lDirX * 1200, y2: lOrigY + lDirY * 1200,
+              timer: 0.75, max_timer: 0.75,
+              action: () => {
+                if (e.dead) return;
+                sounds.enemyShoot();
+                for (let b = 1; b <= 6; b++) {
+                  spawnEnemyProjectile(
+                    lOrigX + lDirX * b * 110,
+                    lOrigY + lDirY * b * 110,
+                    lDirX, lDirY, e.damage * 0.9, 450
+                  );
+                }
+              }
+            });
+          }
+        }
+
         e.boss_timer = (e.boss_timer || 3.0) - dt;
         if (e.boss_timer <= 0) {
-          e.boss_timer = e.type === "Lexicon Dragon Boss" ? 2.6 : 3.2;
+          e.boss_timer = e.type === "Lexicon Dragon Boss" ? 2.5 : 3.0;
           sounds.bossRoar();
           if (e.type === "Lexicon Dragon Boss") {
-            for (let i = 0; i < 8; i++) {
-              const ang = (i / 8.0) * Math.PI * 2;
+            const count = e.enraged ? 12 : 8;
+            for (let i = 0; i < count; i++) {
+              const ang = (i / count) * Math.PI * 2;
               spawnEnemyProjectile(e.x, e.y, Math.cos(ang), Math.sin(ang), e.damage * 0.75, 280 * chronoMult);
             }
           } else {
             const baseAng = Math.atan2(dirY, dirX);
-            for (let i = -1; i <= 1; i++) {
-              const ang = baseAng + i * 0.25;
+            const spreads = e.enraged ? [-2, -1, 0, 1, 2] : [-1, 0, 1];
+            spreads.forEach(i => {
+              const ang = baseAng + i * 0.22;
               spawnEnemyProjectile(e.x, e.y, Math.cos(ang), Math.sin(ang), e.damage * 0.75, 260 * chronoMult);
-            }
+            });
           }
           e.vx = dirX * 180 * chronoMult; e.vy = dirY * 180 * chronoMult;
         }
@@ -2465,7 +2830,7 @@ function updateEnemies(dt) {
   });
   state.enemy_projectiles = state.enemy_projectiles.filter(ep => ep.lifetime > 0 && !ep.dead);
 
-  // Dead enemies & splitting & health drops
+  // Dead enemies & splitting & health drops & volatile bomb
   const newEnemies = [];
   state.enemies.forEach(e => {
     if (e.hp <= 0 && !e.dead) {
@@ -2473,6 +2838,31 @@ function updateEnemies(dt) {
       sounds.enemyDeath();
       state.kill_count++;
       spawnInkDrop(e.x, e.y, e.ink_reward);
+
+      // Tactical Volatile Death Bomb
+      if (e.affix === "volatile") {
+        const exX = e.x; const exY = e.y;
+        state.telegraphs.push({
+          x: exX, y: exY, radius: 125, timer: 1.1, max_timer: 1.1, is_bomb: true,
+          action: () => {
+            sounds.rocketBlast();
+            state.particles.push({
+              x: exX, y: exY, radius: 15, max_radius: 130, alpha: 1.0,
+              color: "rgba(249, 115, 22, "
+            });
+            state.enemies.forEach(other => {
+              if (Math.hypot(other.x - exX, other.y - exY) < 125) {
+                other.hp -= 140;
+                const a = Math.atan2(other.y - exY, other.x - exX);
+                other.vx = Math.cos(a) * 320; other.vy = Math.sin(a) * 320;
+              }
+            });
+            if (Math.hypot(p.x - exX, p.y - exY) < 125 && p.invuln_timer <= 0 && !p.is_dashing) {
+              takePlayerDamage(28);
+            }
+          }
+        });
+      }
 
       // 15% Chance to drop Healing Parchment (+18 HP)
       if (Math.random() < 0.15) {
@@ -2625,6 +3015,29 @@ function spawnEnemy() {
       ink_reward: 4, label: typoWords[Math.floor(Math.random() * typoWords.length)],
       sprite: "typo_slime.png", size: 36, facing_left: false
     });
+  }
+
+  // Tactical Elite Affixes in higher waves (Wave 15+)
+  const newEnemy = state.enemies[state.enemies.length - 1];
+  if (newEnemy && !newEnemy.is_boss && wave >= 15) {
+    const affixChance = Math.min(0.50, 0.12 + (wave - 15) * 0.008);
+    if (Math.random() < affixChance) {
+      const affixes = ["shielded", "blinker", "commander", "volatile"];
+      newEnemy.affix = affixes[Math.floor(Math.random() * affixes.length)];
+      newEnemy.is_elite = true;
+      newEnemy.max_hp *= 1.30;
+      newEnemy.hp = newEnemy.max_hp;
+      if (newEnemy.affix === "shielded") {
+        newEnemy.label = "🛡️ " + newEnemy.label;
+      } else if (newEnemy.affix === "blinker") {
+        newEnemy.label = "⚡ " + newEnemy.label;
+        newEnemy.blink_timer = 3.0 + Math.random() * 1.5;
+      } else if (newEnemy.affix === "commander") {
+        newEnemy.label = "🔮 " + newEnemy.label;
+      } else if (newEnemy.affix === "volatile") {
+        newEnemy.label = "💣 " + newEnemy.label;
+      }
+    }
   }
 }
 
@@ -3438,24 +3851,42 @@ function render() {
   ctx.save();
   ctx.translate(cx - p.x, cy - p.y);
 
-  // Dynamic Arenas based on progression
+  // 4 Dynamic Biomes based on progression across 100 Waves
   let floorSprite = "tile_library_parquet.png";
   let runeSprite = "magical_rune_circle.png";
   let borderOuter = "#8c6d23";
   let borderInner = "#d4af37";
+  let propSprite = "illuminated_lectern.png";
+  let brazierFlameColor = "rgba(255, 180, 50, ";
+  let ambientMoteColor = "rgba(255, 215, 0, ";
 
-  if (state.current_wave >= 61) {
-    // Arena 3: Astral Observatory (Waves 61-100)
+  if (state.current_wave >= 76) {
+    // Biome 4: The Omega Void Sanctum (Waves 76-100)
+    floorSprite = "tile_void_sanctum.png";
+    runeSprite = "magical_rune_void.png";
+    borderOuter = "#7f1d1d";
+    borderInner = "#fbbf24";
+    propSprite = "brazier_pedestal.png";
+    brazierFlameColor = "rgba(239, 68, 68, ";
+    ambientMoteColor = "rgba(248, 113, 113, ";
+  } else if (state.current_wave >= 51) {
+    // Biome 3: Astral Observatory of Cosmic Etymology (Waves 51-75)
     floorSprite = "tile_astral_observatory.png";
     runeSprite = "magical_rune_astral.png";
     borderOuter = "#4c1d95";
     borderInner = "#f59e0b";
+    propSprite = "brazier_pedestal.png";
+    brazierFlameColor = "rgba(168, 85, 247, ";
+    ambientMoteColor = "rgba(192, 132, 252, ";
   } else if (state.current_wave >= 26) {
-    // Arena 2: Forbidden Archives (Waves 26-60)
+    // Biome 2: Forbidden Catacombs of Forgotten Words (Waves 26-50)
     floorSprite = "tile_dungeon_stone.png";
     runeSprite = "magical_rune_cyan.png";
     borderOuter = "#0891b2";
     borderInner = "#22d3ee";
+    propSprite = "brazier_pedestal.png";
+    brazierFlameColor = "rgba(34, 211, 238, ";
+    ambientMoteColor = "rgba(103, 232, 249, ";
   }
 
   const floorImg = images[floorSprite] || images["tile_library_parquet.png"] || images["tile_floor.png"];
@@ -3468,7 +3899,7 @@ function render() {
     ctx.fillRect(-1200, -900, 2400, 1800);
   }
 
-  // Central Magical Rune Circle
+  // Central Double-Rotating Magical Rune Circle
   state.rune_rotation += 0.003;
   const runeImg = images[runeSprite] || images["magical_rune_circle.png"];
   if (runeImg) {
@@ -3478,7 +3909,46 @@ function render() {
     ctx.globalAlpha = 0.55 + Math.sin(state.rune_rotation * 4) * 0.15;
     ctx.drawImage(runeImg, -210, -210, 420, 420);
     ctx.restore();
+
+    // Inner counter-rotating magical glyph core
+    ctx.save();
+    ctx.translate(0, 0);
+    ctx.rotate(-state.rune_rotation * 1.5);
+    ctx.globalAlpha = 0.40;
+    ctx.drawImage(runeImg, -110, -110, 220, 220);
+    ctx.restore();
   }
+
+  // Four Corner Environmental Props with Animated Flames & Floor Light Halos
+  const now = performance.now();
+  const cornerProps = [[-900, -650], [900, -650], [-900, 650], [900, 650]];
+  cornerProps.forEach(([bx, by], idx) => {
+    // Floor ambient radial glow
+    const bGlow = ctx.createRadialGradient(bx, by - 12, 10, bx, by - 12, 120);
+    bGlow.addColorStop(0, brazierFlameColor + "0.45)");
+    bGlow.addColorStop(1, brazierFlameColor + "0)");
+    ctx.fillStyle = bGlow;
+    ctx.beginPath();
+    ctx.arc(bx, by - 12, 120, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Prop Sprite (Lectern or Brazier Pedestal)
+    const pImg = images[propSprite] || images["brazier_pedestal.png"] || images["illuminated_lectern.png"];
+    if (pImg) {
+      ctx.drawImage(pImg, bx - 26, by - 26, 52, 52);
+    }
+
+    // Dancing flame particles
+    for (let f = 0; f < 3; f++) {
+      const fAngle = now * 0.005 + idx * 1.5 + f * 2.1;
+      const fOffset = Math.sin(fAngle) * 4;
+      const fRadius = 4.5 + Math.sin(fAngle * 2) * 2;
+      ctx.fillStyle = brazierFlameColor + (0.75 + Math.sin(fAngle) * 0.25) + ")";
+      ctx.beginPath();
+      ctx.arc(bx + fOffset, by - 20 - f * 4, fRadius, 0, Math.PI * 2);
+      ctx.fill();
+    }
+  });
 
   // Bookshelf Borders
   const shelfImg = images["bookshelf_wall.png"];
@@ -3497,6 +3967,39 @@ function render() {
   ctx.strokeStyle = borderInner; ctx.lineWidth = 1.5;
   ctx.strokeRect(-1174, -874, 2348, 1748);
 
+  // Active Tactical Telegraphs (Warning Circles & Red Line Laser Guides)
+  if (state.telegraphs) {
+    state.telegraphs.forEach(tg => {
+      if (tg.is_laser) {
+        ctx.save();
+        const pProg = Math.max(0, tg.timer / (tg.max_timer || 0.75));
+        ctx.strokeStyle = `rgba(255, 40, 40, ${0.45 + (1 - pProg) * 0.5})`;
+        ctx.lineWidth = 3.5 + (1 - pProg) * 3;
+        ctx.setLineDash([14, 8]);
+        ctx.beginPath();
+        ctx.moveTo(tg.x1, tg.y1);
+        ctx.lineTo(tg.x2, tg.y2);
+        ctx.stroke();
+        ctx.restore();
+      } else {
+        ctx.save();
+        ctx.translate(tg.x, tg.y);
+        const pProg = Math.max(0, tg.timer / (tg.max_timer || 1.0));
+        ctx.strokeStyle = tg.is_bomb ? "rgba(249, 115, 22, 0.9)" : "rgba(239, 68, 68, 0.9)";
+        ctx.lineWidth = 2.5;
+        ctx.beginPath();
+        ctx.arc(0, 0, tg.radius, 0, Math.PI * 2);
+        ctx.stroke();
+
+        ctx.fillStyle = tg.is_bomb ? `rgba(249, 115, 22, ${0.2 + (1 - pProg) * 0.35})` : `rgba(239, 68, 68, ${0.2 + (1 - pProg) * 0.35})`;
+        ctx.beginPath();
+        ctx.arc(0, 0, tg.radius * (1 - pProg), 0, Math.PI * 2);
+        ctx.fill();
+        ctx.restore();
+      }
+    });
+  }
+
   // Motes
   state.ambient_motes.forEach(m => {
     m.x += Math.cos(m.angle) * m.speed * 0.016;
@@ -3507,7 +4010,7 @@ function render() {
     if (m.y > 850) m.y = -850;
 
     ctx.save();
-    ctx.fillStyle = `rgba(255, 215, 0, ${m.alpha})`;
+    ctx.fillStyle = ambientMoteColor + `${m.alpha})`;
     ctx.beginPath();
     ctx.arc(m.x, m.y, m.radius, 0, Math.PI * 2);
     ctx.fill();
@@ -3613,8 +4116,32 @@ function render() {
 
   // Enemies
   state.enemies.forEach(e => {
+    // Commander Aura Ring
+    if (e.affix === "commander") {
+      ctx.save();
+      const ringAlpha = 0.25 + Math.sin(performance.now() * 0.006) * 0.15;
+      ctx.strokeStyle = `rgba(234, 179, 8, ${ringAlpha + 0.35})`;
+      ctx.lineWidth = 2.5;
+      ctx.setLineDash([8, 6]);
+      ctx.beginPath();
+      ctx.arc(e.x, e.y, 160, 0, Math.PI * 2);
+      ctx.stroke();
+      ctx.restore();
+    }
+
     ctx.save();
     ctx.translate(e.x, e.y);
+
+    // Enraged Boss Aura
+    if (e.enraged) {
+      ctx.shadowColor = "#ef4444";
+      ctx.shadowBlur = 22;
+      ctx.fillStyle = "rgba(239, 68, 68, 0.28)";
+      ctx.beginPath();
+      ctx.arc(0, 0, (e.size || 60) * 0.75, 0, Math.PI * 2);
+      ctx.fill();
+    }
+
     if (e.facing_left) ctx.scale(-1, 1);
 
     const spr = images[e.sprite];
@@ -3624,6 +4151,20 @@ function render() {
     if (e.is_elite && images["elite_crown.png"]) {
       ctx.drawImage(images["elite_crown.png"], -10, -sz / 2 - 16, 20, 20);
     }
+
+    // Shielded Frontal Arc Barrier
+    if (e.affix === "shielded") {
+      ctx.save();
+      ctx.strokeStyle = "#ffd700";
+      ctx.lineWidth = 3.5;
+      ctx.shadowColor = "#ffd700";
+      ctx.shadowBlur = 8;
+      ctx.beginPath();
+      ctx.arc(0, 0, sz * 0.68, -Math.PI * 0.45, Math.PI * 0.45);
+      ctx.stroke();
+      ctx.restore();
+    }
+
     ctx.restore();
 
     if (e.max_hp > 150) {
@@ -3631,11 +4172,11 @@ function render() {
       const pct = Math.max(0, e.hp / e.max_hp);
       ctx.fillStyle = "rgba(0,0,0,0.7)";
       ctx.fillRect(e.x - barW / 2, e.y - (e.size / 2) - 10, barW, 4);
-      ctx.fillStyle = "#ff5252";
+      ctx.fillStyle = e.enraged ? "#dc2626" : "#ff5252";
       ctx.fillRect(e.x - barW / 2, e.y - (e.size / 2) - 10, barW * pct, 4);
     }
 
-    ctx.fillStyle = "#f6eedb";
+    ctx.fillStyle = e.affix ? "#fef08a" : "#f6eedb";
     ctx.font = "bold 11px 'Cinzel', serif";
     ctx.textAlign = "center";
     ctx.fillText(e.label, e.x, e.y - (e.size / 2) - 13);
@@ -3706,6 +4247,14 @@ function render() {
   });
 
   ctx.restore();
+
+  // Dynamic Atmospheric Player Radial Lighting & Dark Academia Vignette
+  const lightGrad = ctx.createRadialGradient(cx, cy, 140, cx, cy, 680);
+  lightGrad.addColorStop(0, "rgba(0, 0, 0, 0)");
+  lightGrad.addColorStop(0.65, "rgba(8, 4, 3, 0.20)");
+  lightGrad.addColorStop(1, "rgba(4, 2, 2, 0.72)");
+  ctx.fillStyle = lightGrad;
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
 }
 
 // =========================================
@@ -3725,6 +4274,10 @@ function gameLoop(now) {
   render();
   requestAnimationFrame(gameLoop);
 }
+
+// Immediate initial sync for instant interactivity on mobile & iPad
+initTitleScreen();
+initTouchControls();
 
 loadAssets(() => {
   initTitleScreen();
