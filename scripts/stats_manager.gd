@@ -91,6 +91,51 @@ var characters: Dictionary = {
 		"starting_weapon": "dictionary_blade",
 		"passive": "Sözlük Zırhı: Düşman darbelerine karşı dayanıklı ve yakın dövüş kalkanı.",
 		"color": Color(0.45, 0.9, 0.65)
+	},
+	"rune_sorceress": {
+		"id": "rune_sorceress",
+		"name": "Rune Sorceress",
+		"title": "Kadim Rün Büyücüsü (Mystic Mage)",
+		"desc": "Büyülü rünlerle geniş alan hasarı, +%30 Hasar Çarpanı ve Rün Küresi.",
+		"hp": 105.0,
+		"move_speed": 245.0,
+		"damage_mult": 1.30,
+		"attack_speed_mult": 1.10,
+		"armor": 0.05,
+		"crit_chance": 0.15,
+		"starting_weapon": "rune_orb",
+		"passive": "Rün İnfilakı: Düşmanları alt ettiğinde sıçrayan rün patlamaları.",
+		"color": Color(0.75, 0.5, 0.98)
+	},
+	"lexicon_alchemist": {
+		"id": "lexicon_alchemist",
+		"name": "Alchemist",
+		"title": "Sözlük Simyacısı (Resource Alchemist)",
+		"desc": "+%40 Mürekkep Kazanımı, Gramer Mıknatısı ve Mürekkep Alevi.",
+		"hp": 115.0,
+		"move_speed": 240.0,
+		"damage_mult": 1.10,
+		"attack_speed_mult": 1.20,
+		"armor": 0.12,
+		"crit_chance": 0.12,
+		"starting_weapon": "ink_flamethrower",
+		"passive": "Simya Özütü: Her dalga başında +10 Mürekkep, iksirler +%50 etkili.",
+		"color": Color(0.2, 0.83, 0.6)
+	},
+	"shadow_lexicographer": {
+		"id": "shadow_lexicographer",
+		"name": "Shadow Scribe",
+		"title": "Gölge Hattatı (Critical Assassin)",
+		"desc": "290 Hız, +%35 Kritik Vuruş Şansı ve Hattat Katanası ile seri kesişler.",
+		"hp": 90.0,
+		"move_speed": 290.0,
+		"damage_mult": 1.45,
+		"attack_speed_mult": 1.25,
+		"armor": 0.0,
+		"crit_chance": 0.35,
+		"starting_weapon": "calligraphy_katana",
+		"passive": "Kritik İnfaz: Kritik vuruşlar %250 hasar verir ve düşmanı yavaşlatır.",
+		"color": Color(0.96, 0.25, 0.37)
 	}
 }
 
