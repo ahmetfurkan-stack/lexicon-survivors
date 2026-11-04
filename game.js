@@ -736,10 +736,45 @@ const state = {
   telegraphs: [],
   boss_lasers: [],
   active_boss: null,
+  floating_texts: [],
+  screen_shake: 0,
+  shake_intensity: 0,
 
   rune_rotation: 0,
   questions: []
 };
+
+// Haptic feedback & Game feel helpers
+function triggerHaptic(type = "light") {
+  if (typeof navigator !== "undefined" && navigator.vibrate) {
+    try {
+      if (type === "light") navigator.vibrate(12);
+      else if (type === "medium") navigator.vibrate(24);
+      else if (type === "heavy") navigator.vibrate([40, 30, 40]);
+      else if (type === "success") navigator.vibrate([20, 40, 35]);
+      else if (type === "fail") navigator.vibrate([60, 40, 60]);
+    } catch (e) {}
+  }
+}
+
+function triggerScreenShake(duration = 0.16, intensity = 6.0) {
+  state.screen_shake = Math.max(state.screen_shake, duration);
+  state.shake_intensity = Math.max(state.shake_intensity, intensity);
+}
+
+function addFloatingText(x, y, text, color = "#ffffff", size = 13) {
+  if (!state.floating_texts) state.floating_texts = [];
+  if (state.floating_texts.length > 50) state.floating_texts.shift();
+  state.floating_texts.push({
+    x, y,
+    text,
+    color,
+    size,
+    vy: -48,
+    lifetime: 0.70,
+    max_lifetime: 0.70
+  });
+}
 
 // Load persistent mistake notebook from localStorage
 try {
@@ -832,6 +867,33 @@ fetch("questions.json")
 const canvas = document.getElementById("game-canvas");
 const ctx = canvas.getContext("2d");
 let lastTime = performance.now();
+
+// Adaptive Responsive Canvas Viewport for Zero-Void Mobile Experience
+function resizeGameCanvas() {
+  const container = document.getElementById("game-container");
+  if (!container || !canvas) return;
+  const isMobile = window.innerWidth <= 1080 || ('ontouchstart' in window);
+
+  if (isMobile) {
+    const w = container.clientWidth || window.innerWidth;
+    const h = container.clientHeight || window.innerHeight;
+    const isPortrait = h > w;
+
+    if (isPortrait) {
+      canvas.width = 720;
+      canvas.height = Math.round(720 * (h / Math.max(1, w)));
+    } else {
+      canvas.height = 720;
+      canvas.width = Math.round(720 * (w / Math.max(1, h)));
+    }
+  } else {
+    canvas.width = 1280;
+    canvas.height = 720;
+  }
+}
+window.addEventListener("resize", resizeGameCanvas);
+window.addEventListener("orientationchange", () => setTimeout(resizeGameCanvas, 150));
+resizeGameCanvas();
 
 // Fullscreen
 document.getElementById("fullscreen-btn").onclick = () => {
@@ -1494,6 +1556,7 @@ function initTouchControls() {
     const cycleWeapon = (e) => {
       e.preventDefault();
       e.stopPropagation();
+      triggerHaptic("light");
       cycleActiveWeapon(1);
     };
     touchWeaponBtn.addEventListener("pointerdown", cycleWeapon);
@@ -1504,6 +1567,7 @@ function initTouchControls() {
     const fireGadget = (e) => {
       e.preventDefault();
       e.stopPropagation();
+      triggerHaptic("medium");
       activateActiveGadget();
     };
     touchGadgetBtn.addEventListener("pointerdown", fireGadget);
@@ -1514,6 +1578,7 @@ function initTouchControls() {
     const openInv = (e) => {
       e.preventDefault();
       e.stopPropagation();
+      triggerHaptic("light");
       toggleInventoryModal();
     };
     touchInvBtn.addEventListener("pointerdown", openInv);
@@ -1524,6 +1589,7 @@ function initTouchControls() {
     const openMistakes = (e) => {
       e.preventDefault();
       e.stopPropagation();
+      triggerHaptic("light");
       toggleMistakesModal();
     };
     touchMistakesBtn.addEventListener("pointerdown", openMistakes);
@@ -1542,7 +1608,7 @@ function initTouchControls() {
     const dy = clientY - centerY;
     const dist = Math.hypot(dx, dy);
 
-    if (dist === 0) {
+    if (dist < 8) {
       state.touch_dir = { x: 0, y: 0 };
       joystickKnob.style.transform = "translate(0px, 0px)";
       return;
@@ -1555,9 +1621,12 @@ function initTouchControls() {
 
     joystickKnob.style.transform = `translate(${knobX}px, ${knobY}px)`;
 
+    // A confident flick (>14px) delivers 100% full directional speed immediately,
+    // eliminating any floaty, sluggish feeling on mobile and matching PC WASD velocity!
+    const speedFactor = dist >= 16 ? 1.0 : (dist - 8) / 8;
     state.touch_dir = {
-      x: Math.cos(angle) * (clampedDist / maxRadius),
-      y: Math.sin(angle) * (clampedDist / maxRadius)
+      x: Math.cos(angle) * speedFactor,
+      y: Math.sin(angle) * speedFactor
     };
   }
 
@@ -1655,7 +1724,7 @@ function initTouchControls() {
 function syncMobileControlsVisibility() {
   const controls = document.getElementById("mobile-touch-controls");
   if (!controls) return;
-  const isTouch = ('ontouchstart' in window) || (navigator.maxTouchPoints > 0) || window.innerWidth <= 820;
+  const isTouch = ('ontouchstart' in window) || (navigator.maxTouchPoints > 0) || window.innerWidth <= 1080;
   const isOverlayOpen =
     (document.getElementById("title-screen") && document.getElementById("title-screen").style.display !== "none") ||
     (document.getElementById("shop-screen") && document.getElementById("shop-screen").style.display !== "none") ||
@@ -1901,10 +1970,15 @@ function activateActiveGadget() {
 
   if (gid === "eraser_dash") {
     let dx = 0, dy = 0;
-    if (keys["w"] || keys["arrowup"]) dy -= 1;
-    if (keys["s"] || keys["arrowdown"]) dy += 1;
-    if (keys["a"] || keys["arrowleft"]) dx -= 1;
-    if (keys["d"] || keys["arrowright"]) dx += 1;
+    if (state.touch_dir && (state.touch_dir.x !== 0 || state.touch_dir.y !== 0)) {
+      dx = state.touch_dir.x;
+      dy = state.touch_dir.y;
+    } else {
+      if (keys["w"] || keys["arrowup"]) dy -= 1;
+      if (keys["s"] || keys["arrowdown"]) dy += 1;
+      if (keys["a"] || keys["arrowleft"]) dx -= 1;
+      if (keys["d"] || keys["arrowright"]) dx += 1;
+    }
     if (dx === 0 && dy === 0) dx = p.facing_left ? -1 : 1;
     const len = Math.hypot(dx, dy) || 1;
     dx /= len; dy /= len;
@@ -1913,12 +1987,15 @@ function activateActiveGadget() {
     p.dash_timer = 0.22;
     p.dash_dir = { x: dx, y: dy };
     p.invuln_timer = 0.28;
+    triggerHaptic("medium");
+    triggerScreenShake(0.12, 3.5);
 
     const eraseDmg = 65.0 * state.damage_mult;
     state.enemies.forEach(e => {
       if (Math.hypot(e.x - p.x, e.y - p.y) < 75) {
         e.hp -= eraseDmg;
         e.vx = dx * 360; e.vy = dy * 360;
+        addFloatingText(e.x, e.y - 12, `${Math.round(eraseDmg)}`, "#55efc4", 15);
       }
     });
   } else if (gid === "ink_cataclysm") {
@@ -1986,6 +2063,7 @@ function updatePlayer(dt) {
         e.hp -= eraseDmg;
         e.vx = p.dash_dir.x * 320;
         e.vy = p.dash_dir.y * 320;
+        addFloatingText(e.x, e.y - 12, `${Math.round(eraseDmg)}`, "#55efc4", 15);
       }
     });
     if (p.dash_timer <= 0) p.is_dashing = false;
@@ -2025,7 +2103,9 @@ function updatePlayer(dt) {
       if (dist < 24) {
         drop.collected = true;
         sounds.pickup();
-        state.ink_count += Math.ceil(drop.value * state.ink_mult);
+        const earned = Math.ceil(drop.value * state.ink_mult);
+        state.ink_count += earned;
+        addFloatingText(p.x + (Math.random() - 0.5) * 20, p.y - 20, `+${earned} 💧`, "#38bdf8", 12);
         updateHUD();
       }
     }
@@ -2043,6 +2123,8 @@ function updatePlayer(dt) {
         drop.collected = true;
         sounds.pickup();
         state.hp = Math.min(state.max_hp, state.hp + drop.value);
+        addFloatingText(p.x, p.y - 25, `+${drop.value} HP`, "#4ade80", 14);
+        triggerHaptic("light");
         state.particles.push({
           x: p.x, y: p.y, radius: 10, max_radius: 50,
           alpha: 1.0, color: "rgba(34, 197, 94, "
@@ -2052,6 +2134,22 @@ function updatePlayer(dt) {
     }
   });
   state.health_drops = state.health_drops.filter(d => !d.collected);
+
+  // Floating Combat Damage Numbers update
+  if (state.floating_texts && state.floating_texts.length) {
+    for (let i = state.floating_texts.length - 1; i >= 0; i--) {
+      const ft = state.floating_texts[i];
+      ft.y += ft.vy * dt;
+      ft.lifetime -= dt;
+      if (ft.lifetime <= 0) state.floating_texts.splice(i, 1);
+    }
+  }
+
+  // Screen shake decay
+  if (state.screen_shake > 0) {
+    state.screen_shake -= dt;
+    if (state.screen_shake <= 0) state.shake_intensity = 0;
+  }
 
   // Ink puddles slow
   state.ink_puddles.forEach(puddle => {
@@ -2391,6 +2489,8 @@ function updateProjectiles(dt) {
           e.hp -= effectiveDmg;
           e.vx = pr.dx * 180;
           e.vy = pr.dy * 180;
+          addFloatingText(e.x + (Math.random() - 0.5) * 16, e.y - 14, pr.crit ? `✦ ${Math.round(effectiveDmg)}!` : `${Math.round(effectiveDmg)}`, pr.crit ? "#ffd700" : "#ffffff", pr.crit ? 16 : 13);
+          if (pr.crit) triggerHaptic("light");
           pr.pierce--;
 
           if (pr.type === "crossword_bolt") {
@@ -2846,6 +2946,7 @@ function updateEnemies(dt) {
           x: exX, y: exY, radius: 125, timer: 1.1, max_timer: 1.1, is_bomb: true,
           action: () => {
             sounds.rocketBlast();
+            triggerScreenShake(0.24, 7.5);
             state.particles.push({
               x: exX, y: exY, radius: 15, max_radius: 130, alpha: 1.0,
               color: "rgba(249, 115, 22, "
@@ -2853,6 +2954,7 @@ function updateEnemies(dt) {
             state.enemies.forEach(other => {
               if (Math.hypot(other.x - exX, other.y - exY) < 125) {
                 other.hp -= 140;
+                addFloatingText(other.x, other.y - 12, "140", "#f97316", 15);
                 const a = Math.atan2(other.y - exY, other.x - exX);
                 other.vx = Math.cos(a) * 320; other.vy = Math.sin(a) * 320;
               }
@@ -3154,12 +3256,16 @@ function takePlayerDamage(amount) {
   const reduction = Math.min(0.85, Math.max(0, state.armor));
   const finalDmg = Math.max(1, amount * (1.0 - reduction));
   state.hp = Math.max(0, state.hp - finalDmg);
+  triggerHaptic("heavy");
+  triggerScreenShake(0.18, 6.0);
+  addFloatingText(state.player.x, state.player.y - 30, `-${Math.round(finalDmg)}`, "#ef4444", 16);
   updateHUD();
 
   if (state.hp <= 0) gameOver();
 }
 
 function gameOver() {
+  triggerHaptic("fail");
   state.is_wave_active = false;
   bgm.setMode("peaceful");
   syncMobileControlsVisibility();
@@ -3355,13 +3461,27 @@ function renderShopView() {
         <h3 style="font-size: 16px; color: #2b170c; margin: 2px 0;">${c.word}</h3>
         <div style="font-size: 11.5px; color: #1b4d2e; font-weight: bold; margin-bottom: 3px;">${c.description}</div>
         <div style="font-size: 11px; color: #5c3e21; font-style: italic; margin-bottom: 6px; flex-grow: 1;">"${c.example || ''}"</div>
-        <button class="btn btn-seal" id="card-buy-${idx}" ${state.ink_count < c.cost ? "disabled" : ""}>
+        <button class="btn btn-seal" id="card-buy-${idx}" ${state.ink_count < Math.ceil(c.cost * 0.5) ? "disabled" : ""}>
           💧 ${c.cost} Sınava Gir & Al
         </button>
       `;
-      card.querySelector(`#card-buy-${idx}`).onclick = (e) => {
-        e.stopPropagation();
+      const buyBtn = card.querySelector(`#card-buy-${idx}`);
+      const handleBuy = (e) => {
+        if (e) {
+          e.stopPropagation();
+          if (e.cancelable) e.preventDefault();
+        }
+        triggerHaptic("light");
         openQuiz(c, idx);
+      };
+      if (buyBtn) {
+        buyBtn.onclick = handleBuy;
+        buyBtn.addEventListener("pointerup", handleBuy);
+      }
+      card.onclick = (e) => {
+        if (e.target !== buyBtn && state.ink_count >= Math.ceil(c.cost * 0.5)) {
+          handleBuy(e);
+        }
       };
       grid.appendChild(card);
     });
@@ -3482,8 +3602,12 @@ function applyArtifact(art) {
 }
 
 function openQuiz(card, cardIndex) {
+  // Ensure quick menu is closed
+  toggleMobileQuickMenu(false);
+
   const modal = document.getElementById("quiz-modal");
   modal.style.display = "flex";
+  modal.classList.remove("hidden");
   syncMobileControlsVisibility();
 
   document.getElementById("quiz-word-title").textContent = `${card.word} [${card.type} • ${card.level}]`;
@@ -3499,12 +3623,28 @@ function openQuiz(card, cardIndex) {
   const optsContainer = document.getElementById("quiz-options-container");
   optsContainer.innerHTML = "";
 
+  let answered = false;
+
   card.options.forEach((opt, idx) => {
     const btn = document.createElement("button");
     btn.className = "quiz-opt-btn";
+    btn.setAttribute("type", "button");
     btn.textContent = `${['A', 'B', 'C', 'D'][idx] || (idx+1)}) ${opt}`;
-    btn.onclick = () => {
-      optsContainer.querySelectorAll("button").forEach(b => b.disabled = true);
+
+    const handleAnswer = (e) => {
+      if (answered) return;
+      if (e) {
+        e.stopPropagation();
+        if (e.cancelable) e.preventDefault();
+      }
+      answered = true;
+
+      btn.classList.add("active-press");
+      optsContainer.querySelectorAll(".quiz-opt-btn").forEach(b => {
+        b.disabled = true;
+        b.style.pointerEvents = "none";
+      });
+
       const isCorrect = idx === card.correct_index;
 
       if (card.id && !state.asked_question_ids.includes(card.id)) {
@@ -3512,7 +3652,13 @@ function openQuiz(card, cardIndex) {
       }
 
       if (isCorrect) {
+        btn.style.setProperty("background", "#e6f4ea", "important");
+        btn.style.setProperty("border-color", "#2e7d32", "important");
+        btn.style.setProperty("color", "#1b4d2e", "important");
         sounds.quizSuccess();
+        triggerHaptic("success");
+        addFloatingText(state.player.x, state.player.y - 30, "✦ KÂTİP MÜHRÜ! +%50 BONUS!", "#2e7d32", 15);
+
         const discCost = Math.ceil(card.cost * 0.5);
         state.ink_count -= discCost;
 
@@ -3534,7 +3680,22 @@ function openQuiz(card, cardIndex) {
           applyCardUpgrade(card, true, 1.5);
         }
       } else {
+        btn.style.setProperty("background", "#fce8e6", "important");
+        btn.style.setProperty("border-color", "#c5221f", "important");
+        btn.style.setProperty("color", "#8b0000", "important");
+
+        // Highlight correct option in green
+        const allBtns = optsContainer.querySelectorAll(".quiz-opt-btn");
+        if (allBtns[card.correct_index]) {
+          allBtns[card.correct_index].style.setProperty("background", "#e6f4ea", "important");
+          allBtns[card.correct_index].style.setProperty("border-color", "#2e7d32", "important");
+          allBtns[card.correct_index].style.setProperty("color", "#1b4d2e", "important");
+        }
+
         sounds.quizFail();
+        triggerHaptic("fail");
+        addFloatingText(state.player.x, state.player.y - 30, "✗ YANLIŞ CEVAP", "#c5221f", 15);
+
         state.ink_count -= card.cost;
         resText.textContent = `✗ YANLIŞ CEVAP! Doğru Seçenek: "${card.options[card.correct_index]}"\nKelime Kâtip Hata Defterine eklendi (sonraki turlarda pekiştirilecek)!\nÖdenen: ${card.cost} Mürekkep`;
         resText.style.color = "#8b0000";
@@ -3561,20 +3722,35 @@ function openQuiz(card, cardIndex) {
         }
         try { localStorage.setItem("lexicon_mistakes", JSON.stringify(state.mistake_words)); } catch(e){}
       }
+
       shopCards.splice(cardIndex, 1);
       continueBtn.style.display = "inline-flex";
       updateHUD();
     };
+
+    btn.onclick = handleAnswer;
+    btn.addEventListener("pointerup", handleAnswer);
+    btn.addEventListener("touchend", handleAnswer);
     optsContainer.appendChild(btn);
   });
 
-  continueBtn.onclick = () => {
+  const handleContinue = (e) => {
+    if (e) {
+      e.stopPropagation();
+      if (e.cancelable) e.preventDefault();
+    }
+    triggerHaptic("light");
     modal.style.display = "none";
+    modal.classList.add("hidden");
     renderShopView();
     updateShopTopBar();
     updateHUD();
     syncMobileControlsVisibility();
   };
+
+  continueBtn.onclick = handleContinue;
+  continueBtn.addEventListener("pointerup", handleContinue);
+  continueBtn.addEventListener("touchend", handleContinue);
 }
 
 function applyCardUpgrade(card, quizBonus, customMultiplier) {
@@ -3849,7 +4025,22 @@ function render() {
   const p = state.player;
 
   ctx.save();
-  ctx.translate(cx - p.x, cy - p.y);
+
+  // Screen shake impact
+  let shakeX = 0, shakeY = 0;
+  if (state.screen_shake > 0) {
+    shakeX = (Math.random() - 0.5) * state.shake_intensity;
+    shakeY = (Math.random() - 0.5) * state.shake_intensity;
+  }
+  ctx.translate(cx + shakeX, cy + shakeY);
+
+  // Dynamic Camera Zoom: On mobile/tablets, zoom in so action is big, punchy and clear!
+  const isTouchOrSmall = window.innerWidth <= 1080 || ('ontouchstart' in window);
+  const zoom = isTouchOrSmall ? (window.innerWidth < 650 ? 1.38 : 1.20) : 1.0;
+  if (zoom !== 1.0) {
+    ctx.scale(zoom, zoom);
+  }
+  ctx.translate(-p.x, -p.y);
 
   // 4 Dynamic Biomes based on progression across 100 Waves
   let floorSprite = "tile_library_parquet.png";
@@ -4245,6 +4436,22 @@ function render() {
     if (wSpr) ctx.drawImage(wSpr, 4, -16, 32, 32);
     ctx.restore();
   });
+
+  // Floating Combat Damage Numbers & Pickup Text
+  if (state.floating_texts && state.floating_texts.length) {
+    state.floating_texts.forEach(ft => {
+      const prog = Math.max(0, ft.lifetime / ft.max_lifetime);
+      ctx.save();
+      ctx.font = `bold ${ft.size || 13}px 'Cinzel', serif`;
+      ctx.fillStyle = ft.color;
+      ctx.globalAlpha = Math.min(1.0, prog * 1.6);
+      ctx.shadowColor = "rgba(0, 0, 0, 0.85)";
+      ctx.shadowBlur = 4;
+      ctx.textAlign = "center";
+      ctx.fillText(ft.text, ft.x, ft.y);
+      ctx.restore();
+    });
+  }
 
   ctx.restore();
 
