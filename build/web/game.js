@@ -692,6 +692,10 @@ const state = {
   chrono_timer: 0,
   shield_charges: 0,
 
+  // Game Speed & Auto New Run
+  game_speed: 1.0,
+  auto_new_run: localStorage.getItem("lexicon_auto_new_run") === "true",
+
   // 100-Wave Progression
   current_wave: 1,
   max_waves: 100,
@@ -781,6 +785,8 @@ const spriteList = [
   "red_pen_boss.png", "oxymoron_ogre.png", "vocabulary_void.png",
   "malapropism_mimic.png", "homophone_harpy.png", "idiom_imp.png",
   "lexicon_dragon_boss.png", "elite_crown.png",
+  "tautology_twin.png", "run_on_reaper.png", "dangling_modifier.png",
+  "double_negative_drake.png", "palindrome_phantom.png",
   // Environment & UI
   "tile_floor.png", "tile_library_parquet.png", "magical_rune_circle.png",
   "tile_dungeon_stone.png", "magical_rune_cyan.png",
@@ -854,6 +860,183 @@ if (musicBtn) {
       const isUnmuted = bgm.toggleMute();
       musicBtn.textContent = isUnmuted ? "🎵 MÜZİK" : "🔇 MÜZİK";
     }
+  };
+}
+
+// =========================================
+// SPEED & AUTO NEW RUN CONTROLS
+// =========================================
+const SPEED_STEPS = [0.5, 1.0, 1.5, 2.0, 3.0];
+
+function setGameSpeed(speed) {
+  state.game_speed = speed;
+  const speedText = speed.toFixed(1) + "x";
+
+  const speedBtn = document.getElementById("speed-btn");
+  if (speedBtn) speedBtn.textContent = `⚡ ${speedText}`;
+  const titleSpeedBtn = document.getElementById("title-speed-btn");
+  if (titleSpeedBtn) titleSpeedBtn.textContent = `⚡ Hız: ${speedText}`;
+
+  const toast = document.getElementById("speed-toast");
+  if (toast) {
+    toast.textContent = `⚡ OYUN HIZI: ${speedText}`;
+    toast.style.display = "block";
+    toast.style.opacity = "1";
+    clearTimeout(toast._timer);
+    toast._timer = setTimeout(() => {
+      toast.style.display = "none";
+    }, 1100);
+  }
+}
+
+function cycleGameSpeed() {
+  const cur = state.game_speed || 1.0;
+  const idx = SPEED_STEPS.indexOf(cur);
+  const nextIdx = (idx === -1 || idx === SPEED_STEPS.length - 1) ? 0 : idx + 1;
+  setGameSpeed(SPEED_STEPS[nextIdx]);
+}
+
+function adjustGameSpeed(direction) {
+  const cur = state.game_speed || 1.0;
+  let idx = SPEED_STEPS.indexOf(cur);
+  if (idx === -1) idx = 1;
+  const nextIdx = Math.max(0, Math.min(SPEED_STEPS.length - 1, idx + direction));
+  setGameSpeed(SPEED_STEPS[nextIdx]);
+}
+
+function toggleAutoNewRun() {
+  state.auto_new_run = !state.auto_new_run;
+  try {
+    localStorage.setItem("lexicon_auto_new_run", state.auto_new_run ? "true" : "false");
+  } catch(e){}
+  updateAutoRunUI();
+}
+
+function updateAutoRunUI() {
+  const isAuto = !!state.auto_new_run;
+  const btn = document.getElementById("auto-run-btn");
+  if (btn) {
+    btn.textContent = isAuto ? "🔄 OTO: AÇIK" : "🔄 OTO: KAPALI";
+    btn.style.color = isAuto ? "#00b894" : "var(--gold-bright)";
+    btn.style.borderColor = isAuto ? "#00b894" : "var(--gold-dark)";
+  }
+  const titleBtn = document.getElementById("title-auto-run-btn");
+  if (titleBtn) {
+    titleBtn.textContent = isAuto ? "🔄 Otomatik Yeni Run: AÇIK" : "🔄 Otomatik Yeni Run: KAPALI";
+    titleBtn.style.color = isAuto ? "#00b894" : "var(--gold-bright)";
+  }
+  const goBtn = document.getElementById("gameover-auto-run-toggle");
+  if (goBtn) {
+    goBtn.textContent = isAuto ? "🔄 Oto Run: AÇIK" : "🔄 Oto Run: KAPALI";
+    goBtn.style.color = isAuto ? "#00b894" : "var(--gold-bright)";
+  }
+}
+
+let autoRunTimer = null;
+let autoRunEndTime = 0;
+
+function startAutoRunCountdown(seconds) {
+  const container = document.getElementById("auto-run-countdown-container");
+  const text = document.getElementById("auto-run-countdown-text");
+  const bar = document.getElementById("auto-run-countdown-bar");
+  if (!container || !text || !bar) return;
+
+  container.style.display = "block";
+  autoRunEndTime = Date.now() + seconds * 1000;
+
+  if (autoRunTimer) clearInterval(autoRunTimer);
+  autoRunTimer = setInterval(() => {
+    const leftMs = autoRunEndTime - Date.now();
+    const leftSec = Math.max(0, Math.ceil(leftMs / 1000));
+    text.textContent = `🔄 Otomatik Yeni Run Başlatılıyor: ${leftSec}s`;
+    const pct = Math.max(0, Math.min(100, (leftMs / (seconds * 1000)) * 100));
+    bar.style.width = pct + "%";
+
+    if (leftMs <= 0) {
+      clearAutoRunCountdown();
+      instantStartRun();
+    }
+  }, 100);
+}
+
+function clearAutoRunCountdown() {
+  if (autoRunTimer) {
+    clearInterval(autoRunTimer);
+    autoRunTimer = null;
+  }
+  const container = document.getElementById("auto-run-countdown-container");
+  if (container) container.style.display = "none";
+}
+
+function instantStartRun() {
+  clearAutoRunCountdown();
+  document.getElementById("game-over-screen").style.display = "none";
+  document.getElementById("title-screen").style.display = "none";
+  sounds.init();
+  bgm.start();
+  bgm.setMode("battle");
+  startGame();
+  syncMobileControlsVisibility();
+}
+
+const speedBtn = document.getElementById("speed-btn");
+if (speedBtn) {
+  speedBtn.onclick = (e) => {
+    e.stopPropagation();
+    cycleGameSpeed();
+  };
+}
+
+const autoRunBtn = document.getElementById("auto-run-btn");
+if (autoRunBtn) {
+  autoRunBtn.onclick = (e) => {
+    e.stopPropagation();
+    toggleAutoNewRun();
+  };
+}
+
+const titleSpeedBtn = document.getElementById("title-speed-btn");
+if (titleSpeedBtn) {
+  titleSpeedBtn.onclick = (e) => {
+    e.stopPropagation();
+    cycleGameSpeed();
+  };
+}
+
+const titleAutoRunBtn = document.getElementById("title-auto-run-btn");
+if (titleAutoRunBtn) {
+  titleAutoRunBtn.onclick = (e) => {
+    e.stopPropagation();
+    toggleAutoNewRun();
+  };
+}
+
+const instantRestartBtn = document.getElementById("instant-restart-btn");
+if (instantRestartBtn) {
+  instantRestartBtn.onclick = (e) => {
+    e.stopPropagation();
+    instantStartRun();
+  };
+}
+
+const gameoverAutoRunToggle = document.getElementById("gameover-auto-run-toggle");
+if (gameoverAutoRunToggle) {
+  gameoverAutoRunToggle.onclick = (e) => {
+    e.stopPropagation();
+    toggleAutoNewRun();
+    if (state.auto_new_run) {
+      startAutoRunCountdown(3);
+    } else {
+      clearAutoRunCountdown();
+    }
+  };
+}
+
+const cancelAutoRunBtn = document.getElementById("cancel-auto-run-btn");
+if (cancelAutoRunBtn) {
+  cancelAutoRunBtn.onclick = (e) => {
+    e.stopPropagation();
+    clearAutoRunCountdown();
   };
 }
 
@@ -955,6 +1138,12 @@ window.addEventListener("keydown", e => {
     switchNextWeapon();
   } else if (e.key >= "1" && e.key <= "6") {
     selectWeaponIndex(parseInt(e.key) - 1);
+  } else if (e.key === "[" || e.key === "-") {
+    adjustGameSpeed(-1);
+  } else if (e.key === "]" || e.key === "+" || e.key === "=") {
+    adjustGameSpeed(1);
+  } else if (e.key === "0") {
+    setGameSpeed(1.0);
   }
 });
 window.addEventListener("keyup", e => {
@@ -1216,6 +1405,8 @@ function initTitleScreen() {
   });
 
   document.getElementById("diff-desc").textContent = DIFFICULTIES[state.difficulty].desc;
+  updateAutoRunUI();
+  setGameSpeed(state.game_speed || 1.0);
 }
 
 const onStartGame = (e) => {
@@ -1875,6 +2066,11 @@ let spawnTimer = 0.3;
 const typoWords = ["Teh", "Woudl", "Recieve", "Becaue", "Definately", "Seperate", "Tomorow", "Untill", "Beautifull", "Acommodate"];
 const grammarPairs = ["is/are", "have/has", "their/there", "your/you're", "its/it's", "to/too", "affect/effect"];
 const phantomPunct = ["?", ";", "!", ":", "—", "..."];
+const tautologyWords = ["free gift", "past history", "close proximity", "repeat again", "sum total", "safe haven", "final outcome"];
+const palindromeWords = ["RACECAR", "MADAM", "ROTATOR", "KAYAK", "LEVEL", "DEIFIED", "NOON", "REVIVER"];
+const danglingPhrases = ["Walking slowly...", "Hoping for rain...", "Having arrived...", "Running fast..."];
+const doubleNegPhrases = ["not impossible", "never not", "scarcely none", "hardly unready", "can't no"];
+const runOnSentences = ["neverending runon sentence with no pauses", "the sun shone and the wind blew and we kept walking", "words words words chained endlessly without fullstops"];
 
 function getWaveHpMult(wave) {
   return 1.0 + (wave - 1) * 0.08 + Math.pow((wave - 1) / 22.0, 1.8);
@@ -1886,6 +2082,37 @@ function getWaveDamageMult(wave) {
   return 1.0 + (wave - 1) * 0.025;
 }
 
+function updateBossHealthBar() {
+  const bar = document.getElementById("boss-hp-container");
+  if (!bar) return;
+  const aliveBosses = state.enemies.filter(e => (e.is_boss || e.type === "Red Pen Boss" || e.type === "Lexicon Dragon Boss") && !e.dead);
+  if (aliveBosses.length === 0) {
+    bar.style.display = "none";
+    state.active_boss = null;
+    return;
+  }
+
+  bar.style.display = "flex";
+  let totalHp = 0;
+  let totalMax = 0;
+  aliveBosses.forEach(b => {
+    totalHp += Math.max(0, b.hp);
+    totalMax += b.max_hp;
+  });
+  const pct = totalMax > 0 ? (totalHp / totalMax) * 100 : 0;
+  const fill = document.getElementById("boss-hp-fill");
+  if (fill) fill.style.width = Math.max(0, Math.min(100, pct)) + "%";
+
+  const title = document.getElementById("boss-hp-title");
+  if (title) {
+    if (aliveBosses.length === 1) {
+      title.textContent = `⚔️ ${aliveBosses[0].label} (${Math.ceil(pct)}%) ⚔️`;
+    } else {
+      title.textContent = `⚔️ ELEBAŞLARI ORDUSU (${aliveBosses.length} ELEBAŞI • %${Math.ceil(pct)}) ⚔️`;
+    }
+  }
+}
+
 function updateEnemies(dt) {
   if (!state.is_wave_active) return;
 
@@ -1895,16 +2122,22 @@ function updateEnemies(dt) {
     return;
   }
 
-  // Golden Roguelite Spawn Curve: 1.30s at Wave 1, smoothly tightens with wave progression
+  // Hardcore Massive Horde Swarm Spawn Curve: rapid spawn rate & batch spawns
   spawnTimer -= dt;
-  const diffFactor = state.difficulty === "easy" ? 1.25 : (state.difficulty === "hard" ? 0.85 : 1.0);
-  const waveProg = Math.min(1.0, (state.current_wave - 1) / 45.0);
-  const baseInterval = 1.30 - waveProg * 1.10; // 1.30s down to 0.20s
-  const interval = Math.max(0.09, baseInterval * diffFactor);
+  const diffFactor = state.difficulty === "easy" ? 1.15 : (state.difficulty === "hard" ? 0.75 : 1.0);
+  const waveProg = Math.min(1.0, (state.current_wave - 1) / 35.0);
+  const baseInterval = 0.45 - waveProg * 0.38; // 0.45s down to 0.07s
+  const interval = Math.max(0.06, baseInterval * diffFactor);
 
   if (spawnTimer <= 0) {
     spawnTimer = interval;
-    spawnEnemy();
+    // Batch scaling for colossal horde feel (up to 6 per tick):
+    const batchCount = state.current_wave >= 50 ? 6 : (state.current_wave >= 30 ? 5 : (state.current_wave >= 16 ? 4 : (state.current_wave >= 6 ? 3 : 2)));
+    for (let s = 0; s < batchCount; s++) {
+      if (state.enemies.length < 280) {
+        spawnEnemy();
+      }
+    }
   }
 
   const p = state.player;
@@ -1997,6 +2230,53 @@ function updateEnemies(dt) {
         e.y += (dirY * spd + e.vy) * dt;
         break;
       }
+      case "Tautology Twin": {
+        e.twin_wiggle = (e.twin_wiggle || 0) + dt * 4;
+        const perpX = -dirY; const perpY = dirX;
+        const sideOffset = Math.sin(e.twin_wiggle) * 45;
+        e.x += (dirX * spd + perpX * sideOffset + e.vx) * dt;
+        e.y += (dirY * spd + perpY * sideOffset + e.vy) * dt;
+        break;
+      }
+      case "Run-on Reaper": {
+        e.x += (dirX * spd * 1.15 + e.vx) * dt;
+        e.y += (dirY * spd * 1.15 + e.vy) * dt;
+        if (Math.random() < 0.25) {
+          state.particles.push({
+            x: e.x, y: e.y, radius: 4, max_radius: 12, alpha: 0.6,
+            color: "rgba(147, 51, 234, "
+          });
+        }
+        break;
+      }
+      case "Dangling Modifier": {
+        e.swoop_phase = (e.swoop_phase || Math.random() * Math.PI) + dt * 3.5;
+        const lateralSpd = Math.cos(e.swoop_phase) * 120;
+        e.x += (dirX * spd + (-dirY * lateralSpd) + e.vx) * dt;
+        e.y += (dirY * spd + (dirX * lateralSpd) + e.vy) * dt;
+        break;
+      }
+      case "Double Negative Drake": {
+        e.spark_timer = (e.spark_timer || 3.0) - dt;
+        if (e.spark_timer <= 0 && dist < 360) {
+          e.spark_timer = 3.8;
+          spawnEnemyProjectile(e.x, e.y, dirX, dirY, e.damage * 0.7, 220 * chronoMult);
+        }
+        e.x += (dirX * spd * 0.9 + e.vx) * dt;
+        e.y += (dirY * spd * 0.9 + e.vy) * dt;
+        break;
+      }
+      case "Palindrome Phantom": {
+        e.flip_timer = (e.flip_timer || 2.4) - dt;
+        if (e.flip_timer <= 0) {
+          e.flip_timer = 2.4;
+          e.vx = -dirX * 220 * chronoMult;
+          e.vy = -dirY * 220 * chronoMult;
+        }
+        e.x += (dirX * spd + e.vx) * dt;
+        e.y += (dirY * spd + e.vy) * dt;
+        break;
+      }
       case "Red Pen Boss":
       case "Lexicon Dragon Boss": {
         e.boss_timer = (e.boss_timer || 3.0) - dt;
@@ -2019,11 +2299,6 @@ function updateEnemies(dt) {
         }
         e.x += (dirX * spd + e.vx) * dt;
         e.y += (dirY * spd + e.vy) * dt;
-
-        if (state.active_boss === e) {
-          const pct = Math.max(0, (e.hp / e.max_hp) * 100);
-          document.getElementById("boss-hp-fill").style.width = pct + "%";
-        }
         break;
       }
       default: {
@@ -2044,6 +2319,8 @@ function updateEnemies(dt) {
       e.vy = -dirY * 220;
     }
   });
+
+  updateBossHealthBar();
 
   // Enemy projectiles
   state.enemy_projectiles.forEach(ep => {
@@ -2081,22 +2358,21 @@ function updateEnemies(dt) {
           newEnemies.push({
             type: "Typo Splinter",
             x: e.x + Math.cos(offAng) * 20, y: e.y + Math.sin(offAng) * 20,
-            vx: Math.cos(offAng) * 120, vy: Math.sin(offAng) * 120,
-            hp: 28 * getWaveHpMult(state.current_wave), max_hp: 28 * getWaveHpMult(state.current_wave),
-            speed: 120 * getWaveSpeedMult(state.current_wave), damage: 12 * getWaveDamageMult(state.current_wave),
+            vx: Math.cos(offAng) * 140, vy: Math.sin(offAng) * 140,
+            hp: 36 * getWaveHpMult(state.current_wave), max_hp: 36 * getWaveHpMult(state.current_wave),
+            speed: 175 * getWaveSpeedMult(state.current_wave), damage: 18 * getWaveDamageMult(state.current_wave),
             ink_reward: 1, label: "Splinter", sprite: "typo_splinter.png", size: 22, facing_left: false
           });
         }
       }
 
-      if (e.type === "Red Pen Boss" || e.type === "Lexicon Dragon Boss") {
-        state.active_boss = null;
-        document.getElementById("boss-hp-container").style.display = "none";
+      if (e.is_boss || e.type === "Red Pen Boss" || e.type === "Lexicon Dragon Boss") {
         // Guaranteed Boss Elixir (+50 HP)
         state.health_drops.push({ x: e.x, y: e.y, value: 50, collected: false });
         for (let i = 0; i < 18; i++) {
           spawnInkDrop(e.x + (Math.random() - 0.5) * 90, e.y + (Math.random() - 0.5) * 90, 5);
         }
+        updateBossHealthBar();
       }
       updateHUD();
     }
@@ -2120,56 +2396,105 @@ function spawnEnemy() {
 
   const roll = Math.random();
 
-  if (wave >= 30 && roll < 0.14) {
+  // Rare Wave 20+ Mini-Boss Encounter (2% chance if no boss is active)
+  if (wave >= 20 && roll < 0.02 && !state.enemies.some(e => (e.is_boss || e.type === "Red Pen Boss") && !e.dead)) {
+    state.enemies.push({
+      type: "Red Pen Boss", x, y, vx: 0, vy: 0,
+      hp: (1600 + wave * 90) * hpM, max_hp: (1600 + wave * 90) * hpM,
+      speed: 52 * d.enemy_speed_mult, damage: (75 + wave * 1.4) * d.enemy_damage_mult,
+      ink_reward: 45, label: `RED PEN PATROL (MINI-BOSS)`,
+      sprite: "red_pen_boss.png", size: 64, is_boss: true, is_elite: true, facing_left: false
+    });
+    updateBossHealthBar();
+    return;
+  }
+
+  // 13 Diverse Linguistic Enemies
+  if (wave >= 30 && roll < 0.10) {
     state.enemies.push({
       type: "Oxymoron Ogre", x, y, vx: 0, vy: 0,
-      hp: 560 * hpM, max_hp: 560 * hpM, speed: 65 * spdM, damage: 44 * dmgM,
+      hp: 640 * hpM, max_hp: 640 * hpM, speed: 92 * spdM, damage: 58 * dmgM,
       ink_reward: 12, label: "OXYMORON OGRE", sprite: "oxymoron_ogre.png", size: 58,
       is_elite: wave > 40, facing_left: false
+    });
+  } else if (wave >= 25 && roll < 0.18) {
+    state.enemies.push({
+      type: "Double Negative Drake", x, y, vx: 0, vy: 0,
+      hp: 340 * hpM, max_hp: 340 * hpM, speed: 110 * spdM, damage: 42 * dmgM,
+      ink_reward: 10, label: doubleNegPhrases[Math.floor(Math.random() * doubleNegPhrases.length)],
+      sprite: "double_negative_drake.png", size: 52, is_elite: wave > 45, facing_left: false
     });
   } else if (wave >= 25 && roll < 0.26) {
     state.enemies.push({
       type: "Vocabulary Void", x, y, vx: 0, vy: 0,
-      hp: 320 * hpM, max_hp: 320 * hpM, speed: 55 * spdM, damage: 32 * dmgM,
+      hp: 360 * hpM, max_hp: 360 * hpM, speed: 82 * spdM, damage: 44 * dmgM,
       ink_reward: 10, label: "VOCAB VOID", sprite: "vocabulary_void.png", size: 50,
       is_elite: wave > 50, facing_left: false
     });
-  } else if (wave >= 20 && roll < 0.40) {
+  } else if (wave >= 20 && roll < 0.35) {
+    state.enemies.push({
+      type: "Palindrome Phantom", x, y, vx: 0, vy: 0,
+      hp: 145 * hpM, max_hp: 145 * hpM, speed: 170 * spdM, damage: 30 * dmgM,
+      ink_reward: 8, label: palindromeWords[Math.floor(Math.random() * palindromeWords.length)],
+      sprite: "palindrome_phantom.png", size: 44, facing_left: false
+    });
+  } else if (wave >= 20 && roll < 0.44) {
     state.enemies.push({
       type: "Homophone Harpy", x, y, vx: 0, vy: 0,
-      hp: 136 * hpM, max_hp: 136 * hpM, speed: 130 * spdM, damage: 24 * dmgM,
+      hp: 150 * hpM, max_hp: 150 * hpM, speed: 180 * spdM, damage: 34 * dmgM,
       ink_reward: 7, label: "HARPY", sprite: "homophone_harpy.png", size: 46, facing_left: false
     });
   } else if (wave >= 15 && roll < 0.52) {
     state.enemies.push({
+      type: "Dangling Modifier", x, y, vx: 0, vy: 0,
+      hp: 130 * hpM, max_hp: 130 * hpM, speed: 165 * spdM, damage: 26 * dmgM,
+      ink_reward: 6, label: danglingPhrases[Math.floor(Math.random() * danglingPhrases.length)],
+      sprite: "dangling_modifier.png", size: 44, facing_left: false
+    });
+  } else if (wave >= 15 && roll < 0.60) {
+    state.enemies.push({
       type: "Malapropism Mimic", x, y, vx: 0, vy: 0,
-      hp: 190 * hpM, max_hp: 190 * hpM, speed: 115 * spdM, damage: 28 * dmgM,
+      hp: 210 * hpM, max_hp: 210 * hpM, speed: 160 * spdM, damage: 38 * dmgM,
       ink_reward: 7, label: "MIMIC", sprite: "malapropism_mimic.png", size: 42, facing_left: false
     });
-  } else if (wave >= 10 && roll < 0.64) {
+  } else if (wave >= 10 && roll < 0.68) {
+    state.enemies.push({
+      type: "Run-on Reaper", x, y, vx: 0, vy: 0,
+      hp: 180 * hpM, max_hp: 180 * hpM, speed: 195 * spdM, damage: 36 * dmgM,
+      ink_reward: 7, label: "RUN-ON REAPER", sprite: "run_on_reaper.png", size: 46,
+      facing_left: false
+    });
+  } else if (wave >= 10 && roll < 0.76) {
     state.enemies.push({
       type: "Idiom Imp", x, y, vx: 0, vy: 0,
-      hp: 96 * hpM, max_hp: 96 * hpM, speed: 135 * spdM, damage: 20 * dmgM,
+      hp: 110 * hpM, max_hp: 110 * hpM, speed: 185 * spdM, damage: 30 * dmgM,
       ink_reward: 5, label: "IDIOM IMP", sprite: "idiom_imp.png", size: 36, facing_left: false
     });
-  } else if (wave >= 5 && roll < 0.78) {
+  } else if (wave >= 5 && roll < 0.83) {
+    state.enemies.push({
+      type: "Tautology Twin", x, y, vx: 0, vy: 0,
+      hp: 160 * hpM, max_hp: 160 * hpM, speed: 140 * spdM, damage: 32 * dmgM,
+      ink_reward: 6, label: tautologyWords[Math.floor(Math.random() * tautologyWords.length)],
+      sprite: "tautology_twin.png", size: 44, facing_left: false
+    });
+  } else if (wave >= 5 && roll < 0.90) {
     state.enemies.push({
       type: "Punctuation Phantom", x, y, vx: 0, vy: 0,
-      hp: 110 * hpM, max_hp: 110 * hpM, speed: 95 * spdM, damage: 20 * dmgM,
+      hp: 120 * hpM, max_hp: 120 * hpM, speed: 135 * spdM, damage: 28 * dmgM,
       ink_reward: 5, label: phantomPunct[Math.floor(Math.random() * phantomPunct.length)],
       sprite: "punctuation_phantom.png", size: 42, shoot_cooldown: 2.0 + Math.random() * 0.8, facing_left: false
     });
-  } else if (roll < 0.90) {
+  } else if (roll < 0.95) {
     state.enemies.push({
       type: "Grammar Goblin", x, y, vx: 0, vy: 0,
-      hp: 68 * hpM, max_hp: 68 * hpM, speed: 110 * spdM, damage: 18 * dmgM,
+      hp: 76 * hpM, max_hp: 76 * hpM, speed: 155 * spdM, damage: 26 * dmgM,
       ink_reward: 4, label: grammarPairs[Math.floor(Math.random() * grammarPairs.length)],
       sprite: "grammar_goblin.png", size: 34, dash_cooldown: 2.5 + Math.random() * 1.0, facing_left: false
     });
   } else {
     state.enemies.push({
       type: "Typo Slime", x, y, vx: 0, vy: 0,
-      hp: 88 * hpM, max_hp: 88 * hpM, speed: 68 * spdM, damage: 16 * dmgM,
+      hp: 96 * hpM, max_hp: 96 * hpM, speed: 98 * spdM, damage: 24 * dmgM,
       ink_reward: 4, label: typoWords[Math.floor(Math.random() * typoWords.length)],
       sprite: "typo_slime.png", size: 36, facing_left: false
     });
@@ -2178,46 +2503,87 @@ function spawnEnemy() {
 
 function spawnMilestoneBoss(wave) {
   const p = state.player;
-  const ang = Math.random() * Math.PI * 2;
-  const dist = 600;
   const d = DIFFICULTIES[state.difficulty];
   const hpM = getWaveHpMult(wave) * d.enemy_hp_mult;
 
   sounds.bossRoar();
 
-  let boss = null;
+  const bossList = [];
+
   if (wave === 100) {
-    boss = {
-      type: "Lexicon Dragon Boss", x: p.x + Math.cos(ang) * dist, y: p.y + Math.sin(ang) * dist,
-      vx: 0, vy: 0, hp: 19500 * d.enemy_hp_mult, max_hp: 19500 * d.enemy_hp_mult,
-      speed: 95 * d.enemy_speed_mult, damage: 110 * d.enemy_damage_mult,
-      ink_reward: 180, label: "THE OMEGA LEXICON DRAGON (WAVE 100 FINAL BOSS)",
-      sprite: "lexicon_dragon_boss.png", size: 92, is_elite: true, facing_left: false
-    };
+    // Ultimate Climax: The Omega Dragon + 2 Great Dragons + 4 Inquisitors (7 Bosses)
+    bossList.push({
+      type: "Lexicon Dragon Boss",
+      hp: 38000 * d.enemy_hp_mult, max_hp: 38000 * d.enemy_hp_mult,
+      speed: 62 * d.enemy_speed_mult, damage: 220 * d.enemy_damage_mult,
+      ink_reward: 180, label: "THE OMEGA LEXICON DRAGON (FINAL BOSS)",
+      sprite: "lexicon_dragon_boss.png", size: 92, is_elite: true, is_boss: true
+    });
+    for (let i = 0; i < 2; i++) {
+      bossList.push({
+        type: "Lexicon Dragon Boss",
+        hp: 14000 * d.enemy_hp_mult, max_hp: 14000 * d.enemy_hp_mult,
+        speed: 65 * d.enemy_speed_mult, damage: 130 * d.enemy_damage_mult,
+        ink_reward: 100, label: `ELDER DRAGON #${i + 1}`,
+        sprite: "lexicon_dragon_boss.png", size: 80, is_elite: true, is_boss: true
+      });
+    }
+    for (let i = 0; i < 4; i++) {
+      bossList.push({
+        type: "Red Pen Boss",
+        hp: 6000 * hpM, max_hp: 6000 * hpM,
+        speed: 55 * d.enemy_speed_mult, damage: 140 * d.enemy_damage_mult,
+        ink_reward: 70, label: `OMEGA INQUISITOR #${i + 1}`,
+        sprite: "red_pen_boss.png", size: 70, is_elite: true, is_boss: true
+      });
+    }
   } else if (wave === 50) {
-    boss = {
-      type: "Lexicon Dragon Boss", x: p.x + Math.cos(ang) * dist, y: p.y + Math.sin(ang) * dist,
-      vx: 0, vy: 0, hp: 8400 * d.enemy_hp_mult, max_hp: 8400 * d.enemy_hp_mult,
-      speed: 90 * d.enemy_speed_mult, damage: 85 * d.enemy_damage_mult,
+    // Great Dragon + 3 Inquisitors (4 Bosses)
+    bossList.push({
+      type: "Lexicon Dragon Boss",
+      hp: 16500 * d.enemy_hp_mult, max_hp: 16500 * d.enemy_hp_mult,
+      speed: 58 * d.enemy_speed_mult, damage: 145 * d.enemy_damage_mult,
       ink_reward: 100, label: "GREAT LEXICON DRAGON (WAVE 50 OVERLORD)",
-      sprite: "lexicon_dragon_boss.png", size: 84, is_elite: true, facing_left: false
-    };
+      sprite: "lexicon_dragon_boss.png", size: 84, is_elite: true, is_boss: true
+    });
+    for (let i = 0; i < 3; i++) {
+      bossList.push({
+        type: "Red Pen Boss",
+        hp: (2000 + wave * 90) * hpM, max_hp: (2000 + wave * 90) * hpM,
+        speed: 54 * d.enemy_speed_mult, damage: (85 + wave * 1.5) * d.enemy_damage_mult,
+        ink_reward: 60, label: `DRAGON GUARD INQUISITOR #${i + 1}`,
+        sprite: "red_pen_boss.png", size: 68, is_elite: true, is_boss: true
+      });
+    }
   } else {
-    boss = {
-      type: "Red Pen Boss", x: p.x + Math.cos(ang) * dist, y: p.y + Math.sin(ang) * dist,
-      vx: 0, vy: 0, hp: (1260 + wave * 66) * hpM, max_hp: (1260 + wave * 66) * hpM,
-      speed: 80 * d.enemy_speed_mult, damage: (55 + wave * 0.9) * d.enemy_damage_mult,
-      ink_reward: 60, label: `RED PEN INQUISITOR (WAVE ${wave} BOSS)`,
-      sprite: "red_pen_boss.png", size: 70, is_elite: wave > 30, facing_left: false
-    };
+    // Progressive Multi-Boss count: scales as wave increases!
+    // Wave 5-10: 1, Wave 15-20: 2, Wave 25-30: 3, Wave 35-40: 4, Wave 45: 5, Wave 60: 6, Wave 70: 7, Wave 80+: 8
+    const bossCount = Math.min(8, Math.max(1, Math.floor(wave / 10) + (wave % 10 >= 5 ? 1 : 0)));
+    for (let i = 0; i < bossCount; i++) {
+      bossList.push({
+        type: "Red Pen Boss",
+        hp: (2400 + wave * 130) * hpM, max_hp: (2400 + wave * 130) * hpM,
+        speed: 52 * d.enemy_speed_mult, damage: (95 + wave * 1.8) * d.enemy_damage_mult,
+        ink_reward: 60,
+        label: bossCount > 1 ? `RED PEN INQUISITOR #${i + 1} (WAVE ${wave})` : `RED PEN INQUISITOR (WAVE ${wave} BOSS)`,
+        sprite: "red_pen_boss.png", size: 70, is_elite: wave > 30, is_boss: true
+      });
+    }
   }
 
-  state.enemies.push(boss);
-  state.active_boss = boss;
+  // Ring Encirclement: Encircle the player symmetrically!
+  bossList.forEach((boss, idx) => {
+    const ang = (idx / bossList.length) * Math.PI * 2 + (Math.random() * 0.2);
+    const dist = 600 + (idx % 2) * 80;
+    boss.x = p.x + Math.cos(ang) * dist;
+    boss.y = p.y + Math.sin(ang) * dist;
+    boss.vx = 0;
+    boss.vy = 0;
+    boss.facing_left = Math.cos(ang) > 0;
+    state.enemies.push(boss);
+  });
 
-  const bar = document.getElementById("boss-hp-container");
-  document.getElementById("boss-hp-title").textContent = `⚔️ ${boss.label} ⚔️`;
-  bar.style.display = "flex";
+  updateBossHealthBar();
 }
 
 function spawnEnemyProjectile(x, y, dx, dy, dmg, spd) {
@@ -2272,7 +2638,14 @@ function gameOver() {
     `💀 Biçilen Hatalar: ${state.kill_count}\n` +
     `💧 Toplanan Mürekkep: ${state.ink_count}`;
 
+  updateAutoRunUI();
   modal.style.display = "flex";
+
+  if (state.auto_new_run) {
+    startAutoRunCountdown(3);
+  } else {
+    clearAutoRunCountdown();
+  }
 }
 
 function victoryScreen() {
@@ -2298,6 +2671,7 @@ function victoryScreen() {
 }
 
 const onRestart = () => {
+  clearAutoRunCountdown();
   document.getElementById("game-over-screen").style.display = "none";
   document.getElementById("title-screen").style.display = "flex";
   initTitleScreen();
@@ -3206,8 +3580,9 @@ function render() {
 // 17. MAIN GAME LOOP
 // =========================================
 function gameLoop(now) {
-  const dt = Math.min(0.1, (now - lastTime) / 1000);
+  const rawDt = Math.min(0.1, (now - lastTime) / 1000);
   lastTime = now;
+  const dt = rawDt * (state.game_speed || 1.0);
 
   if (state.is_wave_active) {
     updatePlayer(dt);

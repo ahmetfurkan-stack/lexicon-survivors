@@ -1167,6 +1167,10 @@
     <div id="orientation-hint" onclick="this.style.display='none'">
       📱 Daha geniş arena görünümü için telefonunuzu <strong>yatay (landscape)</strong> tutabilirsiniz ✕
     </div>
+    <!-- SPEED TOAST NOTIFICATION -->
+    <div id="speed-toast" style="position: absolute; top: 62px; right: 24px; z-index: 120; display: none; background: rgba(28, 16, 10, 0.92); border: 1.5px solid var(--gold-bright); color: var(--gold-bright); font-family: 'Cinzel', serif; font-size: 13px; font-weight: bold; padding: 6px 14px; border-radius: 4px; pointer-events: none; box-shadow: 0 0 12px rgba(255, 215, 0, 0.4);">
+      ⚡ OYUN HIZI: 1.0x
+    </div>
     <canvas id="game-canvas" width="1280" height="720"></canvas>
 
     <!-- GOTHIC HUD -->
@@ -1180,6 +1184,8 @@
         <div class="stats-right">
           <span class="ink-count" id="ink-count">💧 0</span>
           <span class="kill-count" id="kill-count">💀 0</span>
+          <button id="speed-btn" class="hud-btn" title="Oyun Hızı (0.5x, 1x, 1.5x, 2x, 3x) - Kısayol: [ ve ]">⚡ 1.0x</button>
+          <button id="auto-run-btn" class="hud-btn" title="Otomatik Yeni Run (Açık/Kapalı)">🔄 OTO: KAPALI</button>
           <button id="music-btn" class="hud-btn" title="Müzik Aç / Kapat">🎵 MÜZİK</button>
           <button id="mistakes-btn" class="hud-btn" title="Kâtip Hata Defteri (Pekiştirme)">📖 HATA (<span id="mistakes-count">0</span>)</button>
           <button id="inventory-btn" class="hud-btn" title="Envanter Yuvalarını Aç (Tuş: I)">🎒 [I]</button>
@@ -1234,6 +1240,15 @@
         </div>
         <div style="display: flex; gap: 10px; justify-content: center;" id="diff-selection-container"></div>
         <div style="text-align: center; color: #7a481d; font-family: 'Lora', serif; font-style: italic; font-size: 13px;" id="diff-desc"></div>
+
+        <div style="display: flex; gap: 10px; justify-content: center; align-items: center; margin-top: 4px; flex-wrap: wrap;">
+          <button class="btn btn-seal" id="title-speed-btn" style="padding: 6px 14px; font-size: 12.5px;" title="Oyun Simülasyon Hızı">
+            ⚡ Hız: 1.0x
+          </button>
+          <button class="btn btn-seal" id="title-auto-run-btn" style="padding: 6px 14px; font-size: 12.5px;" title="Oyun bittiğinde otomatik yeni run başlat">
+            🔄 Otomatik Yeni Run: KAPALI
+          </button>
+        </div>
 
         <button class="btn btn-seal" id="start-game-btn" style="margin-top: 4px; font-size: 16px; align-self: center; padding: 10px 32px;">
           <img src="assets/sprites/wax_seal.png" style="width: 22px; height: 22px;" alt="seal">
@@ -1387,10 +1402,32 @@
           OYUN BİTTİ - KİTAP KAPANDI
         </h2>
         <div id="game-over-summary" style="font-family: 'Lora', serif; font-size: 13.5px; color: #2e1c11; line-height: 1.55; white-space: pre-line; background: rgba(230, 210, 175, 0.4); padding: 14px; border-radius: 4px; border: 1px solid var(--parchment-border); margin: 6px 0;"></div>
-        <button class="btn btn-seal" id="restart-game-btn" style="margin-top: 6px; font-size: 15px; align-self: center; padding: 10px 26px;">
-          <img src="assets/sprites/wax_seal.png" style="width: 20px; height: 20px;" alt="seal">
-          Kütüphaneyi Yeniden Feth Et ↺
-        </button>
+
+        <!-- AUTO NEW RUN COUNTDOWN & CONTROLS -->
+        <div id="auto-run-countdown-container" style="display: none; margin: 8px 0; padding: 10px; background: rgba(34, 20, 13, 0.85); border: 1.5px solid var(--gold-dark); border-radius: 6px; color: var(--gold-bright);">
+          <div id="auto-run-countdown-text" style="font-family: 'Cinzel', serif; font-size: 15px; font-weight: bold; margin-bottom: 6px;">
+            🔄 Otomatik Yeni Run Başlatılıyor: 3s
+          </div>
+          <div style="width: 100%; height: 8px; background: rgba(0,0,0,0.5); border-radius: 4px; overflow: hidden; margin-bottom: 8px;">
+            <div id="auto-run-countdown-bar" style="width: 100%; height: 100%; background: linear-gradient(90deg, #d4af37, #00b894); transition: width 0.1s linear;"></div>
+          </div>
+          <button class="btn btn-crimson" id="cancel-auto-run-btn" style="padding: 5px 16px; font-size: 12px;">
+            ✕ Geri Sayımı Durdur (Burada Kal)
+          </button>
+        </div>
+
+        <div style="display: flex; justify-content: center; gap: 8px; flex-wrap: wrap; margin-top: 6px;">
+          <button class="btn btn-seal" id="restart-game-btn" style="font-size: 13.5px; padding: 8px 16px;">
+            <img src="assets/sprites/wax_seal.png" style="width: 18px; height: 18px;" alt="seal">
+            Kütüphaneyi Yeniden Feth Et ↺
+          </button>
+          <button class="btn btn-emerald" id="instant-restart-btn" style="font-size: 13.5px; padding: 8px 16px;">
+            ⚡ Hemen Yeni Run Başlat
+          </button>
+          <button class="btn btn-seal" id="gameover-auto-run-toggle" style="font-size: 12.5px; padding: 8px 14px;">
+            🔄 Oto Run: KAPALI
+          </button>
+        </div>
       </div>
     </div>
   </div>

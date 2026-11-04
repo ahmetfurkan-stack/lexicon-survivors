@@ -31,11 +31,13 @@ func _process(delta: float):
 		return
 		
 	spawn_timer -= delta
-	var diff_factor = 1.15 if StatsManager.difficulty == "easy" else (0.85 if StatsManager.difficulty == "hard" else 1.0)
-	var spawn_interval = max(0.28, (1.4 - (StatsManager.current_wave * 0.12)) * diff_factor)
+	var diff_factor = 1.15 if StatsManager.difficulty == "easy" else (0.80 if StatsManager.difficulty == "hard" else 1.0)
+	var spawn_interval = max(0.12, (0.60 - (StatsManager.current_wave * 0.04)) * diff_factor)
 	if spawn_timer <= 0:
 		spawn_timer = spawn_interval
-		spawn_enemy()
+		var batch_count = 3 if StatsManager.current_wave >= 25 else (2 if StatsManager.current_wave >= 8 else 1)
+		for i in range(batch_count):
+			spawn_enemy()
 
 func find_player():
 	if not is_inside_tree():
@@ -64,19 +66,29 @@ func spawn_enemy():
 	var wave = StatsManager.current_wave
 	if wave >= 50 and roll < 0.05:
 		enemy.enemy_type = "Lexicon Dragon Boss"
-	elif wave >= 30 and roll < 0.15:
+	elif wave >= 30 and roll < 0.12:
 		enemy.enemy_type = "Oxymoron Ogre"
-	elif wave >= 25 and roll < 0.28:
+	elif wave >= 25 and roll < 0.22:
+		enemy.enemy_type = "Double Negative Drake"
+	elif wave >= 25 and roll < 0.30:
 		enemy.enemy_type = "Vocabulary Void"
-	elif wave >= 20 and roll < 0.40:
+	elif wave >= 20 and roll < 0.38:
+		enemy.enemy_type = "Palindrome Phantom"
+	elif wave >= 20 and roll < 0.46:
 		enemy.enemy_type = "Homophone Harpy"
-	elif wave >= 15 and roll < 0.52:
+	elif wave >= 15 and roll < 0.54:
+		enemy.enemy_type = "Dangling Modifier"
+	elif wave >= 15 and roll < 0.62:
 		enemy.enemy_type = "Malapropism Mimic"
-	elif wave >= 10 and roll < 0.65:
+	elif wave >= 10 and roll < 0.70:
+		enemy.enemy_type = "Run-on Reaper"
+	elif wave >= 10 and roll < 0.78:
 		enemy.enemy_type = "Idiom Imp"
-	elif wave >= 6 and roll < 0.78:
+	elif wave >= 5 and roll < 0.85:
+		enemy.enemy_type = "Tautology Twin"
+	elif wave >= 5 and roll < 0.90:
 		enemy.enemy_type = "Punctuation Phantom"
-	elif roll < 0.90:
+	elif roll < 0.95:
 		enemy.enemy_type = "Grammar Goblin"
 	else:
 		enemy.enemy_type = "Typo Slime"
