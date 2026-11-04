@@ -2082,8 +2082,8 @@ function updateEnemies(dt) {
             type: "Typo Splinter",
             x: e.x + Math.cos(offAng) * 20, y: e.y + Math.sin(offAng) * 20,
             vx: Math.cos(offAng) * 120, vy: Math.sin(offAng) * 120,
-            hp: 14 * getWaveHpMult(state.current_wave), max_hp: 14 * getWaveHpMult(state.current_wave),
-            speed: 120 * getWaveSpeedMult(state.current_wave), damage: 6 * getWaveDamageMult(state.current_wave),
+            hp: 28 * getWaveHpMult(state.current_wave), max_hp: 28 * getWaveHpMult(state.current_wave),
+            speed: 120 * getWaveSpeedMult(state.current_wave), damage: 12 * getWaveDamageMult(state.current_wave),
             ink_reward: 1, label: "Splinter", sprite: "typo_splinter.png", size: 22, facing_left: false
           });
         }
@@ -2123,54 +2123,54 @@ function spawnEnemy() {
   if (wave >= 30 && roll < 0.14) {
     state.enemies.push({
       type: "Oxymoron Ogre", x, y, vx: 0, vy: 0,
-      hp: 280 * hpM, max_hp: 280 * hpM, speed: 65 * spdM, damage: 22 * dmgM,
-      ink_reward: 10, label: "OXYMORON OGRE", sprite: "oxymoron_ogre.png", size: 58,
+      hp: 560 * hpM, max_hp: 560 * hpM, speed: 65 * spdM, damage: 44 * dmgM,
+      ink_reward: 12, label: "OXYMORON OGRE", sprite: "oxymoron_ogre.png", size: 58,
       is_elite: wave > 40, facing_left: false
     });
   } else if (wave >= 25 && roll < 0.26) {
     state.enemies.push({
       type: "Vocabulary Void", x, y, vx: 0, vy: 0,
-      hp: 160 * hpM, max_hp: 160 * hpM, speed: 55 * spdM, damage: 16 * dmgM,
-      ink_reward: 8, label: "VOCAB VOID", sprite: "vocabulary_void.png", size: 50,
+      hp: 320 * hpM, max_hp: 320 * hpM, speed: 55 * spdM, damage: 32 * dmgM,
+      ink_reward: 10, label: "VOCAB VOID", sprite: "vocabulary_void.png", size: 50,
       is_elite: wave > 50, facing_left: false
     });
   } else if (wave >= 20 && roll < 0.40) {
     state.enemies.push({
       type: "Homophone Harpy", x, y, vx: 0, vy: 0,
-      hp: 68 * hpM, max_hp: 68 * hpM, speed: 130 * spdM, damage: 12 * dmgM,
-      ink_reward: 6, label: "HARPY", sprite: "homophone_harpy.png", size: 46, facing_left: false
+      hp: 136 * hpM, max_hp: 136 * hpM, speed: 130 * spdM, damage: 24 * dmgM,
+      ink_reward: 7, label: "HARPY", sprite: "homophone_harpy.png", size: 46, facing_left: false
     });
   } else if (wave >= 15 && roll < 0.52) {
     state.enemies.push({
       type: "Malapropism Mimic", x, y, vx: 0, vy: 0,
-      hp: 95 * hpM, max_hp: 95 * hpM, speed: 115 * spdM, damage: 14 * dmgM,
-      ink_reward: 6, label: "MIMIC", sprite: "malapropism_mimic.png", size: 42, facing_left: false
+      hp: 190 * hpM, max_hp: 190 * hpM, speed: 115 * spdM, damage: 28 * dmgM,
+      ink_reward: 7, label: "MIMIC", sprite: "malapropism_mimic.png", size: 42, facing_left: false
     });
   } else if (wave >= 10 && roll < 0.64) {
     state.enemies.push({
       type: "Idiom Imp", x, y, vx: 0, vy: 0,
-      hp: 48 * hpM, max_hp: 48 * hpM, speed: 135 * spdM, damage: 10 * dmgM,
-      ink_reward: 4, label: "IDIOM IMP", sprite: "idiom_imp.png", size: 36, facing_left: false
+      hp: 96 * hpM, max_hp: 96 * hpM, speed: 135 * spdM, damage: 20 * dmgM,
+      ink_reward: 5, label: "IDIOM IMP", sprite: "idiom_imp.png", size: 36, facing_left: false
     });
   } else if (wave >= 5 && roll < 0.78) {
     state.enemies.push({
       type: "Punctuation Phantom", x, y, vx: 0, vy: 0,
-      hp: 55 * hpM, max_hp: 55 * hpM, speed: 95 * spdM, damage: 10 * dmgM,
-      ink_reward: 4, label: phantomPunct[Math.floor(Math.random() * phantomPunct.length)],
+      hp: 110 * hpM, max_hp: 110 * hpM, speed: 95 * spdM, damage: 20 * dmgM,
+      ink_reward: 5, label: phantomPunct[Math.floor(Math.random() * phantomPunct.length)],
       sprite: "punctuation_phantom.png", size: 42, shoot_cooldown: 2.0 + Math.random() * 0.8, facing_left: false
     });
   } else if (roll < 0.90) {
     state.enemies.push({
       type: "Grammar Goblin", x, y, vx: 0, vy: 0,
-      hp: 34 * hpM, max_hp: 34 * hpM, speed: 110 * spdM, damage: 9 * dmgM,
-      ink_reward: 3, label: grammarPairs[Math.floor(Math.random() * grammarPairs.length)],
+      hp: 68 * hpM, max_hp: 68 * hpM, speed: 110 * spdM, damage: 18 * dmgM,
+      ink_reward: 4, label: grammarPairs[Math.floor(Math.random() * grammarPairs.length)],
       sprite: "grammar_goblin.png", size: 34, dash_cooldown: 2.5 + Math.random() * 1.0, facing_left: false
     });
   } else {
     state.enemies.push({
       type: "Typo Slime", x, y, vx: 0, vy: 0,
-      hp: 44 * hpM, max_hp: 44 * hpM, speed: 68 * spdM, damage: 8 * dmgM,
-      ink_reward: 3, label: typoWords[Math.floor(Math.random() * typoWords.length)],
+      hp: 88 * hpM, max_hp: 88 * hpM, speed: 68 * spdM, damage: 16 * dmgM,
+      ink_reward: 4, label: typoWords[Math.floor(Math.random() * typoWords.length)],
       sprite: "typo_slime.png", size: 36, facing_left: false
     });
   }
@@ -2189,26 +2189,26 @@ function spawnMilestoneBoss(wave) {
   if (wave === 100) {
     boss = {
       type: "Lexicon Dragon Boss", x: p.x + Math.cos(ang) * dist, y: p.y + Math.sin(ang) * dist,
-      vx: 0, vy: 0, hp: 6500 * d.enemy_hp_mult, max_hp: 6500 * d.enemy_hp_mult,
-      speed: 95 * d.enemy_speed_mult, damage: 40 * d.enemy_damage_mult,
-      ink_reward: 120, label: "THE OMEGA LEXICON DRAGON (WAVE 100 FINAL BOSS)",
-      sprite: "lexicon_dragon_boss.png", size: 88, is_elite: true, facing_left: false
+      vx: 0, vy: 0, hp: 19500 * d.enemy_hp_mult, max_hp: 19500 * d.enemy_hp_mult,
+      speed: 95 * d.enemy_speed_mult, damage: 110 * d.enemy_damage_mult,
+      ink_reward: 180, label: "THE OMEGA LEXICON DRAGON (WAVE 100 FINAL BOSS)",
+      sprite: "lexicon_dragon_boss.png", size: 92, is_elite: true, facing_left: false
     };
   } else if (wave === 50) {
     boss = {
       type: "Lexicon Dragon Boss", x: p.x + Math.cos(ang) * dist, y: p.y + Math.sin(ang) * dist,
-      vx: 0, vy: 0, hp: 2800 * d.enemy_hp_mult, max_hp: 2800 * d.enemy_hp_mult,
-      speed: 90 * d.enemy_speed_mult, damage: 32 * d.enemy_damage_mult,
-      ink_reward: 70, label: "GREAT LEXICON DRAGON (WAVE 50 OVERLORD)",
-      sprite: "lexicon_dragon_boss.png", size: 80, is_elite: true, facing_left: false
+      vx: 0, vy: 0, hp: 8400 * d.enemy_hp_mult, max_hp: 8400 * d.enemy_hp_mult,
+      speed: 90 * d.enemy_speed_mult, damage: 85 * d.enemy_damage_mult,
+      ink_reward: 100, label: "GREAT LEXICON DRAGON (WAVE 50 OVERLORD)",
+      sprite: "lexicon_dragon_boss.png", size: 84, is_elite: true, facing_left: false
     };
   } else {
     boss = {
       type: "Red Pen Boss", x: p.x + Math.cos(ang) * dist, y: p.y + Math.sin(ang) * dist,
-      vx: 0, vy: 0, hp: (420 + wave * 22) * hpM, max_hp: (420 + wave * 22) * hpM,
-      speed: 80 * d.enemy_speed_mult, damage: (20 + wave * 0.3) * d.enemy_damage_mult,
-      ink_reward: 45, label: `RED PEN INQUISITOR (WAVE ${wave} BOSS)`,
-      sprite: "red_pen_boss.png", size: 66, is_elite: wave > 30, facing_left: false
+      vx: 0, vy: 0, hp: (1260 + wave * 66) * hpM, max_hp: (1260 + wave * 66) * hpM,
+      speed: 80 * d.enemy_speed_mult, damage: (55 + wave * 0.9) * d.enemy_damage_mult,
+      ink_reward: 60, label: `RED PEN INQUISITOR (WAVE ${wave} BOSS)`,
+      sprite: "red_pen_boss.png", size: 70, is_elite: wave > 30, facing_left: false
     };
   }
 
