@@ -1,12 +1,14 @@
-[gd_scene load_steps=10 format=3 uid="uid://b1j4k8m5q2v7p"]
+[gd_scene load_steps=12 format=3 uid="uid://b1j4k8m5q2v7p"]
 
 [ext_resource type="Script" path="res://scripts/main.gd" id="1_script"]
-[ext_resource type="Texture2D" path="res://assets/sprites/tile_floor.png" id="2_floor"]
+[ext_resource type="Texture2D" path="res://assets/sprites/tile_library_parquet.png" id="2_floor"]
 [ext_resource type="PackedScene" path="res://scenes/player.tscn" id="3_player"]
 [ext_resource type="Script" path="res://scripts/wave_manager.gd" id="4_wave_mgr"]
 [ext_resource type="PackedScene" path="res://scenes/hud.tscn" id="5_hud"]
 [ext_resource type="PackedScene" path="res://scenes/shop_ui.tscn" id="6_shop_ui"]
 [ext_resource type="PackedScene" path="res://scenes/title_screen.tscn" id="7_title"]
+[ext_resource type="Texture2D" path="res://assets/sprites/magical_rune_cyan.png" id="8_rune"]
+[ext_resource type="Texture2D" path="res://assets/sprites/brazier_pedestal.png" id="9_pedestal"]
 
 [sub_resource type="RectangleShape2D" id="WallShape_Horiz"]
 size = Vector2(2500, 60)
@@ -25,6 +27,30 @@ offset_right = 1250.0
 offset_bottom = 950.0
 texture = ExtResource("2_floor")
 stretch_mode = 1
+
+[node name="DecorativeProps" type="Node2D" parent="."]
+
+[node name="CenterRune" type="Sprite2D" parent="DecorativeProps"]
+position = Vector2(0, 0)
+texture = ExtResource("8_rune")
+
+[node name="CornerProp1" type="Sprite2D" parent="DecorativeProps"]
+position = Vector2(-1100, -800)
+texture = ExtResource("9_pedestal")
+
+[node name="CornerProp2" type="Sprite2D" parent="DecorativeProps"]
+position = Vector2(1100, -800)
+texture = ExtResource("9_pedestal")
+
+[node name="CornerProp3" type="Sprite2D" parent="DecorativeProps"]
+position = Vector2(-1100, 800)
+texture = ExtResource("9_pedestal")
+
+[node name="CornerProp4" type="Sprite2D" parent="DecorativeProps"]
+position = Vector2(1100, 800)
+texture = ExtResource("9_pedestal")
+
+[node name="FloatingTexts" type="Node2D" parent="."]
 
 [node name="ArenaWalls" type="StaticBody2D" parent="."]
 collision_layer = 4

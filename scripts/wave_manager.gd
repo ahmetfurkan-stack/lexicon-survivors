@@ -93,6 +93,11 @@ func spawn_enemy():
 	else:
 		enemy.enemy_type = "Typo Slime"
 		
+	# Tactical affixes for wave >= 15 (35% chance)
+	if wave >= 15 and randf() < 0.35 and enemy.enemy_type != "Red Pen Boss" and enemy.enemy_type != "Lexicon Dragon Boss":
+		var affixes = ["shielded", "blinker", "commander", "volatile"]
+		enemy.affix = affixes[randi() % affixes.size()]
+		
 	get_tree().current_scene.add_child(enemy)
 
 func end_wave():
