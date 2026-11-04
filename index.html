@@ -104,7 +104,7 @@
       gap: 4px;
       background: linear-gradient(180deg, rgba(14, 9, 6, 0.92) 0%, rgba(14, 9, 6, 0.5) 75%, transparent 100%);
       text-shadow: 1px 1px 3px #000;
-      z-index: 10;
+      z-index: 100;
     }
 
     .hud-row {
@@ -772,19 +772,33 @@
       z-index: 40;
       display: none;
     }
+    #touch-joystick-surface {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 50%;
+      height: 100%;
+      pointer-events: auto;
+      touch-action: none;
+      z-index: 38;
+      -webkit-tap-highlight-color: transparent;
+    }
     #joystick-zone {
       position: absolute;
       bottom: 24px;
       left: 24px;
-      width: 130px;
-      height: 130px;
+      width: 120px;
+      height: 120px;
       pointer-events: auto;
       touch-action: none;
+      z-index: 42;
+      transition: opacity 0.2s ease;
+      opacity: 0.85;
     }
     #joystick-base {
       width: 100%;
       height: 100%;
-      background: radial-gradient(circle, rgba(212, 175, 55, 0.25) 0%, rgba(20, 10, 5, 0.6) 100%);
+      background: radial-gradient(circle, rgba(212, 175, 55, 0.3) 0%, rgba(20, 10, 5, 0.7) 100%);
       border: 2px solid var(--gold-primary);
       border-radius: 50%;
       display: flex;
@@ -794,29 +808,32 @@
       position: relative;
     }
     #joystick-knob {
-      width: 50px;
-      height: 50px;
+      width: 48px;
+      height: 48px;
       background: radial-gradient(circle, #f5d77f 0%, #a17822 100%);
       border: 2px solid #fff;
       border-radius: 50%;
       position: absolute;
-      box-shadow: 0 0 10px rgba(255, 215, 0, 0.6);
+      box-shadow: 0 0 12px rgba(255, 215, 0, 0.7);
       transform: translate(0px, 0px);
-      transition: transform 0.05s ease-out;
+      transition: transform 0.04s ease-out;
     }
     #touch-action-buttons {
       position: absolute;
-      bottom: 24px;
-      right: 24px;
-      display: flex;
-      flex-direction: column;
+      bottom: 20px;
+      right: 20px;
+      display: grid;
+      grid-template-columns: repeat(2, auto);
       gap: 10px;
+      align-items: center;
+      justify-items: center;
       pointer-events: auto;
       touch-action: none;
+      z-index: 45;
     }
     .touch-circle-btn {
-      width: 56px;
-      height: 56px;
+      width: 52px;
+      height: 52px;
       border-radius: 50%;
       background: radial-gradient(circle, #faf2df 0%, #d8be8d 100%);
       border: 2.5px solid var(--gold-dark);
@@ -828,19 +845,28 @@
       cursor: pointer;
       color: #2b170c;
       outline: none;
+      user-select: none;
+      -webkit-user-select: none;
       -webkit-tap-highlight-color: transparent;
+      touch-action: manipulation;
     }
     .touch-circle-btn:active {
       transform: scale(0.92);
       background: #e2cfa2;
       box-shadow: 0 2px 6px rgba(0,0,0,0.8);
     }
+    #touch-gadget-btn {
+      width: 58px;
+      height: 58px;
+      border-color: var(--gold-bright);
+      box-shadow: 0 0 12px rgba(212, 175, 55, 0.6);
+    }
     .touch-icon {
-      font-size: 20px;
+      font-size: 19px;
       line-height: 1;
     }
     .touch-label {
-      font-size: 8px;
+      font-size: 7.5px;
       font-weight: 900;
       font-family: 'Cinzel', serif;
       margin-top: 1px;
@@ -849,20 +875,23 @@
     #orientation-hint {
       display: none;
       position: absolute;
-      top: 0;
-      left: 0;
-      width: 100%;
-      background: rgba(139, 0, 0, 0.94);
+      top: 56px;
+      left: 50%;
+      transform: translateX(-50%);
+      width: 90%;
+      max-width: 380px;
+      background: rgba(45, 20, 10, 0.94);
       color: #fff9e6;
       font-size: 11px;
       font-family: 'Cinzel', serif;
       font-weight: 700;
       text-align: center;
-      padding: 5px 8px;
-      z-index: 500;
+      padding: 6px 12px;
+      z-index: 90;
       pointer-events: auto;
-      border-bottom: 1.5px solid var(--gold-bright);
-      box-shadow: 0 2px 10px rgba(0,0,0,0.7);
+      border: 1.5px solid var(--gold-bright);
+      border-radius: 6px;
+      box-shadow: 0 4px 15px rgba(0,0,0,0.8);
       cursor: pointer;
     }
 
@@ -904,37 +933,59 @@
         }
       }
 
-      /* HUD Responsive Layout */
+      /* HUD Responsive Layout - Streamlined Single Row + Weapon Pills */
       #hud {
-        padding: 4px 6px !important;
+        padding: 4px 8px !important;
         gap: 2px !important;
       }
       .hud-row {
-        flex-wrap: wrap !important;
-        gap: 3px !important;
+        flex-wrap: nowrap !important;
+        gap: 6px !important;
+        align-items: center !important;
         justify-content: space-between !important;
       }
       .hp-container {
-        width: 110px !important;
+        width: 105px !important;
         height: 18px !important;
+        flex-shrink: 0 !important;
       }
       .hp-text {
-        font-size: 9px !important;
+        font-size: 8.5px !important;
       }
       .timer-badge {
         font-size: 9.5px !important;
-        padding: 2px 5px !important;
+        padding: 2px 6px !important;
+        flex-shrink: 0 !important;
+        white-space: nowrap !important;
       }
       .stats-right {
         display: flex !important;
         align-items: center !important;
-        gap: 2px !important;
+        gap: 4px !important;
+        flex-shrink: 0 !important;
       }
-      .hud-btn {
-        padding: 3px 5px !important;
-        font-size: 8.5px !important;
+      .stats-right .ink-count, .stats-right .kill-count {
+        font-size: 11px !important;
+      }
+      #mobile-menu-btn {
+        display: inline-flex !important;
+        align-items: center !important;
+        justify-content: center !important;
+        padding: 4px 8px !important;
+        font-size: 11px !important;
+        font-weight: 800 !important;
         min-height: 28px !important;
+        background: linear-gradient(180deg, #4a2815, #221209) !important;
+        border: 1.5px solid var(--gold-bright) !important;
+        color: var(--gold-bright) !important;
+        border-radius: 4px !important;
+        cursor: pointer !important;
         touch-action: manipulation !important;
+        pointer-events: auto !important;
+      }
+      /* Hide dense desktop button row on small mobile screens */
+      #speed-btn, #auto-tur-btn, #auto-run-btn, #music-btn, #mistakes-btn, #inventory-btn, #touch-toggle-btn, #fullscreen-btn {
+        display: none !important;
       }
       .info-subrow {
         font-size: 9px !important;
@@ -953,9 +1004,15 @@
         padding: 6px !important;
         overflow-y: auto !important;
         -webkit-overflow-scrolling: touch !important;
-        display: flex !important;
         align-items: center !important;
         justify-content: center !important;
+      }
+      .screen-overlay[style*="display: none"],
+      .screen-overlay.hidden {
+        display: none !important;
+      }
+      .screen-overlay:not([style*="display: none"]) {
+        display: flex !important;
       }
 
       .dialog-panel {
@@ -1129,14 +1186,12 @@
 
       /* Touch Joystick Zone & Buttons during active wave */
       #joystick-zone {
-        bottom: 12px !important;
-        left: 12px !important;
         width: 100px !important;
         height: 100px !important;
       }
       #joystick-knob {
-        width: 40px !important;
-        height: 40px !important;
+        width: 38px !important;
+        height: 38px !important;
       }
       #touch-action-buttons {
         bottom: 12px !important;
@@ -1144,9 +1199,13 @@
         gap: 6px !important;
       }
       .touch-circle-btn {
-        width: 48px !important;
-        height: 48px !important;
+        width: 44px !important;
+        height: 44px !important;
         touch-action: manipulation !important;
+      }
+      #touch-gadget-btn {
+        width: 52px !important;
+        height: 52px !important;
       }
       .touch-icon {
         font-size: 16px !important;
@@ -1184,6 +1243,7 @@
         <div class="stats-right">
           <span class="ink-count" id="ink-count">💧 0</span>
           <span class="kill-count" id="kill-count">💀 0</span>
+          <button id="mobile-menu-btn" class="hud-btn" style="display: none;" title="Hızlı Menü">⚙️ MENÜ</button>
           <button id="speed-btn" class="hud-btn" title="Oyun Hızı (0.5x, 1x, 1.5x, 2x, 3x) - Kısayol: [ ve ]">⚡ 1.0x</button>
           <button id="auto-tur-btn" class="hud-btn" title="Otomatik Yeni Tur / Dalga (Açık/Kapalı)">🔄 OTO TUR: AÇIK</button>
           <button id="auto-run-btn" class="hud-btn" title="Otomatik Yeni Run (Açık/Kapalı)">⚡ OTO RUN: AÇIK</button>
@@ -1221,6 +1281,12 @@
     <div id="synergy-banner">
       <h4 id="syn-title">✦ YENİ SİNERJİ AÇILDI ✦</h4>
       <p id="syn-desc">+35 Hareket Hızı</p>
+    </div>
+
+    <!-- TACTICAL WAVE THREAT BANNER -->
+    <div id="tactical-alert-banner" style="display: none; position: absolute; top: 68px; left: 50%; transform: translateX(-50%); background: rgba(32, 10, 8, 0.95); border: 2px solid #ef4444; border-radius: 6px; padding: 7px 18px; color: #fff; font-family: 'Cinzel', serif; z-index: 130; text-align: center; box-shadow: 0 0 24px rgba(239, 68, 68, 0.7); pointer-events: none; transition: opacity 0.4s ease; max-width: 92vw;">
+      <div id="tactical-alert-title" style="font-size: 13px; font-weight: 900; color: #fca5a5; letter-spacing: 0.8px;">⚔️ TAKTİKSEL TEHDİT UYARISI ⚔️</div>
+      <div id="tactical-alert-desc" style="font-size: 11px; font-family: 'Lora', serif; font-style: italic; color: #fef08a; margin-top: 2px;">Lider canavarları önce yok edin!</div>
     </div>
 
     <!-- TITLE / CHARACTER SELECTION OVERLAY -->
@@ -1374,15 +1440,22 @@
 
     <!-- VIRTUAL MOBILE TOUCH CONTROLS -->
     <div id="mobile-touch-controls">
-      <!-- Virtual Joystick (Bottom Left) -->
+      <!-- Full Left-Half Floating Joystick Touch Surface -->
+      <div id="touch-joystick-surface"></div>
+
+      <!-- Virtual Joystick Base & Knob -->
       <div id="joystick-zone">
         <div id="joystick-base">
           <div id="joystick-knob"></div>
         </div>
       </div>
 
-      <!-- Virtual Action Buttons (Bottom Right) -->
+      <!-- Virtual Action Buttons (Bottom Right Cluster) -->
       <div id="touch-action-buttons">
+        <button id="touch-weapon-btn" class="touch-circle-btn" title="Silah Değiştir [Q/E]">
+          <span class="touch-icon">⚔️</span>
+          <span class="touch-label">SİLAH</span>
+        </button>
         <button id="touch-gadget-btn" class="touch-circle-btn" title="Aktif Gadget">
           <span class="touch-icon">🧽</span>
           <span class="touch-label">GADGET</span>
@@ -1395,6 +1468,59 @@
           <span class="touch-icon">📖</span>
           <span class="touch-label">HATA</span>
         </button>
+      </div>
+    </div>
+
+    <!-- MOBILE QUICK SETTINGS MENU -->
+    <div id="mobile-quick-menu" class="screen-overlay" style="display: none; z-index: 250;">
+      <div class="dialog-panel" style="max-width: 440px; padding: 14px 18px; text-align: center;">
+        <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1.5px solid var(--parchment-border); padding-bottom: 8px;">
+          <h3 style="font-family: 'Cinzel', serif; font-size: 18px; color: #2b170c; margin: 0; font-weight: 900;">
+            ⚙️ HIZLI AYARLAR & KONTROLLER
+          </h3>
+          <button class="btn btn-crimson" id="close-mobile-menu-btn" style="padding: 4px 12px; font-size: 12px;">✕ Kapat</button>
+        </div>
+
+        <div style="margin: 10px 0 6px 0; text-align: left;">
+          <div style="font-family: 'Cinzel', serif; font-size: 12px; font-weight: bold; color: #5c3b1e; margin-bottom: 5px;">
+            ⚡ OYUN HIZI (SİMÜLASYON)
+          </div>
+          <div id="mobile-speed-segmented" style="display: flex; gap: 4px; width: 100%;">
+            <button class="btn mobile-speed-opt" data-speed="0.5" style="flex: 1; padding: 7px 2px; font-size: 11px;">0.5x</button>
+            <button class="btn mobile-speed-opt" data-speed="1.0" style="flex: 1; padding: 7px 2px; font-size: 11px;">1.0x</button>
+            <button class="btn mobile-speed-opt" data-speed="1.5" style="flex: 1; padding: 7px 2px; font-size: 11px;">1.5x</button>
+            <button class="btn mobile-speed-opt" data-speed="2.0" style="flex: 1; padding: 7px 2px; font-size: 11px;">2.0x</button>
+            <button class="btn mobile-speed-opt" data-speed="3.0" style="flex: 1; padding: 7px 2px; font-size: 11px;">3.0x</button>
+          </div>
+        </div>
+
+        <div style="display: flex; flex-direction: column; gap: 7px; margin-top: 4px;">
+          <button class="btn" id="mobile-toggle-autowave-btn" style="width: 100%; min-height: 42px; font-size: 13px;">
+            🔄 Otomatik Yeni Tur: AÇIK
+          </button>
+          <button class="btn" id="mobile-toggle-autorun-btn" style="width: 100%; min-height: 42px; font-size: 13px;">
+            ⚡ Otomatik Yeni Run: AÇIK
+          </button>
+          <button class="btn" id="mobile-toggle-music-btn" style="width: 100%; min-height: 42px; font-size: 13px;">
+            🎵 Müzik: AÇIK
+          </button>
+          <div style="display: flex; gap: 6px; width: 100%;">
+            <button class="btn btn-seal" id="mobile-open-inv-btn" style="flex: 1; min-height: 42px; font-size: 12.5px;">
+              🎒 Envanter [I]
+            </button>
+            <button class="btn" id="mobile-open-mistakes-btn" style="flex: 1; min-height: 42px; font-size: 12.5px;">
+              📖 Hata Defteri
+            </button>
+          </div>
+          <div style="display: flex; gap: 6px; width: 100%;">
+            <button class="btn" id="mobile-toggle-joy-btn" style="flex: 1; min-height: 40px; font-size: 12px;">
+              📱 Sanal Joystick: AÇIK
+            </button>
+            <button class="btn" id="mobile-toggle-fs-btn" style="flex: 1; min-height: 40px; font-size: 12px;">
+              ⛶ Tam Ekran
+            </button>
+          </div>
+        </div>
       </div>
     </div>
 
