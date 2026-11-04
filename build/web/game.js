@@ -692,9 +692,10 @@ const state = {
   chrono_timer: 0,
   shield_charges: 0,
 
-  // Game Speed & Auto New Run
+  // Game Speed, Auto New Tur (Wave) & Auto New Run
   game_speed: 1.0,
-  auto_new_run: localStorage.getItem("lexicon_auto_new_run") === "true",
+  auto_new_tur: localStorage.getItem("lexicon_auto_new_tur") !== "false",
+  auto_new_run: localStorage.getItem("lexicon_auto_new_run") !== "false",
 
   // 100-Wave Progression
   current_wave: 1,
@@ -904,6 +905,92 @@ function adjustGameSpeed(direction) {
   setGameSpeed(SPEED_STEPS[nextIdx]);
 }
 
+function toggleAutoNewTur() {
+  state.auto_new_tur = !state.auto_new_tur;
+  try {
+    localStorage.setItem("lexicon_auto_new_tur", state.auto_new_tur ? "true" : "false");
+  } catch(e){}
+  updateAutoTurUI();
+  const shopScreen = document.getElementById("shop-screen");
+  if (shopScreen && shopScreen.style.display !== "none") {
+    if (state.auto_new_tur) startShopAutoWaveCountdown(4);
+    else clearShopAutoWaveTimer();
+  }
+}
+
+function updateAutoTurUI() {
+  const isAuto = !!state.auto_new_tur;
+  const btn = document.getElementById("auto-tur-btn");
+  if (btn) {
+    btn.textContent = isAuto ? "🔄 OTO TUR: AÇIK" : "🔄 OTO TUR: KAPALI";
+    btn.style.color = isAuto ? "#00b894" : "var(--gold-bright)";
+    btn.style.borderColor = isAuto ? "#00b894" : "var(--gold-dark)";
+  }
+  const titleBtn = document.getElementById("title-auto-tur-btn");
+  if (titleBtn) {
+    titleBtn.textContent = isAuto ? "🔄 Otomatik Yeni Tur: AÇIK" : "🔄 Otomatik Yeni Tur: KAPALI";
+    titleBtn.style.color = isAuto ? "#00b894" : "var(--gold-bright)";
+  }
+  const shopBtn = document.getElementById("shop-auto-tur-btn");
+  if (shopBtn) {
+    shopBtn.textContent = isAuto ? "🔄 Oto Tur: AÇIK" : "🔄 Oto Tur: KAPALI";
+    shopBtn.style.color = isAuto ? "#00b894" : "var(--gold-bright)";
+  }
+}
+
+let shopAutoWaveTimer = null;
+let shopAutoWaveEndTime = 0;
+
+function startShopAutoWaveCountdown(seconds) {
+  if (!state.auto_new_tur) return;
+  const container = document.getElementById("shop-auto-wave-container");
+  const label = document.getElementById("shop-auto-wave-label");
+  const bar = document.getElementById("shop-auto-wave-bar");
+  const nextWaveText = document.getElementById("shop-next-wave-text");
+  if (!container || !label || !bar) return;
+
+  container.style.display = "block";
+  shopAutoWaveEndTime = Date.now() + seconds * 1000;
+
+  if (shopAutoWaveTimer) clearInterval(shopAutoWaveTimer);
+  shopAutoWaveTimer = setInterval(() => {
+    const leftMs = shopAutoWaveEndTime - Date.now();
+    const leftSec = Math.max(0, Math.ceil(leftMs / 1000));
+    label.textContent = `⏳ Otomatik Sonraki Tur: ${leftSec}s`;
+    if (nextWaveText) {
+      nextWaveText.textContent = `SONRAKİ DALGAYA ATIL ⚔ (${leftSec}s)`;
+    }
+    const pct = Math.max(0, Math.min(100, (leftMs / (seconds * 1000)) * 100));
+    bar.style.width = pct + "%";
+
+    if (leftMs <= 0) {
+      clearShopAutoWaveTimer();
+      advanceNextWave();
+    }
+  }, 100);
+}
+
+function clearShopAutoWaveTimer() {
+  if (shopAutoWaveTimer) {
+    clearInterval(shopAutoWaveTimer);
+    shopAutoWaveTimer = null;
+  }
+  const container = document.getElementById("shop-auto-wave-container");
+  if (container) container.style.display = "none";
+  const nextWaveText = document.getElementById("shop-next-wave-text");
+  if (nextWaveText) {
+    nextWaveText.textContent = "SONRAKİ DALGAYA ATIL ⚔";
+  }
+}
+
+function advanceNextWave() {
+  clearShopAutoWaveTimer();
+  document.getElementById("shop-screen").style.display = "none";
+  state.current_wave++;
+  startWave();
+  syncMobileControlsVisibility();
+}
+
 function toggleAutoNewRun() {
   state.auto_new_run = !state.auto_new_run;
   try {
@@ -916,18 +1003,18 @@ function updateAutoRunUI() {
   const isAuto = !!state.auto_new_run;
   const btn = document.getElementById("auto-run-btn");
   if (btn) {
-    btn.textContent = isAuto ? "🔄 OTO: AÇIK" : "🔄 OTO: KAPALI";
+    btn.textContent = isAuto ? "⚡ OTO RUN: AÇIK" : "⚡ OTO RUN: KAPALI";
     btn.style.color = isAuto ? "#00b894" : "var(--gold-bright)";
     btn.style.borderColor = isAuto ? "#00b894" : "var(--gold-dark)";
   }
   const titleBtn = document.getElementById("title-auto-run-btn");
   if (titleBtn) {
-    titleBtn.textContent = isAuto ? "🔄 Otomatik Yeni Run: AÇIK" : "🔄 Otomatik Yeni Run: KAPALI";
+    titleBtn.textContent = isAuto ? "⚡ Otomatik Yeni Run: AÇIK" : "⚡ Otomatik Yeni Run: KAPALI";
     titleBtn.style.color = isAuto ? "#00b894" : "var(--gold-bright)";
   }
   const goBtn = document.getElementById("gameover-auto-run-toggle");
   if (goBtn) {
-    goBtn.textContent = isAuto ? "🔄 Oto Run: AÇIK" : "🔄 Oto Run: KAPALI";
+    goBtn.textContent = isAuto ? "⚡ Oto Run: AÇIK" : "⚡ Oto Run: KAPALI";
     goBtn.style.color = isAuto ? "#00b894" : "var(--gold-bright)";
   }
 }
@@ -936,6 +1023,7 @@ let autoRunTimer = null;
 let autoRunEndTime = 0;
 
 function startAutoRunCountdown(seconds) {
+  if (!state.auto_new_run) return;
   const container = document.getElementById("auto-run-countdown-container");
   const text = document.getElementById("auto-run-countdown-text");
   const bar = document.getElementById("auto-run-countdown-bar");
@@ -987,6 +1075,14 @@ if (speedBtn) {
   };
 }
 
+const autoTurBtn = document.getElementById("auto-tur-btn");
+if (autoTurBtn) {
+  autoTurBtn.onclick = (e) => {
+    e.stopPropagation();
+    toggleAutoNewTur();
+  };
+}
+
 const autoRunBtn = document.getElementById("auto-run-btn");
 if (autoRunBtn) {
   autoRunBtn.onclick = (e) => {
@@ -1000,6 +1096,14 @@ if (titleSpeedBtn) {
   titleSpeedBtn.onclick = (e) => {
     e.stopPropagation();
     cycleGameSpeed();
+  };
+}
+
+const titleAutoTurBtn = document.getElementById("title-auto-tur-btn");
+if (titleAutoTurBtn) {
+  titleAutoTurBtn.onclick = (e) => {
+    e.stopPropagation();
+    toggleAutoNewTur();
   };
 }
 
@@ -1038,6 +1142,28 @@ if (cancelAutoRunBtn) {
     e.stopPropagation();
     clearAutoRunCountdown();
   };
+}
+
+const shopAutoTurBtn = document.getElementById("shop-auto-tur-btn");
+if (shopAutoTurBtn) {
+  shopAutoTurBtn.onclick = (e) => {
+    e.stopPropagation();
+    toggleAutoNewTur();
+  };
+}
+
+const shopCancelAutoBtn = document.getElementById("shop-auto-wave-cancel-btn");
+if (shopCancelAutoBtn) {
+  shopCancelAutoBtn.onclick = (e) => {
+    e.stopPropagation();
+    clearShopAutoWaveTimer();
+  };
+}
+
+const shopNextWaveBtn = document.getElementById("shop-next-wave-btn");
+if (shopNextWaveBtn) {
+  shopNextWaveBtn.onclick = advanceNextWave;
+  shopNextWaveBtn.addEventListener("pointerup", advanceNextWave);
 }
 
 // Inventory modal toggle
@@ -1405,6 +1531,7 @@ function initTitleScreen() {
   });
 
   document.getElementById("diff-desc").textContent = DIFFICULTIES[state.difficulty].desc;
+  updateAutoTurUI();
   updateAutoRunUI();
   setGameSpeed(state.game_speed || 1.0);
 }
@@ -2694,6 +2821,13 @@ function openShop() {
   refreshShopCards();
   renderShopView();
   updateShopTopBar();
+  updateAutoTurUI();
+
+  if (state.auto_new_tur) {
+    startShopAutoWaveCountdown(4);
+  } else {
+    clearShopAutoWaveTimer();
+  }
 }
 
 function updateShopTopBar() {
@@ -2767,12 +2901,13 @@ function highlightShopTabs() {
   document.getElementById("shop-reroll-btn").style.display = currentShopTab === "cards" ? "inline-flex" : "none";
 }
 
-document.getElementById("tab-cards-btn").onclick = () => { currentShopTab = "cards"; highlightShopTabs(); renderShopView(); };
-document.getElementById("tab-weapons-btn").onclick = () => { currentShopTab = "weapons"; highlightShopTabs(); renderShopView(); };
-document.getElementById("tab-gadgets-btn").onclick = () => { currentShopTab = "gadgets"; highlightShopTabs(); renderShopView(); };
-document.getElementById("tab-artifacts-btn").onclick = () => { currentShopTab = "artifacts"; highlightShopTabs(); renderShopView(); };
+document.getElementById("tab-cards-btn").onclick = () => { clearShopAutoWaveTimer(); currentShopTab = "cards"; highlightShopTabs(); renderShopView(); };
+document.getElementById("tab-weapons-btn").onclick = () => { clearShopAutoWaveTimer(); currentShopTab = "weapons"; highlightShopTabs(); renderShopView(); };
+document.getElementById("tab-gadgets-btn").onclick = () => { clearShopAutoWaveTimer(); currentShopTab = "gadgets"; highlightShopTabs(); renderShopView(); };
+document.getElementById("tab-artifacts-btn").onclick = () => { clearShopAutoWaveTimer(); currentShopTab = "artifacts"; highlightShopTabs(); renderShopView(); };
 
 document.getElementById("shop-reroll-btn").onclick = () => {
+  clearShopAutoWaveTimer();
   if (state.ink_count >= 5) {
     state.ink_count -= 5;
     refreshShopCards();
@@ -2782,11 +2917,8 @@ document.getElementById("shop-reroll-btn").onclick = () => {
   }
 };
 
-document.getElementById("shop-next-wave-btn").onclick = () => {
-  document.getElementById("shop-screen").style.display = "none";
-  state.current_wave++;
-  startWave();
-};
+document.getElementById("shop-next-wave-btn").onclick = advanceNextWave;
+document.getElementById("shop-next-wave-btn").addEventListener("pointerup", advanceNextWave);
 
 function renderShopView() {
   const grid = document.getElementById("shop-items-grid");
