@@ -1,0 +1,11 @@
+[gd_scene load_steps=3 format=3 uid="uid://d3m7y2x9v4p1k"]
+
+[ext_resource type="Script" path="res://scripts/weapon.gd" id="1_script"]
+[ext_resource type="Texture2D" path="res://assets/sprites/quill_blaster.png" id="2_texture"]
+
+[node name="Weapon" type="Node2D"]
+script = ExtResource("1_script")
+
+[node name="Sprite2D" type="Sprite2D" parent="."]
+position = Vector2(10, 0)
+texture = ExtResource("2_texture")

@@ -1,0 +1,18 @@
+[gd_scene load_steps=4 format=3 uid="uid://d9k2m5p8q4w1x"]
+
+[ext_resource type="Script" path="res://scripts/punctuation_mine.gd" id="1_script"]
+[ext_resource type="Texture2D" path="res://assets/sprites/punctuation_mine.png" id="2_texture"]
+
+[sub_resource type="CircleShape2D" id="CircleShape2D_mine"]
+radius = 20.0
+
+[node name="PunctuationMine" type="Area2D"]
+collision_layer = 4
+collision_mask = 2
+script = ExtResource("1_script")
+
+[node name="Sprite2D" type="Sprite2D" parent="."]
+texture = ExtResource("2_texture")
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="."]
+shape = SubResource("CircleShape2D_mine")

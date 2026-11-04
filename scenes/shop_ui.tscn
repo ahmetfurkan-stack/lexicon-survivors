@@ -1,0 +1,226 @@
+[gd_scene load_steps=2 format=3 uid="uid://c8m2p9v4y1x7w"]
+
+[ext_resource type="Script" path="res://scripts/shop_ui.gd" id="1_script"]
+
+[node name="ShopUI" type="Control"]
+layout_mode = 3
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+script = ExtResource("1_script")
+
+[node name="BackgroundDim" type="ColorRect" parent="."]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+color = Color(0.04, 0.06, 0.1, 0.88)
+
+[node name="Panel" type="Panel" parent="."]
+layout_mode = 1
+anchors_preset = 8
+anchor_left = 0.5
+anchor_top = 0.5
+anchor_right = 0.5
+anchor_bottom = 0.5
+offset_left = -600.0
+offset_top = -330.0
+offset_right = 600.0
+offset_bottom = 330.0
+grow_horizontal = 2
+grow_vertical = 2
+
+[node name="TopBar" type="HBoxContainer" parent="Panel"]
+layout_mode = 1
+anchors_preset = 10
+anchor_right = 1.0
+offset_left = 30.0
+offset_top = 15.0
+offset_right = -30.0
+offset_bottom = 50.0
+grow_horizontal = 2
+
+[node name="Title" type="Label" parent="Panel/TopBar"]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_font_sizes/font_size = 22
+text = "📚 LEKSİKON DÜKKANI & EKİPMAN MERKEZİ"
+
+[node name="WaveLabel" type="Label" parent="Panel/TopBar"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.4, 0.8, 1, 1)
+theme_override_font_sizes/font_size = 17
+text = "Dalga 1 Tamamlandı!"
+
+[node name="InkLabel" type="Label" parent="Panel/TopBar"]
+custom_minimum_size = Vector2(160, 0)
+layout_mode = 2
+theme_override_colors/font_color = Color(0.2, 0.9, 0.9, 1)
+theme_override_font_sizes/font_size = 20
+text = "💧 Mürekkep: 0"
+horizontal_alignment = 2
+
+[node name="SynergyLabel" type="Label" parent="Panel"]
+layout_mode = 1
+anchors_preset = 10
+anchor_right = 1.0
+offset_left = 30.0
+offset_top = 52.0
+offset_right = -30.0
+offset_bottom = 74.0
+grow_horizontal = 2
+theme_override_colors/font_color = Color(1, 0.85, 0.3, 1)
+theme_override_font_sizes/font_size = 13
+text = "Aktif Sinerji: Yok"
+
+[node name="CategoryBar" type="HBoxContainer" parent="Panel"]
+layout_mode = 1
+anchors_preset = 10
+anchor_right = 1.0
+offset_left = 30.0
+offset_top = 78.0
+offset_right = -30.0
+offset_bottom = 114.0
+grow_horizontal = 2
+theme_override_constants/separation = 12
+
+[node name="CardsTabButton" type="Button" parent="Panel/CategoryBar"]
+layout_mode = 2
+size_flags_horizontal = 3
+text = "📖 Kelime Kartları (Quiz İndirimli)"
+
+[node name="WeaponsTabButton" type="Button" parent="Panel/CategoryBar"]
+layout_mode = 2
+size_flags_horizontal = 3
+text = "⚔️ Silah Pazarı (Çoklu Silah)"
+
+[node name="ArtifactsTabButton" type="Button" parent="Panel/CategoryBar"]
+layout_mode = 2
+size_flags_horizontal = 3
+text = "🔮 Kütüphane Eserleri & Gadget"
+
+[node name="ScrollArea" type="ScrollContainer" parent="Panel"]
+layout_mode = 1
+anchors_preset = 8
+anchor_left = 0.5
+anchor_top = 0.5
+anchor_right = 0.5
+anchor_bottom = 0.5
+offset_left = -570.0
+offset_top = -200.0
+offset_right = 570.0
+offset_bottom = 175.0
+grow_horizontal = 2
+grow_vertical = 2
+horizontal_scroll_mode = 1
+vertical_scroll_mode = 0
+
+[node name="CardsContainer" type="HBoxContainer" parent="Panel/ScrollArea"]
+layout_mode = 2
+size_flags_horizontal = 3
+size_flags_vertical = 3
+theme_override_constants/separation = 16
+alignment = 1
+
+[node name="BottomBar" type="HBoxContainer" parent="Panel"]
+layout_mode = 1
+anchors_preset = 12
+anchor_top = 1.0
+anchor_right = 1.0
+anchor_bottom = 1.0
+offset_left = 30.0
+offset_top = -68.0
+offset_right = -30.0
+offset_bottom = -18.0
+grow_horizontal = 2
+grow_vertical = 0
+theme_override_constants/separation = 30
+
+[node name="RerollButton" type="Button" parent="Panel/BottomBar"]
+custom_minimum_size = Vector2(220, 48)
+layout_mode = 2
+text = "🔄 Kartları Yenile (5 💧)"
+
+[node name="Spacer" type="Control" parent="Panel/BottomBar"]
+layout_mode = 2
+size_flags_horizontal = 3
+
+[node name="NextWaveButton" type="Button" parent="Panel/BottomBar"]
+custom_minimum_size = Vector2(260, 48)
+layout_mode = 2
+theme_override_font_sizes/font_size = 18
+text = "⚔ Sonraki Dalgaya Başla ▶"
+
+[node name="QuizModal" type="ColorRect" parent="."]
+visible = false
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+color = Color(0, 0, 0, 0.85)
+
+[node name="Box" type="VBoxContainer" parent="QuizModal"]
+layout_mode = 1
+anchors_preset = 8
+anchor_left = 0.5
+anchor_top = 0.5
+anchor_right = 0.5
+anchor_bottom = 0.5
+offset_left = -330.0
+offset_top = -240.0
+offset_right = 330.0
+offset_bottom = 240.0
+grow_horizontal = 2
+grow_vertical = 2
+theme_override_constants/separation = 14
+
+[node name="WordTitle" type="Label" parent="QuizModal/Box"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.3, 0.8, 1, 1)
+theme_override_font_sizes/font_size = 26
+text = "Kelime: Relentless [Adjective]"
+horizontal_alignment = 1
+
+[node name="QuestionLabel" type="Label" parent="QuizModal/Box"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 18
+text = "'Relentless' kelimesinin Türkçe karşılığı nedir?"
+horizontal_alignment = 1
+autowrap_mode = 2
+
+[node name="ExampleLabel" type="Label" parent="QuizModal/Box"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.7, 0.7, 0.7, 1)
+theme_override_font_sizes/font_size = 13
+text = "Örnek: His relentless attacks overwhelmed the enemy."
+horizontal_alignment = 1
+autowrap_mode = 2
+
+[node name="OptionsContainer" type="VBoxContainer" parent="QuizModal/Box"]
+layout_mode = 2
+theme_override_constants/separation = 8
+
+[node name="ResultLabel" type="Label" parent="QuizModal/Box"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 16
+horizontal_alignment = 1
+autowrap_mode = 2
+
+[node name="ContinueButton" type="Button" parent="QuizModal/Box"]
+visible = false
+custom_minimum_size = Vector2(0, 45)
+layout_mode = 2
+text = "Tamam / Dükkana Dön"
+
+[connection signal="pressed" from="Panel/CategoryBar/CardsTabButton" to="." method="_on_cards_tab_pressed"]
+[connection signal="pressed" from="Panel/CategoryBar/WeaponsTabButton" to="." method="_on_weapons_tab_pressed"]
+[connection signal="pressed" from="Panel/CategoryBar/ArtifactsTabButton" to="." method="_on_artifacts_tab_pressed"]
+[connection signal="pressed" from="Panel/BottomBar/RerollButton" to="." method="_on_reroll_button_pressed"]
+[connection signal="pressed" from="Panel/BottomBar/NextWaveButton" to="." method="_on_next_wave_button_pressed"]
+[connection signal="pressed" from="QuizModal/Box/ContinueButton" to="." method="_on_continue_button_pressed"]

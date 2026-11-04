@@ -1,0 +1,136 @@
+[gd_scene load_steps=10 format=3 uid="uid://b1j4k8m5q2v7p"]
+
+[ext_resource type="Script" path="res://scripts/main.gd" id="1_script"]
+[ext_resource type="Texture2D" path="res://assets/sprites/tile_floor.png" id="2_floor"]
+[ext_resource type="PackedScene" path="res://scenes/player.tscn" id="3_player"]
+[ext_resource type="Script" path="res://scripts/wave_manager.gd" id="4_wave_mgr"]
+[ext_resource type="PackedScene" path="res://scenes/hud.tscn" id="5_hud"]
+[ext_resource type="PackedScene" path="res://scenes/shop_ui.tscn" id="6_shop_ui"]
+[ext_resource type="PackedScene" path="res://scenes/title_screen.tscn" id="7_title"]
+
+[sub_resource type="RectangleShape2D" id="WallShape_Horiz"]
+size = Vector2(2500, 60)
+
+[sub_resource type="RectangleShape2D" id="WallShape_Vert"]
+size = Vector2(60, 1900)
+
+[node name="Main" type="Node2D"]
+script = ExtResource("1_script")
+
+[node name="Floor" type="TextureRect" parent="."]
+texture_repeat = 2
+offset_left = -1250.0
+offset_top = -950.0
+offset_right = 1250.0
+offset_bottom = 950.0
+texture = ExtResource("2_floor")
+stretch_mode = 1
+
+[node name="ArenaWalls" type="StaticBody2D" parent="."]
+collision_layer = 4
+collision_mask = 3
+
+[node name="TopWall" type="CollisionShape2D" parent="ArenaWalls"]
+position = Vector2(0, -980)
+shape = SubResource("WallShape_Horiz")
+
+[node name="BottomWall" type="CollisionShape2D" parent="ArenaWalls"]
+position = Vector2(0, 980)
+shape = SubResource("WallShape_Horiz")
+
+[node name="LeftWall" type="CollisionShape2D" parent="ArenaWalls"]
+position = Vector2(-1280, 0)
+shape = SubResource("WallShape_Vert")
+
+[node name="RightWall" type="CollisionShape2D" parent="ArenaWalls"]
+position = Vector2(1280, 0)
+shape = SubResource("WallShape_Vert")
+
+[node name="Player" parent="." instance=ExtResource("3_player")]
+position = Vector2(0, 0)
+
+[node name="WaveManager" type="Node2D" parent="."]
+script = ExtResource("4_wave_mgr")
+
+[node name="HUD" parent="." instance=ExtResource("5_hud")]
+
+[node name="ShopLayer" type="CanvasLayer" parent="."]
+process_mode = 2
+
+[node name="ShopUI" parent="ShopLayer" instance=ExtResource("6_shop_ui")]
+
+[node name="GameOverLayer" type="CanvasLayer" parent="."]
+process_mode = 2
+visible = false
+
+[node name="Dim" type="ColorRect" parent="GameOverLayer"]
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+color = Color(0.12, 0.02, 0.02, 0.88)
+
+[node name="GameOverPanel" type="Panel" parent="GameOverLayer"]
+anchors_preset = 8
+anchor_left = 0.5
+anchor_top = 0.5
+anchor_right = 0.5
+anchor_bottom = 0.5
+offset_left = -320.0
+offset_top = -220.0
+offset_right = 320.0
+offset_bottom = 220.0
+grow_horizontal = 2
+grow_vertical = 2
+
+[node name="Title" type="Label" parent="GameOverLayer/GameOverPanel"]
+layout_mode = 1
+anchors_preset = 10
+anchor_right = 1.0
+offset_top = 25.0
+offset_bottom = 60.0
+grow_horizontal = 2
+theme_override_colors/font_color = Color(1, 0.3, 0.3, 1)
+theme_override_font_sizes/font_size = 28
+text = "OYUN BİTTİ - KİTAP KAPANDI"
+horizontal_alignment = 1
+
+[node name="SummaryLabel" type="Label" parent="GameOverLayer/GameOverPanel"]
+layout_mode = 1
+anchors_preset = 8
+anchor_left = 0.5
+anchor_top = 0.5
+anchor_right = 0.5
+anchor_bottom = 0.5
+offset_left = -270.0
+offset_top = -90.0
+offset_right = 270.0
+offset_bottom = 110.0
+grow_horizontal = 2
+grow_vertical = 2
+theme_override_font_sizes/font_size = 15
+text = "Özet yükleniyor..."
+horizontal_alignment = 1
+vertical_alignment = 1
+autowrap_mode = 2
+
+[node name="RestartButton" type="Button" parent="GameOverLayer/GameOverPanel"]
+layout_mode = 1
+anchors_preset = 12
+anchor_top = 1.0
+anchor_right = 1.0
+anchor_bottom = 1.0
+offset_left = 60.0
+offset_top = -65.0
+offset_right = -60.0
+offset_bottom = -20.0
+grow_horizontal = 2
+grow_vertical = 0
+theme_override_font_sizes/font_size = 18
+text = "Tekrar Dene ↺"
+
+[node name="TitleLayer" type="CanvasLayer" parent="."]
+process_mode = 2
+
+[node name="TitleScreen" parent="TitleLayer" instance=ExtResource("7_title")]

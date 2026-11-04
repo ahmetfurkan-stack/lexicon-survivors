@@ -1,0 +1,122 @@
+[gd_scene load_steps=2 format=3 uid="uid://e4v7q2m9k1w8p"]
+
+[ext_resource type="Script" path="res://scripts/title_screen.gd" id="1_script"]
+
+[node name="TitleScreen" type="Control"]
+layout_mode = 3
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+script = ExtResource("1_script")
+
+[node name="Background" type="ColorRect" parent="."]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+color = Color(0.05, 0.07, 0.12, 0.96)
+
+[node name="Panel" type="Panel" parent="."]
+layout_mode = 1
+anchors_preset = 8
+anchor_left = 0.5
+anchor_top = 0.5
+anchor_right = 0.5
+anchor_bottom = 0.5
+offset_left = -580.0
+offset_top = -330.0
+offset_right = 580.0
+offset_bottom = 330.0
+grow_horizontal = 2
+grow_vertical = 2
+
+[node name="VBox" type="VBoxContainer" parent="Panel"]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+offset_left = 25.0
+offset_top = 18.0
+offset_right = -25.0
+offset_bottom = -18.0
+grow_horizontal = 2
+grow_vertical = 2
+theme_override_constants/separation = 12
+
+[node name="Title" type="Label" parent="Panel/VBox"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.3, 0.85, 1, 1)
+theme_override_font_sizes/font_size = 28
+text = "⚔️ LEXICON SURVIVORS: THE WORD GUARDIAN 📚"
+horizontal_alignment = 1
+
+[node name="Subtitle" type="Label" parent="Panel/VBox"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.8, 0.8, 0.8, 1)
+theme_override_font_sizes/font_size = 14
+text = "Brotato & Vampire Survivors Mekanikleri ile İngilizce Kelime & Dilbilgisi Arenası"
+horizontal_alignment = 1
+
+[node name="SectionChar" type="Label" parent="Panel/VBox"]
+layout_mode = 2
+theme_override_colors/font_color = Color(1, 0.85, 0.3, 1)
+theme_override_font_sizes/font_size = 16
+text = "▶ 1. Karakterini Seç:"
+horizontal_alignment = 1
+
+[node name="CharCardsContainer" type="HBoxContainer" parent="Panel/VBox"]
+layout_mode = 2
+theme_override_constants/separation = 16
+alignment = 1
+
+[node name="SectionDiff" type="Label" parent="Panel/VBox"]
+layout_mode = 2
+theme_override_colors/font_color = Color(1, 0.85, 0.3, 1)
+theme_override_font_sizes/font_size = 16
+text = "▶ 2. Zorluk Modunu Seç:"
+horizontal_alignment = 1
+
+[node name="DiffContainer" type="HBoxContainer" parent="Panel/VBox"]
+layout_mode = 2
+theme_override_constants/separation = 20
+alignment = 1
+
+[node name="EasyButton" type="Button" parent="Panel/VBox/DiffContainer"]
+custom_minimum_size = Vector2(240, 42)
+layout_mode = 2
+text = "🟢 Kolay (LGS / A1-A2)"
+
+[node name="NormalButton" type="Button" parent="Panel/VBox/DiffContainer"]
+custom_minimum_size = Vector2(240, 42)
+layout_mode = 2
+text = "🟡 Orta (YKS-YDT / B1)"
+
+[node name="HardButton" type="Button" parent="Panel/VBox/DiffContainer"]
+custom_minimum_size = Vector2(240, 42)
+layout_mode = 2
+text = "🔴 Zor (IELTS-TOEFL / B2-C1)"
+
+[node name="DiffDescLabel" type="Label" parent="Panel/VBox"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.4, 0.9, 0.9, 1)
+theme_override_font_sizes/font_size = 13
+text = "Zorluk açıklaması"
+horizontal_alignment = 1
+
+[node name="StartButton" type="Button" parent="Panel/VBox"]
+custom_minimum_size = Vector2(320, 52)
+layout_mode = 2
+size_flags_horizontal = 4
+theme_override_font_sizes/font_size = 20
+text = "🔥 KELİME ARENASINA BAŞLA ▶"
+
+[node name="ControlsInfo" type="Label" parent="Panel/VBox"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.65, 0.65, 0.65, 1)
+theme_override_font_sizes/font_size = 12
+text = "🎮 Kontroller: [WASD / Oklar]: Hareket | [Space / Shift]: Silgi Atılımı (Eraser Dash Gadget) | [Fare]: Quiz & Dükkan"
+horizontal_alignment = 1

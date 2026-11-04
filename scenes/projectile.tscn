@@ -1,0 +1,18 @@
+[gd_scene load_steps=4 format=3 uid="uid://c6l8u3q2j7v1b"]
+
+[ext_resource type="Script" path="res://scripts/projectile.gd" id="1_script"]
+[ext_resource type="Texture2D" path="res://assets/sprites/ink_bullet.png" id="2_texture"]
+
+[sub_resource type="CircleShape2D" id="CircleShape2D_1"]
+radius = 7.0
+
+[node name="Projectile" type="Area2D"]
+collision_layer = 4
+collision_mask = 2
+script = ExtResource("1_script")
+
+[node name="Sprite2D" type="Sprite2D" parent="."]
+texture = ExtResource("2_texture")
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="."]
+shape = SubResource("CircleShape2D_1")

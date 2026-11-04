@@ -1,0 +1,93 @@
+extends Node2D
+
+signal wave_timer_updated(time_remaining: float)
+signal wave_finished()
+signal wave_started(wave_number: int)
+
+@export var enemy_scene: PackedScene = preload("res://scenes/enemy.tscn")
+@export var wave_duration: float = 25.0
+
+var time_left: float = 25.0
+var spawn_timer: float = 0.0
+var is_wave_active: bool = false
+var player_ref: Node2D = null
+
+func start_wave():
+	time_left = wave_duration
+	is_wave_active = true
+	spawn_timer = 0.5
+	emit_signal("wave_started", StatsManager.current_wave)
+	emit_signal("wave_timer_updated", time_left)
+
+func _process(delta: float):
+	if not is_wave_active:
+		return
+		
+	time_left -= delta
+	emit_signal("wave_timer_updated", max(0.0, time_left))
+	
+	if time_left <= 0:
+		end_wave()
+		return
+		
+	spawn_timer -= delta
+	var diff_factor = 1.15 if StatsManager.difficulty == "easy" else (0.85 if StatsManager.difficulty == "hard" else 1.0)
+	var spawn_interval = max(0.28, (1.4 - (StatsManager.current_wave * 0.12)) * diff_factor)
+	if spawn_timer <= 0:
+		spawn_timer = spawn_interval
+		spawn_enemy()
+
+func find_player():
+	if not is_inside_tree():
+		return
+	if not player_ref or not is_instance_valid(player_ref):
+		var players = get_tree().get_nodes_in_group("player")
+		if players.size() > 0:
+			player_ref = players[0]
+
+func spawn_enemy():
+	if not is_inside_tree():
+		return
+	find_player()
+	if not player_ref:
+		return
+		
+	# Random angle around player at distance ~680
+	var angle = randf() * TAU
+	var spawn_pos = player_ref.global_position + Vector2(cos(angle), sin(angle)) * 680.0
+	
+	var enemy = enemy_scene.instantiate()
+	enemy.global_position = spawn_pos
+	
+	# Choose type based on wave
+	var roll = randf()
+	var wave = StatsManager.current_wave
+	if wave >= 50 and roll < 0.05:
+		enemy.enemy_type = "Lexicon Dragon Boss"
+	elif wave >= 30 and roll < 0.15:
+		enemy.enemy_type = "Oxymoron Ogre"
+	elif wave >= 25 and roll < 0.28:
+		enemy.enemy_type = "Vocabulary Void"
+	elif wave >= 20 and roll < 0.40:
+		enemy.enemy_type = "Homophone Harpy"
+	elif wave >= 15 and roll < 0.52:
+		enemy.enemy_type = "Malapropism Mimic"
+	elif wave >= 10 and roll < 0.65:
+		enemy.enemy_type = "Idiom Imp"
+	elif wave >= 6 and roll < 0.78:
+		enemy.enemy_type = "Punctuation Phantom"
+	elif roll < 0.90:
+		enemy.enemy_type = "Grammar Goblin"
+	else:
+		enemy.enemy_type = "Typo Slime"
+		
+	get_tree().current_scene.add_child(enemy)
+
+func end_wave():
+	is_wave_active = false
+	# Clear remaining enemies in arena
+	var enemies = get_tree().get_nodes_in_group("enemies")
+	for e in enemies:
+		if is_instance_valid(e):
+			e.die()
+	emit_signal("wave_finished")

@@ -1,0 +1,208 @@
+extends CharacterBody2D
+
+signal gadget_cooldown_updated(time_left: float, total_time: float)
+
+@onready var sprite = $Sprite2D
+@onready var invuln_timer = $InvulnerabilityTimer
+@onready var weapons_container = $Weapons
+
+var weapon_scene: PackedScene = preload("res://scenes/weapon.tscn")
+
+var is_invulnerable: bool = false
+var blink_timer: float = 0.0
+var character_base_color: Color = Color.WHITE
+
+# Active Gadget: Eraser Dash (Silgi Atılımı)
+var is_dashing: bool = false
+var dash_timer: float = 0.0
+var dash_duration: float = 0.22
+var dash_velocity: Vector2 = Vector2.ZERO
+var gadget_cooldown: float = 4.0
+var gadget_timer: float = 0.0
+var _rmb_was_pressed: bool = false
+
+func _ready():
+	add_to_group("player")
+	StatsManager.hp_changed.connect(_on_hp_changed)
+	StatsManager.weapon_equipped.connect(_on_weapon_equipped)
+	StatsManager.weapon_switched.connect(_on_weapon_switched)
+	StatsManager.character_selected.connect(_on_character_changed)
+	
+	apply_character_appearance()
+	sync_weapons()
+
+func apply_character_appearance():
+	var char_id = StatsManager.selected_character
+	match char_id:
+		"quillmaster":
+			if ResourceLoader.exists("res://assets/sprites/player_quillmaster.png"):
+				sprite.texture = load("res://assets/sprites/player_quillmaster.png")
+			character_base_color = Color(1.0, 0.95, 0.8)
+		"word_knight":
+			if ResourceLoader.exists("res://assets/sprites/player_knight.png"):
+				sprite.texture = load("res://assets/sprites/player_knight.png")
+			character_base_color = Color(0.85, 1.0, 0.9)
+		_:
+			if ResourceLoader.exists("res://assets/sprites/player.png"):
+				sprite.texture = load("res://assets/sprites/player.png")
+			character_base_color = Color.WHITE
+			
+	sprite.modulate = character_base_color
+
+func sync_weapons():
+	if not weapons_container:
+		return
+		
+	# Clear existing weapons
+	for child in weapons_container.get_children():
+		weapons_container.remove_child(child)
+		child.queue_free()
+		
+	var weaps = StatsManager.equipped_weapons
+	var count = weaps.size()
+	var active_idx = StatsManager.active_weapon_index
+	
+	for i in range(count):
+		var w_id = weaps[i]
+		var w_inst = weapon_scene.instantiate()
+		w_inst.weapon_id = w_id
+		
+		var is_active = (i == active_idx)
+		
+		# Active weapon orbits forward, others orbit around
+		if count == 1:
+			w_inst.position = Vector2(0, 0)
+		else:
+			var angle = (float(i) / float(count)) * TAU
+			var dist = 26.0 if is_active else 20.0
+			w_inst.position = Vector2(cos(angle), sin(angle)) * dist
+			
+		weapons_container.add_child(w_inst)
+		if w_inst.has_method("setup_weapon"):
+			w_inst.setup_weapon(w_id)
+		if w_inst.has_method("set_active_focus"):
+			w_inst.set_active_focus(is_active)
+
+func _unhandled_input(event: InputEvent):
+	if event is InputEventKey and event.is_pressed() and not event.is_echo():
+		match event.keycode:
+			KEY_Q:
+				StatsManager.switch_prev_weapon()
+			KEY_E:
+				StatsManager.switch_next_weapon()
+			KEY_1:
+				StatsManager.select_weapon_index(0)
+			KEY_2:
+				StatsManager.select_weapon_index(1)
+			KEY_3:
+				StatsManager.select_weapon_index(2)
+			KEY_4:
+				StatsManager.select_weapon_index(3)
+			KEY_5:
+				StatsManager.select_weapon_index(4)
+	elif event is InputEventMouseButton and event.is_pressed():
+		if event.button_index == MOUSE_BUTTON_WHEEL_UP:
+			StatsManager.switch_prev_weapon()
+		elif event.button_index == MOUSE_BUTTON_WHEEL_DOWN:
+			StatsManager.switch_next_weapon()
+
+func _on_weapon_equipped(_w_id: String):
+	sync_weapons()
+
+func _on_weapon_switched(_w_id: String, _w_idx: int):
+	sync_weapons()
+
+func _on_character_changed(_char_id: String):
+	apply_character_appearance()
+	sync_weapons()
+
+func _physics_process(delta: float):
+	# Gadget Cooldown
+	if gadget_timer > 0:
+		gadget_timer -= delta
+		emit_signal("gadget_cooldown_updated", max(0.0, gadget_timer), gadget_cooldown)
+	
+	# Dash execution
+	if is_dashing:
+		dash_timer -= delta
+		velocity = dash_velocity
+		move_and_slide()
+		
+		# Erase / damage slimes in contact while dashing
+		erase_nearby_enemies()
+		
+		if dash_timer <= 0:
+			is_dashing = false
+			is_invulnerable = false
+		return
+		
+	var input_vector = Input.get_vector("move_left", "move_right", "move_up", "move_down")
+	var target_velocity = input_vector * StatsManager.move_speed
+	velocity = velocity.move_toward(target_velocity, 2200.0 * delta)
+	move_and_slide()
+	
+	if input_vector.x != 0:
+		sprite.flip_h = input_vector.x < 0
+		
+	# Check Gadget Activation (Eraser Dash)
+	var rmb_now = Input.is_mouse_button_pressed(MOUSE_BUTTON_RIGHT)
+	var rmb_just_pressed = rmb_now and not _rmb_was_pressed
+	_rmb_was_pressed = rmb_now
+	
+	var wants_dash = Input.is_action_just_pressed("dash") or rmb_just_pressed
+	if wants_dash and gadget_timer <= 0:
+		start_eraser_dash(input_vector)
+		
+	# Handle i-frames blink
+	if is_invulnerable:
+		blink_timer += delta * 18.0
+		var a = 0.35 if int(blink_timer) % 2 == 0 else 1.0
+		sprite.modulate = Color(character_base_color.r, character_base_color.g, character_base_color.b, a)
+	else:
+		sprite.modulate = character_base_color
+
+func start_eraser_dash(input_dir: Vector2):
+	gadget_cooldown = max(1.5, StatsManager.gadget_cooldown_base * StatsManager.gadget_cooldown_mult)
+	gadget_timer = gadget_cooldown
+	emit_signal("gadget_cooldown_updated", gadget_timer, gadget_cooldown)
+	
+	var dir = input_dir
+	if dir == Vector2.ZERO:
+		dir = Vector2.LEFT if sprite.flip_h else Vector2.RIGHT
+	dir = dir.normalized()
+	
+	is_dashing = true
+	is_invulnerable = true
+	dash_timer = dash_duration
+	dash_velocity = dir * (StatsManager.move_speed * 2.8 + 260.0)
+	
+	# Screen flash / particle impulse
+	sprite.modulate = Color(2.0, 2.0, 2.5)
+	var tween = create_tween()
+	tween.tween_property(sprite, "modulate", character_base_color, dash_duration)
+
+func erase_nearby_enemies():
+	var enemies = get_tree().get_nodes_in_group("enemies")
+	var erase_dmg = 45.0 * StatsManager.damage_mult
+	for e in enemies:
+		if is_instance_valid(e) and global_position.distance_to(e.global_position) <= 48.0:
+			var knock = (e.global_position - global_position).normalized() * 300.0
+			if e.has_method("take_damage"):
+				e.take_damage(erase_dmg, knock)
+
+func take_damage(amount: float):
+	if is_invulnerable or is_dashing:
+		return
+		
+	StatsManager.take_damage(amount)
+	is_invulnerable = true
+	invuln_timer.start(0.55)
+
+func _on_invulnerability_timer_timeout():
+	if not is_dashing:
+		is_invulnerable = false
+		sprite.modulate = character_base_color
+
+func _on_hp_changed(curr: float, _max_h: float):
+	if curr <= 0:
+		set_physics_process(false)
