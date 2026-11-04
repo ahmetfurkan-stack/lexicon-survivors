@@ -1185,7 +1185,8 @@
           <span class="ink-count" id="ink-count">💧 0</span>
           <span class="kill-count" id="kill-count">💀 0</span>
           <button id="speed-btn" class="hud-btn" title="Oyun Hızı (0.5x, 1x, 1.5x, 2x, 3x) - Kısayol: [ ve ]">⚡ 1.0x</button>
-          <button id="auto-run-btn" class="hud-btn" title="Otomatik Yeni Run (Açık/Kapalı)">🔄 OTO: KAPALI</button>
+          <button id="auto-tur-btn" class="hud-btn" title="Otomatik Yeni Tur / Dalga (Açık/Kapalı)">🔄 OTO TUR: AÇIK</button>
+          <button id="auto-run-btn" class="hud-btn" title="Otomatik Yeni Run (Açık/Kapalı)">⚡ OTO RUN: AÇIK</button>
           <button id="music-btn" class="hud-btn" title="Müzik Aç / Kapat">🎵 MÜZİK</button>
           <button id="mistakes-btn" class="hud-btn" title="Kâtip Hata Defteri (Pekiştirme)">📖 HATA (<span id="mistakes-count">0</span>)</button>
           <button id="inventory-btn" class="hud-btn" title="Envanter Yuvalarını Aç (Tuş: I)">🎒 [I]</button>
@@ -1245,8 +1246,11 @@
           <button class="btn btn-seal" id="title-speed-btn" style="padding: 6px 14px; font-size: 12.5px;" title="Oyun Simülasyon Hızı">
             ⚡ Hız: 1.0x
           </button>
+          <button class="btn btn-seal" id="title-auto-tur-btn" style="padding: 6px 14px; font-size: 12.5px;" title="Dalga bitince otomatik yeni tura başla">
+            🔄 Otomatik Yeni Tur: AÇIK
+          </button>
           <button class="btn btn-seal" id="title-auto-run-btn" style="padding: 6px 14px; font-size: 12.5px;" title="Oyun bittiğinde otomatik yeni run başlat">
-            🔄 Otomatik Yeni Run: KAPALI
+            ⚡ Otomatik Yeni Run: AÇIK
           </button>
         </div>
 
@@ -1286,14 +1290,30 @@
 
         <div class="card-grid-4" id="shop-items-grid" style="min-height: 240px;"></div>
 
-        <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 6px;">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 6px; flex-wrap: wrap; gap: 6px;">
           <button class="btn" id="shop-reroll-btn">
             🔄 Tomarları Yenile (5 💧)
           </button>
-          <button class="btn btn-seal" id="shop-next-wave-btn" style="font-size: 15px; padding: 10px 24px;">
-            <img src="assets/sprites/wax_seal.png" style="width: 18px; height: 18px;" alt="seal">
-            SONRAKİ DALGAYA ATIL ⚔
-          </button>
+          <div style="display: flex; align-items: center; gap: 8px;">
+            <button class="btn btn-seal" id="shop-auto-tur-btn" style="font-size: 12px; padding: 6px 12px;" title="Otomatik sonraki tura / dalgaya geç">
+              🔄 Oto Tur: AÇIK
+            </button>
+            <button class="btn btn-seal" id="shop-next-wave-btn" style="font-size: 15px; padding: 10px 24px;">
+              <img src="assets/sprites/wax_seal.png" style="width: 18px; height: 18px;" alt="seal">
+              <span id="shop-next-wave-text">SONRAKİ DALGAYA ATIL ⚔</span>
+            </button>
+          </div>
+        </div>
+
+        <!-- AUTO NEXT WAVE COUNTDOWN BAR -->
+        <div id="shop-auto-wave-container" style="display: none; width: 100%; margin-top: 6px; background: rgba(30,15,10,0.7); padding: 6px 12px; border-radius: 4px; border: 1px solid var(--gold-dark); text-align: center;">
+          <div style="display: flex; justify-content: space-between; align-items: center; font-size: 12px; font-family: 'Cinzel', serif; color: var(--gold-bright); margin-bottom: 4px;">
+            <span id="shop-auto-wave-label">⏳ Otomatik Sonraki Tur: 4s</span>
+            <button class="btn btn-crimson" id="shop-auto-wave-cancel-btn" style="padding: 2px 10px; font-size: 11px;">✕ Durdur (Burada Kal)</button>
+          </div>
+          <div style="width: 100%; height: 6px; background: rgba(0,0,0,0.5); border-radius: 3px; overflow: hidden;">
+            <div id="shop-auto-wave-bar" style="width: 100%; height: 100%; background: linear-gradient(90deg, #d4af37, #00b894); transition: width 0.1s linear;"></div>
+          </div>
         </div>
       </div>
     </div>
