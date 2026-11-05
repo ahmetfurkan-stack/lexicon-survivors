@@ -1,13 +1,517 @@
 // Lexicon Survivors: The Word Guardian - Web Engine v4.0
 // Hardcore Roguelite, 100 Waves, Weapon Slots & Multi-Gadget System
 
+const ARENA_LAYOUT = Object.freeze({
+  width: 2800,
+  height: 2100,
+  innerShelfX: 1245,
+  innerShelfY: 870,
+  playerColliderRadius: 15,
+  playerColliderOffsetY: 3,
+  playerVisualHalfWidth: 44,
+  playerVisualHalfHeight: 44,
+});
+const PLAYER_CENTER_LIMIT_X = ARENA_LAYOUT.innerShelfX - ARENA_LAYOUT.playerVisualHalfWidth;
+const PLAYER_CENTER_MIN_Y = -ARENA_LAYOUT.innerShelfY + ARENA_LAYOUT.playerVisualHalfHeight;
+const PLAYER_CENTER_MAX_Y = ARENA_LAYOUT.innerShelfY - ARENA_LAYOUT.playerVisualHalfHeight;
+
+let WEAPON_VISUALS = {};
+let WEAPON_ARCHETYPES = {};
+let weaponVisualsStatus = "loading";
+let weaponVisualsError = "";
+let weaponVisualsPromise = null;
+let weaponVisualStatusNode = null;
+const MELEE_TIMINGS = Object.freeze({
+  dictionary_blade: Object.freeze({ windup: 0.10, active: 0.09, recovery: 0.15 }),
+  calligraphy_katana: Object.freeze({ windup: 0.11, active: 0.10, recovery: 0.15 })
+});
+const HIT_SPRITE_PROFILE = Object.freeze({
+  ink: 0, gold: 0, slash: 1, shield: 2, critical: 3,
+  heavy: 4, rune: 5, piercing: 6, blunt: 7
+});
+
+function getWeaponVisual(weaponId) {
+  return WEAPON_VISUALS[weaponId] || null;
+}
+
+function getWeaponArchetype(weaponId) {
+  return WEAPON_ARCHETYPES[weaponId] || null;
+}
+
+function getWeaponSignature(weaponId) {
+  return getWeaponArchetype(weaponId)?.signature || null;
+}
+
+function getWeaponEvolution(weaponId, tier) {
+  const row = getWeaponArchetype(weaponId);
+  return row && tier > 1 ? row.evolutions?.[tier] || null : null;
+}
+
+function getWeaponRhythmPhase(weaponId, elapsed) {
+  const rhythm = getWeaponArchetype(weaponId)?.rhythm;
+  if (!rhythm) return "idle";
+  if (elapsed < rhythm.windup) return "windup";
+  if (elapsed < rhythm.windup + rhythm.active) return "active";
+  if (elapsed < rhythm.windup + rhythm.active + rhythm.recovery) return "recovery";
+  return "idle";
+}
+
+function getWeaponMeleePhase(weaponId, elapsed) {
+  const rhythm = getWeaponArchetype(weaponId)?.rhythm;
+  if (!rhythm) return "idle";
+  if (elapsed < rhythm.windup) return "windup";
+  if (elapsed < rhythm.windup + rhythm.active) return "active";
+  if (elapsed < rhythm.windup + rhythm.active + rhythm.recovery) return "recovery";
+  return "idle";
+}
+
+function getShotgunFanAngles(weaponId, pelletCount, tier = 1) {
+  const spread = getWeaponArchetype(weaponId)?.limits?.spread_radians || 0;
+  const tierSpread = tier >= 3 ? spread * 0.74 : spread;
+  if (pelletCount <= 1) return [0];
+  return Array.from({ length: pelletCount }, (_, index) => -tierSpread + (tierSpread * 2 * index) / (pelletCount - 1));
+}
+
+function getMinePhase(weaponId, elapsed) {
+  const limits = getWeaponArchetype(weaponId)?.limits;
+  if (!limits) return "expired";
+  if (elapsed < limits.fuse_seconds) return "fuse";
+  if (elapsed < limits.fuse_seconds + limits.hazard_seconds) return "active";
+  return "expired";
+}
+
+function simulateBoomerangPasses(enemyIds) {
+  const uniqueIds = [...new Set(enemyIds)];
+  return { outbound: uniqueIds, returning: uniqueIds.slice() };
+}
+
+function clampBurnStacks(weaponId, stackCount, tier = 1) {
+  const cap = (getWeaponArchetype(weaponId)?.limits?.burn_stack_cap || 1) + (tier >= 3 ? 1 : 0);
+  return Math.max(0, Math.min(cap, Math.floor(stackCount)));
+}
+
+function getNextPistolSide(weapon) {
+  weapon.alt_side = !weapon.alt_side;
+  return weapon.alt_side ? 1 : -1;
+}
+
+function canPlaceTurret(weaponId, currentCount, tier = 1) {
+  const cap = getWeaponArchetype(weaponId)?.limits?.turret_cap || 0;
+  return currentCount < cap + (tier >= 3 ? 1 : 0);
+}
+
+function pickRuneChainTargets(origin, targets, maxTargets = 3) {
+  const rows = targets.filter(target => target && !target.dead && !target.hit).map((target, index) => ({ target, index,
+    distance: typeof target === "string" ? index : Math.hypot((target.x || 0) - origin.x, (target.y || 0) - origin.y) }))
+    .sort((a, b) => a.distance - b.distance);
+  const selected = [];
+  const seen = new Set();
+  for (const row of rows) {
+    const key = typeof row.target === "string" ? row.target : (row.target.id ?? row.target);
+    if (seen.has(key)) continue;
+    seen.add(key);
+    selected.push(row.target);
+    if (selected.length >= maxTargets) break;
+  }
+  return selected;
+}
+
+function getSniperDamage(weaponId, baseDamage, isElite) {
+  const bonus = getWeaponArchetype(weaponId)?.limits?.elite_bonus || 1;
+  return baseDamage * (isElite ? bonus : 1);
+}
+
+function resolveWeaponSignature(weapon, context = {}) {
+  const row = getWeaponArchetype(weapon?.id);
+  if (!row) return null;
+  weapon.signature = row.signature;
+  weapon.role = row.role;
+  weapon.evolution = getWeaponEvolution(weapon.id, weapon.tier || 1);
+  if (context.target) weapon.last_target_id = context.target.id ?? null;
+  return row;
+}
+
+function getMeleeTiming(weaponId) {
+  const timing = getWeaponArchetype(weaponId)?.rhythm || MELEE_TIMINGS[weaponId] || MELEE_TIMINGS.dictionary_blade;
+  return {
+    ...timing,
+    total: timing.windup + timing.active + timing.recovery,
+    arcPeakTime: timing.windup + timing.active * 0.5
+  };
+}
+
+function getWeaponMuzzleWorld(weaponId, origin, aimAngle, sizeScale = 1) {
+  const visual = getWeaponVisual(weaponId);
+  if (!visual) return { x: origin.x, y: origin.y };
+  const renderAngle = getWeaponRenderAngle(weaponId, aimAngle);
+  const size = visual.draw_size * sizeScale;
+  const localX = (visual.muzzle[0] - visual.grip[0]) * size;
+  const localY = (visual.muzzle[1] - visual.grip[1]) * size;
+  const cos = Math.cos(renderAngle);
+  const sin = Math.sin(renderAngle);
+  return { x: origin.x + localX * cos - localY * sin, y: origin.y + localX * sin + localY * cos };
+}
+
+function getWeaponFlashLocalAngle(weaponId) {
+  return (getWeaponVisual(weaponId)?.art_angle_deg || 0) * Math.PI / 180;
+}
+
+function getWeaponRenderAngle(weaponId, aimAngle, swingRotation = 0) {
+  return aimAngle - getWeaponFlashLocalAngle(weaponId) + swingRotation;
+}
+
+function getHorizontalFacing(aimAngle, fallbackLeft = false) {
+  const horizontal = Math.cos(aimAngle);
+  return Math.abs(horizontal) > 0.05 ? horizontal < 0 : fallbackLeft;
+}
+
+function selectWeaponTarget(weapon, enemies = state.enemies, origin = state.player) {
+  const valid = enemies.filter(enemy => enemy && !enemy.dead && enemy.hp > 0);
+  if (!valid.length) return null;
+  const distanceToOrigin = enemy => Math.hypot(enemy.x - origin.x, enemy.y - origin.y);
+  if (weapon?.id === "grammar_sniper" || state.artifacts_owned.includes("archivist_compass")) {
+    const elite = valid.filter(enemy => enemy.is_boss || enemy.is_elite || /boss/i.test(enemy.type || ""));
+    if (elite.length) return elite.sort((a, b) => distanceToOrigin(a) - distanceToOrigin(b))[0];
+  }
+  return valid.sort((a, b) => distanceToOrigin(a) - distanceToOrigin(b))[0];
+}
+
+function advanceWeaponChannels(weapon, dt) {
+  if (weapon.id === "lexicon_beam" && weapon.beam_ticks_pending > 0) {
+    weapon.beam_tick_timer -= dt;
+    if (weapon.beam_tick_timer <= 0) {
+      const p = state.player;
+      const muzzle = weaponMuzzleWorld(weapon);
+      const limits = getWeaponArchetype(weapon.id)?.limits || {};
+      const delay = Math.max(0, weapon.beam_charge_remaining || 0);
+      spawnProjectile({
+        type: "beam", x: muzzle.x, y: muzzle.y,
+        dx: Math.cos(weapon.rotation), dy: Math.sin(weapon.rotation),
+        dmg: weapon.beam_tick_damage, pierce: state.pierce_count + 8 + (weapon.tier_data.pierce || 0),
+        spd: 960, color: "#5ce1e6", size: weapon.tier >= 3 ? 28 : 24,
+        delay, weapon_id: weapon.id, impact_profile: "piercing", crit: !!weapon.beam_crit
+      });
+      weapon.beam_ticks_pending--;
+      weapon.beam_tick_timer = limits.tick_seconds || 0.10;
+      weapon.beam_charge_remaining = Math.max(0, delay - weapon.beam_tick_timer);
+      if (weapon.beam_ticks_pending === 0 && weapon.tier >= 4) {
+        const target = selectWeaponTarget(weapon);
+        if (target && !target.dead) spawnProjectile({ type: "beam_split", x: target.x, y: target.y,
+          dx: Math.cos(weapon.rotation + 0.48), dy: Math.sin(weapon.rotation + 0.48), dmg: weapon.beam_tick_damage * 2,
+          pierce: 2, spd: 850, size: 18, lifetime: 0.7, weapon_id: weapon.id, impact_profile: "piercing", tier: weapon.tier });
+        weapon.beam_split_pending = false;
+      }
+    }
+  }
+
+  if (weapon.id === "ink_flamethrower") {
+    if (weapon.flame_phase === "vent") {
+      weapon.flame_phase_timer = Math.max(0, weapon.flame_phase_timer - dt);
+      if (weapon.flame_phase_timer === 0) {
+        weapon.flame_phase = "burst";
+        weapon.flame_burst_elapsed = 0;
+        weapon.burst_shots = 0;
+      }
+    } else {
+      weapon.flame_burst_elapsed = (weapon.flame_burst_elapsed || 0) + dt;
+      if (weapon.flame_burst_elapsed >= 0.72) {
+        weapon.flame_phase = "vent";
+        weapon.flame_phase_timer = getWeaponArchetype(weapon.id)?.rhythm.recovery || 0.48;
+      }
+    }
+  }
+
+  if (weapon.id === "quote_pistols" && weapon.pistol_queue?.length) {
+    weapon.pistol_queue_timer = Math.max(0, (weapon.pistol_queue_timer || 0) - dt);
+    if (weapon.pistol_queue_timer === 0) {
+      const shot = weapon.pistol_queue.shift();
+      spawnProjectile({ ...shot, weapon_id: weapon.id, impact_profile: "gold" });
+      weapon.pistol_queue_timer = getWeaponArchetype(weapon.id)?.limits?.shot_gap || 0.10;
+    }
+  }
+
+  if (weapon.id === "dictionary_blade") {
+    weapon.parry_window = Math.max(0, (weapon.parry_window || 0) - dt);
+    if (weapon.tier >= 2) {
+      weapon.orbit_timer = (weapon.orbit_timer || 0) - dt;
+      if (weapon.orbit_timer <= 0) {
+        weapon.orbit_timer = 2.4;
+        const angle = Math.random() * Math.PI * 2;
+        spawnProjectile({ type: "blade_orbit", x: state.player.x + Math.cos(angle) * 42, y: state.player.y + Math.sin(angle) * 42,
+          dx: Math.cos(angle + Math.PI / 2), dy: Math.sin(angle + Math.PI / 2), dmg: weapon.data.damage * 0.3,
+          pierce: 1, spd: 180, size: 20, lifetime: 1.2, weapon_id: weapon.id, impact_profile: "gold" });
+      }
+    }
+  }
+}
+
+function getWeaponRootWorld(weapon, weaponIndex = state.weapons.indexOf(weapon)) {
+  const p = state.player;
+  const visual = getWeaponVisual(weapon.id);
+  const active = weaponIndex === state.active_weapon_index;
+  const mount = active ? visual?.mount_active : visual?.mount_holstered;
+  const facingLeft = active ? getHorizontalFacing(weapon.rotation, p.facing_left) : p.facing_left;
+  const facing = facingLeft ? -1 : 1;
+  const pose = getLocomotionPoseOffset(p);
+  const holsterRow = weaponIndex < state.active_weapon_index ? weaponIndex : weaponIndex - 1;
+  const x = (mount?.[0] ?? (active ? 8 : 5)) * facing;
+  const y = (mount?.[1] ?? (active ? 2 : 9)) + (!active ? Math.max(0, holsterRow) * 5 : 0);
+  const recoil = (weapon.recoil || 0) * (visual?.recoil_px || 3.5);
+  const root = { x: p.x + pose.x + x - Math.cos(weapon.rotation) * recoil, y: p.y + pose.y + y - Math.sin(weapon.rotation) * recoil };
+  return { ...root, active, sizeScale: 1.0, visual };
+}
+
+function weaponMuzzleWorld(weapon, weaponIndex = state.weapons.indexOf(weapon)) {
+  const root = getWeaponRootWorld(weapon, weaponIndex);
+  return getWeaponMuzzleWorld(weapon.id, root, weapon.rotation, root.sizeScale);
+}
+
+function ensureWeaponVisualStatus() {
+  if (weaponVisualStatusNode) return weaponVisualStatusNode;
+  const panel = document.querySelector("#title-screen .dialog-panel");
+  if (!panel) return null;
+  const node = document.createElement("div");
+  node.id = "weapon-visual-status";
+  node.setAttribute("role", "status");
+  node.setAttribute("aria-live", "polite");
+  Object.assign(node.style, {
+    display: "none", margin: "2px auto", padding: "8px 12px", maxWidth: "460px",
+    border: "1px solid #8b6b2e", background: "#f7edda", color: "#402c18",
+    font: "600 12px 'IBM Plex Sans', sans-serif", textAlign: "center"
+  });
+  panel.appendChild(node);
+  weaponVisualStatusNode = node;
+  return node;
+}
+
+function setWeaponVisualStatus(message, isError = false) {
+  const node = ensureWeaponVisualStatus();
+  if (!node) return;
+  node.replaceChildren();
+  node.style.display = message ? "block" : "none";
+  node.style.borderColor = isError ? "#9c4038" : "#8b6b2e";
+  node.style.color = isError ? "#7a2621" : "#402c18";
+  const label = document.createElement("span");
+  label.textContent = message;
+  node.appendChild(label);
+  if (isError) {
+    const retry = document.createElement("button");
+    retry.id = "weapon-visual-retry";
+    retry.type = "button";
+    retry.textContent = "Tekrar dene";
+    Object.assign(retry.style, {
+      display: "block", margin: "6px auto 0", padding: "5px 11px", border: "1px solid #6f512b",
+      borderRadius: "3px", background: "#e2c88e", color: "#2b1c10", font: "700 12px 'IBM Plex Sans', sans-serif"
+    });
+    retry.onclick = () => { ensureWeaponVisuals(true); };
+    node.appendChild(retry);
+  }
+}
+
+function validateWeaponVisualData(data) {
+  if (!data || data.version !== 1 || !data.weapons || typeof data.weapons !== "object") throw new Error("Görsel verisi biçimi geçersiz.");
+  const expected = Object.keys(WEAPONS_CATALOG);
+  for (const id of expected) {
+    const visual = data.weapons[id];
+    if (!visual || !Number.isFinite(visual.draw_size) || visual.draw_size < 20 || visual.draw_size > 48) throw new Error(`${id} için çizim boyutu eksik.`);
+    if (!Number.isFinite(visual.art_angle_deg) || ![visual.grip, visual.muzzle].every(anchor => Array.isArray(anchor) && anchor.length === 2 && anchor.every(n => Number.isFinite(n) && n >= 0 && n <= 1))) throw new Error(`${id} için tutuş/namlu noktası geçersiz.`);
+    if (!Array.isArray(visual.mount_active) || visual.mount_active.length !== 2 || !Array.isArray(visual.mount_holstered) || visual.mount_holstered.length !== 2) throw new Error(`${id} için taşıma konumu eksik.`);
+    const axisX = visual.muzzle[0] - visual.grip[0];
+    const axisY = visual.muzzle[1] - visual.grip[1];
+    if (Math.hypot(axisX, axisY) > 0.05) {
+      const anchorAngle = Math.atan2(axisY, axisX) * 180 / Math.PI;
+      const angleDelta = ((anchorAngle - visual.art_angle_deg + 540) % 360) - 180;
+      if (Math.abs(angleDelta) > 12) throw new Error(`${id} için namlu yönü çizim açısıyla uyuşmuyor.`);
+    }
+  }
+  return data.weapons;
+}
+
+function validateWeaponArchetypeData(data) {
+  if (!data || data.version !== 1 || !data.weapons || typeof data.weapons !== "object") throw new Error("Arketip verisi biçimi geçersiz.");
+  const expected = Object.keys(WEAPONS_CATALOG);
+  const signatures = new Set();
+  for (const id of expected) {
+    const row = data.weapons[id];
+    if (!row || !row.role || !row.signature || !row.hit_profile || !row.economy || !row.rhythm || !row.limits || !row.evolutions) throw new Error(`${id} için arketip eksik.`);
+    if (!Number.isInteger(row.economy.cost) || row.economy.cost < 0 || !Number.isFinite(row.economy.cooldown) || row.economy.cooldown <= 0 || !Number.isFinite(row.economy.damage) || row.economy.damage <= 0) throw new Error(`${id} için denge verisi geçersiz.`);
+    if (signatures.has(row.signature)) throw new Error(`${id} imzası başka bir silahla çakışıyor.`);
+    signatures.add(row.signature);
+    for (const phase of ["windup", "active", "recovery"]) {
+      if (!Number.isFinite(row.rhythm[phase]) || row.rhythm[phase] < 0) throw new Error(`${id} için ${phase} ritmi geçersiz.`);
+    }
+    for (const tier of [2, 3, 4]) {
+      if (typeof row.evolutions[tier] !== "string" || !row.evolutions[tier]) throw new Error(`${id} için ${tier}. seviye evrimi eksik.`);
+    }
+  }
+  return data.weapons;
+}
+
+async function loadWeaponArchetypes() {
+  const response = await fetch("assets/data/weapon_archetypes.json", { cache: "no-store" });
+  if (!response.ok) throw new Error(`HTTP ${response.status}`);
+  return validateWeaponArchetypeData(await response.json());
+}
+
+async function loadWeaponVisuals() {
+  weaponVisualsStatus = "loading";
+  weaponVisualsError = "";
+  setWeaponVisualStatus("Silah yerleşim verileri hazırlanıyor…");
+  try {
+    const [visualResponse, archetypes] = await Promise.all([
+      fetch("assets/data/weapon_visuals.json", { cache: "no-store" }),
+      loadWeaponArchetypes()
+    ]);
+    if (!visualResponse.ok) throw new Error(`HTTP ${visualResponse.status}`);
+    const visualData = await visualResponse.json();
+    WEAPON_VISUALS = validateWeaponVisualData(visualData);
+    WEAPON_ARCHETYPES = archetypes;
+    for (const [id, archetype] of Object.entries(archetypes)) {
+      Object.assign(WEAPONS_CATALOG[id], archetype.economy);
+    }
+    weaponVisualsStatus = "ready";
+    setWeaponVisualStatus("");
+    return true;
+  } catch (error) {
+    weaponVisualsStatus = "error";
+    weaponVisualsError = String(error?.message || error);
+    setWeaponVisualStatus("Silah verileri yüklenemedi. Yeniden denemeden tura başlayamazsın.", true);
+    return false;
+  }
+}
+
+function ensureWeaponVisuals(retry = false) {
+  if (weaponVisualsStatus === "ready" && !retry) return Promise.resolve(true);
+  if (!weaponVisualsPromise || retry || weaponVisualsStatus === "error") {
+    weaponVisualsPromise = loadWeaponVisuals();
+  }
+  return weaponVisualsPromise;
+}
+
+function applyHitFeedback(target, direction, impactProfile = "ink", isCritical = false, isHeavy = false, knockForce = 180) {
+  if (!target || target.dead) return false;
+  const length = Math.hypot(direction?.x || 0, direction?.y || 0);
+  const dir = length > 0.001 ? { x: direction.x / length, y: direction.y / length } : { x: 1, y: 0 };
+  target.hit_flash_timer = Math.max(target.hit_flash_timer || 0, isHeavy || isCritical ? 0.14 : 0.085);
+  target.last_hit_profile = impactProfile;
+  if (knockForce > 0) {
+    target.vx = dir.x * knockForce;
+    target.vy = dir.y * knockForce;
+  }
+  const effectCap = 80;
+  if (state.hit_effects.length >= effectCap) state.hit_effects.shift();
+  const profile = isCritical ? "critical" : (HIT_SPRITE_PROFILE[impactProfile] === undefined ? "blunt" : impactProfile);
+  state.hit_effects.push({
+    x: target.x, y: target.y, dx: dir.x, dy: dir.y,
+    frame: HIT_SPRITE_PROFILE[profile] ?? 7,
+    size: isHeavy || isCritical ? 48 : 32,
+    lifetime: isHeavy || isCritical ? 0.19 : 0.13,
+    max_lifetime: isHeavy || isCritical ? 0.19 : 0.13,
+    heavy: !!isHeavy, critical: !!isCritical
+  });
+  if ((isHeavy || isCritical) && state.hit_feedback_shake_cooldown <= 0) {
+    state.hit_feedback_shake_cooldown = 0.16;
+    triggerScreenShake(0.055, isCritical ? 1.4 : 0.9);
+  }
+  return true;
+}
+
+function applyUtilityRelicHit(target, baseDamage) {
+  let damage = baseDamage;
+  if (state.artifacts_owned.includes("archivist_compass") && (target.is_boss || target.is_elite || /boss/i.test(target.type || ""))) {
+    damage *= 1 + (ARTIFACTS_CATALOG.archivist_compass.values?.elite_damage_factor || 0.12);
+  }
+  if (state.artifacts_owned.includes("marginalia_prism")) {
+    const now = performance.now() / 1000;
+    target.marginalia_hits = now - (target.marginalia_last_hit || now) > 1.0 ? 0 : (target.marginalia_hits || 0);
+    target.marginalia_last_hit = now;
+    if ((target.marginalia_mark_until || 0) > now) {
+      const echo = Math.min(40, (target.max_hp || 100) * (ARTIFACTS_CATALOG.marginalia_prism.values?.echo_damage_factor || 0.32) * 0.08);
+      target.hp -= echo;
+      target.marginalia_mark_until = 0;
+      target.marginalia_hits = 0;
+      addFloatingText(target.x, target.y - 23, `${Math.round(echo)} YANKI`, "#b6a6ff", 11);
+    } else {
+      target.marginalia_hits++;
+      if (target.marginalia_hits >= (ARTIFACTS_CATALOG.marginalia_prism.values?.hits_to_mark || 4)) {
+        target.marginalia_hits = 0;
+        target.marginalia_mark_until = now + (ARTIFACTS_CATALOG.marginalia_prism.values?.mark_seconds || 2);
+        state.particles.push({ x: target.x, y: target.y, radius: 7, max_radius: 27, alpha: 0.85, color: "rgba(182, 166, 255, " });
+      }
+    }
+  }
+  return damage;
+}
+
+function updateHitEffects(dt) {
+  state.hit_effects.forEach(effect => { effect.lifetime -= dt; });
+  state.hit_effects = state.hit_effects.filter(effect => effect.lifetime > 0);
+  state.hit_feedback_shake_cooldown = Math.max(0, state.hit_feedback_shake_cooldown - dt);
+}
+
+function clampPlayerToArena(player) {
+  player.x = Math.max(-PLAYER_CENTER_LIMIT_X, Math.min(PLAYER_CENTER_LIMIT_X, player.x));
+  player.y = Math.max(PLAYER_CENTER_MIN_Y, Math.min(PLAYER_CENTER_MAX_Y, player.y));
+}
+
+function getLocomotionBob(runPhase) {
+  const stridePhase = ((runPhase % 8) + 8) % 8;
+  return Math.round(2 * Math.abs(Math.sin(stridePhase * Math.PI / 4)));
+}
+
+function getLocomotionPoseOffset(player) {
+  const speed = Math.hypot(player.vx, player.vy);
+  let x = 0;
+  let y = 0;
+  if (!player.is_dashing && !state.is_inventory_open && player.attack_anim_timer <= 0 && speed > 20) {
+    const bob = getLocomotionBob(player.run_phase);
+    x = player.vx > 20 ? 1 : player.vx < -20 ? -1 : 0;
+    y = -bob;
+  }
+  const minX = -PLAYER_CENTER_LIMIT_X - player.x;
+  const maxX = PLAYER_CENTER_LIMIT_X - player.x;
+  const minY = PLAYER_CENTER_MIN_Y - player.y;
+  const maxY = PLAYER_CENTER_MAX_Y - player.y;
+  return { x: Math.max(minX, Math.min(maxX, x)), y: Math.max(minY, Math.min(maxY, y)) };
+}
+
 // =========================================
 // 1. WEB AUDIO SYNTHESIZER
 // =========================================
 class SoundManager {
   constructor() {
     this.ctx = null;
+    this.assetVoices = [];
+    this.music = null;
+    this.assetPaths = {
+      quill_blaster: "weapon_quill_blaster_v1", syllable_shotgun: "weapon_syllable_shotgun_v1",
+      lexicon_beam: "weapon_lexicon_beam_v1", punctuation_bomb: "weapon_punctuation_mine_drop",
+      dictionary_blade: "weapon_dictionary_blade_v1", crossword_crossbow: "weapon_crossword_crossbow_v1",
+      hyphen_boomerang: "weapon_hyphen_boomerang", ink_flamethrower: "weapon_ink_flamethrower",
+      thesaurus_rocket: "weapon_thesaurus_rocket_launch", quote_pistols: "weapon_quote_pistols_v1",
+      calligraphy_katana: "weapon_calligraphy_katana_v1", scroll_turret: "weapon_scroll_turret_deploy",
+      rune_orb: "weapon_rune_orb", grammar_sniper: "weapon_grammar_sniper",
+      hit: "enemy_hit_light", death: "enemy_defeat", pickup: "ink_pickup", wave: "wave_start",
+      gadget: "gadget_eraser_dash", mine: "weapon_punctuation_mine_detonation", rocket: "weapon_thesaurus_rocket_impact"
+    };
   }
+  playAsset(key, volume = 0.72) {
+    const asset = this.assetPaths[key];
+    if (!asset) return false;
+    try {
+      const voice = new Audio(`assets/audio/${key === "gadget" ? "abilities" : key === "hit" || key === "death" || key === "pickup" || key === "wave" ? "gameplay" : "weapons"}/${asset}.wav`);
+      voice.volume = volume;
+      voice.play().catch(() => {});
+      this.assetVoices.push(voice);
+      if (this.assetVoices.length > 24) this.assetVoices.splice(0, this.assetVoices.length - 24);
+      return true;
+    } catch (_) { return false; }
+  }
+  startMusic() {
+    if (!this.music) { this.music = new Audio("assets/audio/music/main_theme.mp3"); this.music.loop = true; this.music.volume = 0.24; }
+    this.music.play().catch(() => {});
+  }
+  setMusicMuted(muted) { if (this.music) this.music.muted = muted; }
   init() {
     if (!this.ctx) {
       const AudioContext = window.AudioContext || window.webkitAudioContext;
@@ -33,6 +537,7 @@ class SoundManager {
     } catch (e) {}
   }
   shoot(weaponType = "quill_blaster") {
+    if (this.playAsset(weaponType, 0.58)) return;
     this.init();
     switch (weaponType) {
       case "syllable_shotgun":
@@ -74,27 +579,35 @@ class SoundManager {
     }
   }
   enemyShoot() {
+    if (this.playAsset("hit", 0.4)) return;
     this.init();
     this.playTone(210, "sawtooth", 0.14, 0.15);
   }
   detonateMine() {
+    if (this.playAsset("mine", 0.82)) return;
     this.init();
     this.playTone(80, "square", 0.28, 0.3);
   }
   rocketBlast() {
+    if (this.playAsset("rocket", 0.78)) return;
     this.init();
     this.playTone(70, "sawtooth", 0.35, 0.35);
   }
-  gadget() {
+  gadget(id = "eraser_dash") {
+    const gadgetFiles = { eraser_dash: "gadget_eraser_dash", ink_cataclysm: "gadget_ink_cataclysm", chrono_comma: "gadget_chrono_comma", lexicon_aegis: "gadget_lexicon_aegis", grammar_magnet: "gadget_grammar_magnet" };
+    const gadgetAsset = gadgetFiles[id];
+    if (gadgetAsset) { try { const voice = new Audio(`assets/audio/abilities/${gadgetAsset}.wav`); voice.volume = 0.8; voice.play().catch(() => {}); return; } catch (_) {} }
     this.init();
     this.playTone(520, "sine", 0.18, 0.25);
     setTimeout(() => this.playTone(780, "triangle", 0.22, 0.25), 80);
   }
   hit() {
+    if (this.playAsset("hit", 0.34)) return;
     this.init();
     this.playTone(110, "square", 0.08, 0.15);
   }
   enemyDeath() {
+    if (this.playAsset("death", 0.56)) return;
     this.init();
     this.playTone(90, "sawtooth", 0.15, 0.16);
   }
@@ -104,6 +617,7 @@ class SoundManager {
     setTimeout(() => this.playTone(85, "square", 0.5, 0.35), 180);
   }
   pickup() {
+    if (this.playAsset("pickup", 0.5)) return;
     this.init();
     this.playTone(720, "sine", 0.07, 0.1);
   }
@@ -120,6 +634,16 @@ class SoundManager {
   }
 }
 const sounds = new SoundManager();
+document.addEventListener("click", (event) => {
+  const control = event.target.closest("button,[role=tab]");
+  if (!control || control.disabled) return;
+  const file = control.classList.contains("shop-buy") ? "purchase" : control.id?.startsWith("tab-") ? "tab" : "select";
+  try {
+    const voice = new Audio(`assets/audio/ui/ui_${file}.wav`);
+    voice.volume = 0.42;
+    voice.play().catch(() => {});
+  } catch (_) {}
+}, true);
 
 // =========================================
 // 1.5 PROCEDURAL MEDIEVAL BGM SYNTHESIZER
@@ -183,7 +707,7 @@ class MedievalBGM {
     if (!this.sm.ctx) return;
     this.isPlaying = true;
     this.step = 0;
-    this.tick();
+    this.sm.startMusic();
   }
 
   stop() {
@@ -232,6 +756,7 @@ class MedievalBGM {
 
   toggleMute() {
     this.isMuted = !this.isMuted;
+    this.sm.setMusicMuted(this.isMuted);
     return !this.isMuted;
   }
 
@@ -543,88 +1068,88 @@ const DIFFICULTIES = {
 const WEAPONS_CATALOG = {
   quill_blaster: {
     id: "quill_blaster",
-    name: "Tüy Kalem (Quill Blaster)",
-    desc: "Hedefe keskin mürekkep iğneleri fırlatır.",
-    cost: 10, cooldown: 0.48, damage: 26.0, sprite: "quill_blaster.png"
+    name: "İğne Ucu Kalem",
+    desc: "Aynı hedefi işaretler; işaretli rakipte yankı iğnesi üretir.",
+    cost: 10, cooldown: 0.48, damage: 26.0, sprite: "weapons/quill_blaster.png"
   },
   syllable_shotgun: {
     id: "syllable_shotgun",
-    name: "Hece Pompalısı (Syllable Shotgun)",
-    desc: "Geniş bir yayda 5 adet hece parçacığı püskürtür.",
-    cost: 14, cooldown: 0.95, damage: 18.0, sprite: "syllable_shotgun.png"
+    name: "Hece Saçması",
+    desc: "Pompalanan konik saçma yakında sersemletir.",
+    cost: 14, cooldown: 0.95, damage: 18.0, sprite: "weapons/syllable_shotgun.png"
   },
   lexicon_beam: {
     id: "lexicon_beam",
-    name: "Leksikon Lazeri (Lexicon Beam)",
-    desc: "Düşman hatlarını delip geçen odaklanmış ışık oku.",
-    cost: 18, cooldown: 0.40, damage: 22.0, sprite: "lexicon_beam.png"
+    name: "Sözlük Işını",
+    desc: "Kısa şarjdan sonra sıradaki hedefleri delen çizgiyi süpürür.",
+    cost: 18, cooldown: 0.40, damage: 22.0, sprite: "weapons/lexicon_beam.png"
   },
   punctuation_bomb: {
     id: "punctuation_bomb",
-    name: "Noktalama Bombası (Punctuation Bomb)",
-    desc: "Temasla patlayan virgül ve ünlem mayınları döşer.",
-    cost: 16, cooldown: 1.10, damage: 56.0, sprite: "punctuation_bomb.png"
+    name: "Ünlem Mayını",
+    desc: "Görünen fitili bitince patlar ve kısa süre alanı kapatır.",
+    cost: 16, cooldown: 1.10, damage: 56.0, sprite: "weapons/punctuation_bomb.png"
   },
   dictionary_blade: {
     id: "dictionary_blade",
-    name: "Sözlük Kılıcı (Dictionary Blade)",
-    desc: "Kullanıcı etrafında dönerek yaklaşan hataları biçer.",
-    cost: 16, cooldown: 0.60, damage: 40.0, sprite: "dictionary_blade.png"
+    name: "Koruyucu Kenar",
+    desc: "Aktif karede yakın düşman mermilerini savuşturur; gelişince geri sektirir.",
+    cost: 16, cooldown: 0.60, damage: 40.0, sprite: "weapons/dictionary_blade.png"
   },
   crossword_crossbow: {
     id: "crossword_crossbow",
-    name: "Bulmaca Tatar Yayı (Crossword Crossbow)",
-    desc: "Çarptığı düşmandan 4 yöne dağılan bulmaca okları fırlatır.",
-    cost: 22, cooldown: 0.90, damage: 32.0, sprite: "crossword_crossbow.png"
+    name: "Izgara Delicisi",
+    desc: "Ağır oku hedefe çiviler; gelişince çarpma noktasında ızgara parçaları saçar.",
+    cost: 22, cooldown: 0.90, damage: 32.0, sprite: "weapons/crossword_crossbow.png"
   },
   hyphen_boomerang: {
     id: "hyphen_boomerang",
-    name: "Tire Bumerangı (Hyphen Boomerang)",
-    desc: "İleri uçup geri dönerken yolundaki tüm düşmanları iki kez keser.",
-    cost: 20, cooldown: 1.05, damage: 26.0, sprite: "hyphen_boomerang.png"
+    name: "Dönen Tire",
+    desc: "Gidiş ve dönüş yolunda her hedefi birer kez biçer.",
+    cost: 20, cooldown: 1.05, damage: 26.0, sprite: "weapons/hyphen_boomerang.png"
   },
   ink_flamethrower: {
     id: "ink_flamethrower",
-    name: "Mürekkep Alevi (Ink Flamethrower)",
-    desc: "Sürekli bir kor mürekkep alevi püskürtür.",
-    cost: 24, cooldown: 0.12, damage: 9.0, sprite: "ink_flamethrower.png"
+    name: "Mürekkep Ocağı",
+    desc: "Kısa konik alev püskürtür, sonra soğuyup yeniden yüklenir.",
+    cost: 24, cooldown: 0.12, damage: 9.0, sprite: "weapons/ink_flamethrower.png"
   },
   thesaurus_rocket: {
     id: "thesaurus_rocket",
-    name: "Eşanlamlı Roketi (Thesaurus Rocket)",
-    desc: "Çarptığında devasa bir sözlük patlaması yaratan ağır roket.",
-    cost: 26, cooldown: 1.55, damage: 68.0, sprite: "thesaurus_rocket.png"
+    name: "Eşanlamlı Avcısı",
+    desc: "Hedefe yönelen ağır roket kümeye çarpınca geri savurur.",
+    cost: 26, cooldown: 1.55, damage: 68.0, sprite: "weapons/thesaurus_rocket.png"
   },
   quote_pistols: {
     id: "quote_pistols",
-    name: "Tırnak Çift Tabanca (Quote Pistols)",
-    desc: "Çift el tırnak işaretleriyle seri ve yüksek kritik vuruşlar.",
-    cost: 22, cooldown: 0.26, damage: 16.0, sprite: "quote_pistols.png"
+    name: "Aç-Kapa Tabancalar",
+    desc: "İki eli sırayla konuşturan kısa ve isabetli salvo atar.",
+    cost: 22, cooldown: 0.26, damage: 16.0, sprite: "weapons/quote_pistols.png"
   },
   // 4 New Weapons
   calligraphy_katana: {
     id: "calligraphy_katana",
-    name: "Kaligrafi Katanası (Calligraphy Katana)",
-    desc: "Geniş kavisli mürekkep kesiği savurur, yüksek kritik şansı.",
-    cost: 25, cooldown: 0.65, damage: 42.0, sprite: "calligraphy_katana.png"
+    name: "Hilal Hattatı",
+    desc: "Geri çekilip öne doğru mürekkep hilali savurur.",
+    cost: 25, cooldown: 0.65, damage: 42.0, sprite: "weapons/calligraphy_katana.png"
   },
   scroll_turret: {
     id: "scroll_turret",
-    name: "Tomar Tareti (Scroll Turret)",
-    desc: "Yere otomatik ateş açan kadim büyü kitabı tareti yerleştirir.",
-    cost: 26, cooldown: 2.20, damage: 20.0, sprite: "scroll_turret.png"
+    name: "Fihrist Bekçisi",
+    desc: "Yere yerleşen tomar sabitlenip en yakın hedefe odaklanır.",
+    cost: 26, cooldown: 2.20, damage: 20.0, sprite: "weapons/scroll_turret.png"
   },
   rune_orb: {
     id: "rune_orb",
-    name: "Kadim Rün Küresi (Arcane Rune Orb)",
-    desc: "Düşmanlar arasında seken ve elektrik/mürekkep sıçratan küre.",
-    cost: 24, cooldown: 0.85, damage: 25.0, sprite: "rune_orb.png"
+    name: "Zincir Rünü",
+    desc: "Rün küresi hedefler arasında sıçrar ve son vuruşta parlar.",
+    cost: 24, cooldown: 0.85, damage: 25.0, sprite: "weapons/rune_orb.png"
   },
   grammar_sniper: {
     id: "grammar_sniper",
-    name: "Sözdizimi Ray-Tüfeği (Syntax Rail-Sniper)",
-    desc: "Tüm düşman hattını delip geçen yüksek kalibreli delici tüy.",
-    cost: 28, cooldown: 1.45, damage: 82.0, sprite: "grammar_sniper.png"
+    name: "Sözdizimi Ray-Tüfeği",
+    desc: "Yavaş ve ağır tek atış; liderlerin zayıf noktasına öncelik verip zırhı deler.",
+    cost: 28, cooldown: 1.45, damage: 82.0, sprite: "weapons/grammar_sniper.png"
   }
 };
 
@@ -636,89 +1161,115 @@ const TIER_MULTIPLIERS = {
 };
 
 // =========================================
-// 4. GADGETS CATALOG (5 UNIQUE ACTIVE GADGETS)
+// 4. GADGETS CATALOG (shared utility_items.json identifiers)
 // =========================================
-const GADGETS_CATALOG = {
+let GADGETS_CATALOG = {
   eraser_dash: {
     id: "eraser_dash",
-    name: "Silgi Atılımı (Eraser Dash)",
-    desc: "0.28s tam dokunulmazlık ile seri ileri atılır ve temas ettiği düşmanlara 60 silgi hasarı verir.",
-    cooldown: 2.4,
-    sprite: "eraser_icon.png",
-    cost: 0
+    name: "Kenar Atılımı", desc: "Düşmanların içinden sıyrılır; geride kısa süre kalan keskin bir mürekkep izi bırakır.",
+    cooldown: 5.0, icon: "assets/sprites/gadgets/eraser_dash.png", cost: 0,
+    mechanic: "dash_ink_trail", values: { invulnerability: 0.35, damage: 60, trail_seconds: 1.4, trail_radius: 30 }
   },
   ink_cataclysm: {
     id: "ink_cataclysm",
-    name: "Mürekkep Kıyameti (Ink Cataclysm)",
-    desc: "Tüm düşman mermilerini siler, 350px alandaki düşmanları dondurur ve 90 hasar vurur.",
-    cooldown: 6.0,
-    sprite: "gadget_ink_bomb.png",
-    cost: 16
+    name: "Son Nokta", desc: "Ekrandaki düşman mermilerini siler; yakın düşmanları sarsıp geri iter.",
+    cooldown: 12, icon: "assets/sprites/gadgets/ink_cataclysm.png", cost: 22,
+    mechanic: "clear_and_stun", values: { radius: 420, damage: 95, stun_seconds: 1.3, knockback: 220 }
   },
   chrono_comma: {
     id: "chrono_comma",
-    name: "Zamanı Durduran Virgül (Chrono Comma)",
-    desc: "4 saniye boyunca tüm düşmanları ve mermilerini %85 yavaşlatır; oyuncuya +%40 atış hızı verir.",
-    cooldown: 7.0,
-    sprite: "gadget_time_stop.png",
-    cost: 18
+    name: "Zaman Virgülü", desc: "Düşmanları ve mermilerini yavaşlatır; oyuncunun atış ritmi hızlanır.",
+    cooldown: 14, icon: "assets/sprites/gadgets/chrono_comma.png", cost: 24,
+    mechanic: "enemy_time_dilation", values: { duration: 3.5, enemy_speed_factor: 0.25, projectile_speed_factor: 0.25, player_attack_speed_factor: 1.2 }
   },
   lexicon_aegis: {
     id: "lexicon_aegis",
-    name: "Sözlük Kalkanı (Lexicon Aegis)",
-    desc: "Oyuncu etrafında dönen ve 4 darbeyi soğurup %150 hasarla yansıtan büyü kalkanı.",
-    cooldown: 5.5,
-    sprite: "gadget_shield.png",
-    cost: 16
+    name: "Fihrist Kalkanı", desc: "Üç darbeyi emer; son yük açıldığında yakın düşmanlara karşılık verir.",
+    cooldown: 11, icon: "assets/sprites/gadgets/lexicon_aegis.png", cost: 20,
+    mechanic: "charged_reflect_shield", values: { duration: 5, charges: 3, counter_damage: 32, counter_radius: 90 }
   },
   grammar_magnet: {
     id: "grammar_magnet",
-    name: "Mürekkep Hortumu (Grammar Magnet)",
-    desc: "Arenadaki tüm mürekkep damlalarını ve can parşömenlerini oyuncuya çeker.",
-    cooldown: 4.5,
-    sprite: "gadget_magnet.png",
-    cost: 14
+    name: "Arşiv Çekimi", desc: "Mürekkep damlalarını ve can parşömenlerini kendine toplar.",
+    cooldown: 9, icon: "assets/sprites/gadgets/grammar_magnet.png", cost: 16,
+    mechanic: "pull_all_pickups", values: { duration: 2.6, radius: 1200, pull_speed: 520 }
+  },
+  index_storm: {
+    id: "index_storm", name: "Fiş Fırtınası", desc: "Dönen fişler yakındaki farklı hedeflere sırayla saplanır.",
+    cooldown: 13, cost: 24, icon: "assets/sprites/gadgets/index_storm.png", mechanic: "orbit_cards",
+    values: { duration: 2.8, cards: 3, damage: 26, target_cap: 3 }
+  },
+  redact_field: {
+    id: "redact_field", name: "Sansür Dalgası", desc: "Öndeki düşmanların atış ve hücum hazırlığını keser, onları yavaşlatır.",
+    cooldown: 14, cost: 26, icon: "assets/sprites/gadgets/redact_field.png", mechanic: "interrupt_cone",
+    values: { duration: 1.8, range: 260, half_angle: 0.72, slow_factor: 0.45 }
+  },
+  palimpsest_step: {
+    id: "palimpsest_step", name: "Palimpsest Adımı", desc: "Kısa bir sıçrayış yapıp saldırıları üzerine çeken bir suret bırakır.",
+    cooldown: 12, cost: 21, icon: "assets/sprites/gadgets/palimpsest_step.png", mechanic: "blink_decoy",
+    values: { blink_distance: 130, decoy_seconds: 1.5, decoy_hp: 1 }
   }
 };
 
-const ARTIFACTS_CATALOG = {
+let ARTIFACTS_CATALOG = {
   magnifying_glass: {
-    id: "magnifying_glass",
-    name: "Büyüteç (Magnifying Glass)",
-    desc: "+%15 Kritik Şans & +%20 Mermi Hasarı",
-    cost: 14, stats: { crit_chance: 0.15, damage: 0.20 }
+    id: "magnifying_glass", name: "Kenar Düzeltisi Merceği", desc: "Kritik şans ve genel hasar artar.", cost: 14,
+    icon: "assets/sprites/relics/magnifying_glass.png", stats: { crit_chance: 0.10, damage: 0.12 }
   },
   golden_inkpot: {
-    id: "golden_inkpot",
-    name: "Altın Mürekkep Hokkası (Golden Inkpot)",
-    desc: "Düşmanlardan +%50 daha fazla mürekkep düşer.",
-    cost: 15, stats: { ink_mult: 0.50 }
+    id: "golden_inkpot", name: "Altın Mürekkep Kalbi", desc: "Düşmanlardan daha çok mürekkep kazanırsın.", cost: 16,
+    icon: "assets/sprites/relics/golden_inkpot.png", stats: { ink_mult: 0.35 }
   },
   scholar_boots: {
-    id: "scholar_boots",
-    name: "Bilgin Çizmeleri (Scholar Boots)",
-    desc: "+45 Hareket Hızı",
-    cost: 12, stats: { move_speed: 45.0 }
+    id: "scholar_boots", name: "Dipnot Çizmeleri", desc: "Hareket hızı artar.", cost: 13,
+    icon: "assets/sprites/relics/scholar_boots.png", stats: { move_speed: 30 }
   },
   grammar_guide: {
-    id: "grammar_guide",
-    name: "Dilbilgisi Kılavuzu (Grammar Guide)",
-    desc: "+30 Maks Can & +%15 Hasar Direnci (Zırh)",
-    cost: 15, stats: { max_hp: 30.0, armor: 0.15 }
+    id: "grammar_guide", name: "Kırmızı Çizgi El Kitabı", desc: "Azami can ve zırh artar.", cost: 15,
+    icon: "assets/sprites/relics/grammar_guide.png", stats: { max_hp: 18, armor: 0.10 }
   },
   slot_expansion: {
-    id: "slot_expansion",
-    name: "Kâtip Teçhizat Kemeri (+1 Silah Yuvası)",
-    desc: "Aynı anda ateşleyebileceğiniz silah yuvasını 1 artırır (Maks: 6).",
-    cost: 25, stats: { max_weapon_slots: 1 }
+    id: "slot_expansion", name: "Arşiv Rafı", desc: "Bir ek silah yuvası açar.", cost: 25,
+    icon: "assets/sprites/relics/archivist_compass.png", stats: { max_weapon_slots: 1 }
   },
   diligence_coffee: {
-    id: "diligence_coffee",
-    name: "Çalışkanlık Kahvesi (Coffee of Diligence)",
-    desc: "+%30 Saldırı Hızı",
-    cost: 15, stats: { attack_speed: 0.30 }
+    id: "diligence_coffee", name: "Gece Hattatının Kahvesi", desc: "Silahların atış aralığını kısaltır.", cost: 14,
+    icon: "assets/sprites/relics/diligence_coffee.png", stats: { attack_speed: 0.18 }
+  },
+  quantum_eraser: {
+    id: "quantum_eraser", name: "Palimpsest Silgisi", desc: "Aktif gadget bekleme süresini azaltır.", cost: 14,
+    icon: "assets/sprites/relics/quantum_eraser.png", stats: { gadget_cooldown_mult: -0.18 }
+  },
+  marginalia_prism: {
+    id: "marginalia_prism", name: "Kenar Notu Prizması", desc: "Art arda isabetler hedefi işaretler; sonraki vuruş yankılanır.", cost: 20,
+    icon: "assets/sprites/relics/marginalia_prism.png", mechanic: "mark_and_echo", values: { hits_to_mark: 4, mark_seconds: 2, echo_damage_factor: 0.32 }
+  },
+  mnemonic_thread: {
+    id: "mnemonic_thread", name: "Hafıza İpliği", desc: "Dalga başına ilk can parşömeni iyileştirir ve kısa koruma sağlar.", cost: 19,
+    icon: "assets/sprites/relics/mnemonic_thread.png", mechanic: "health_scroll_guard", values: { heal_bonus: 14, shield_seconds: 0.65, once_per_wave: true }
+  },
+  archivist_compass: {
+    id: "archivist_compass", name: "Arşivcinin Pusulası", desc: "Elitleri önceliklendirir; onlara karşı hasar bonusu verir.", cost: 22,
+    icon: "assets/sprites/relics/archivist_compass.png", mechanic: "elite_focus", values: { elite_damage_factor: 0.12, target_priority: true }
   }
 };
+
+// Canonical IDs remain stable; older local saves are normalized at load time.
+const GADGET_ALIASES = { dash: "eraser_dash", ink_bomb: "ink_cataclysm", time_stop: "chrono_comma", shield: "lexicon_aegis", magnet: "grammar_magnet" };
+function normalizeGadgetId(id) { return GADGET_ALIASES[id] || (GADGETS_CATALOG[id] ? id : "eraser_dash"); }
+const utilityCatalogReady = fetch("assets/data/utility_items.json").then(response => {
+  if (!response.ok) throw new Error(`Utility catalog HTTP ${response.status}`);
+  return response.json();
+}).then(data => {
+  for (const [id, item] of Object.entries(data.gadgets || {})) {
+    GADGETS_CATALOG[id] = { ...GADGETS_CATALOG[id], ...item, desc: item.description, icon: item.icon };
+  }
+  for (const [id, item] of Object.entries(data.relics || {})) {
+    ARTIFACTS_CATALOG[id] = { ...ARTIFACTS_CATALOG[id], ...item, desc: item.description, icon: item.icon };
+  }
+  Object.assign(GADGET_ALIASES, data.gadget_aliases || {});
+  return true;
+}).catch(error => { console.warn("Shared utility catalog unavailable; built-in catalog retained", error); return false; });
 
 // =========================================
 // 5. GAME STATE
@@ -755,9 +1306,20 @@ const state = {
 
   // Active Gadget
   active_gadget_id: "eraser_dash",
+  owned_gadgets: ["eraser_dash"],
+  inventory_category: "weapons",
   gadget_timer: 0,
   chrono_timer: 0,
   shield_charges: 0,
+  shield_timer: 0,
+  shield_counter_damage: 32,
+  shield_counter_radius: 90,
+  gadget_cooldown_mult: 1,
+  magnet_timer: 0,
+  gadget_cards: [],
+  gadget_trails: [],
+  gadget_decoys: [],
+  mnemonic_used_this_wave: false,
 
   // Game Speed, Auto New Tur (Wave) & Auto New Run
   game_speed: 1.0,
@@ -770,11 +1332,17 @@ const state = {
   wave_duration: 25.0,
   wave_time_left: 25.0,
   is_wave_active: false,
+  is_inventory_open: false,
+  milestone_boss_delay: 0,
   ink_count: 15,
   kill_count: 0,
   words_learned: [],
   active_synergies: {},
   artifacts_owned: [],
+  run_started_at: 0,
+  run_submission_id: "",
+  latest_run_result: null,
+  run_result_recorded: false,
   asked_question_ids: [],
   mistake_words: [],
   touch_dir: { x: 0, y: 0 },
@@ -789,18 +1357,23 @@ const state = {
     dash_dir: { x: 1, y: 0 },
     dash_hit_ids: new Set(),
     attack_anim_timer: 0,
+    attack_anim_duration: 0.28,
+    run_phase: 0,
     slow_timer: 0
   },
   weapons: [],
   projectiles: [],
   punctuation_mines: [],
   turrets: [],
+  weapon_fields: [],
   enemies: [],
   enemy_projectiles: [],
   ink_drops: [],
   health_drops: [],
   ink_puddles: [],
   particles: [],
+  hit_effects: [],
+  hit_feedback_shake_cooldown: 0,
   ambient_motes: [],
   telegraphs: [],
   boss_lasers: [],
@@ -875,7 +1448,7 @@ const spriteList = [
   "upgrade_v1/hero_inky.png", "upgrade_v1/hero_quillmaster.png",
   "upgrade_v1/hero_word_knight.png", "upgrade_v1/hero_rune_sorceress.png",
   "upgrade_v1/hero_alchemist.png", "upgrade_v1/hero_shadow_scribe.png",
-  "upgrade_v1/animations/inky_idle_0.png", "upgrade_v1/animations/inky_idle_1.png", "upgrade_v1/animations/inky_idle_2.png", "upgrade_v1/animations/inky_idle_3.png", "upgrade_v1/animations/inky_run_0.png", "upgrade_v1/animations/inky_run_1.png", "upgrade_v1/animations/inky_run_2.png", "upgrade_v1/animations/inky_run_3.png", "upgrade_v1/animations/inky_attack_0.png", "upgrade_v1/animations/inky_attack_1.png", "upgrade_v1/animations/inky_attack_2.png", "upgrade_v1/animations/inky_attack_3.png",
+  "upgrade_v1/animations/inky_idle_0.png", "upgrade_v1/animations/inky_idle_1.png", "upgrade_v1/animations/inky_idle_2.png", "upgrade_v1/animations/inky_idle_3.png", "upgrade_v1/animations/inky_run_0.png", "upgrade_v1/animations/inky_run_1.png", "upgrade_v1/animations/inky_run_2.png", "upgrade_v1/animations/inky_run_3.png", "upgrade_v1/animations/inky_run_4.png", "upgrade_v1/animations/inky_run_5.png", "upgrade_v1/animations/inky_run_6.png", "upgrade_v1/animations/inky_run_7.png", "upgrade_v1/animations/inky_attack_0.png", "upgrade_v1/animations/inky_attack_1.png", "upgrade_v1/animations/inky_attack_2.png", "upgrade_v1/animations/inky_attack_3.png",
   "upgrade_v1/animations/word_knight_idle_0.png", "upgrade_v1/animations/word_knight_idle_1.png", "upgrade_v1/animations/word_knight_idle_2.png", "upgrade_v1/animations/word_knight_idle_3.png", "upgrade_v1/animations/word_knight_run_0.png", "upgrade_v1/animations/word_knight_run_1.png", "upgrade_v1/animations/word_knight_run_2.png", "upgrade_v1/animations/word_knight_run_3.png", "upgrade_v1/animations/word_knight_attack_0.png", "upgrade_v1/animations/word_knight_attack_1.png", "upgrade_v1/animations/word_knight_attack_2.png", "upgrade_v1/animations/word_knight_attack_3.png", "upgrade_v1/animations/shadow_scribe_idle_0.png", "upgrade_v1/animations/shadow_scribe_idle_1.png", "upgrade_v1/animations/shadow_scribe_idle_2.png", "upgrade_v1/animations/shadow_scribe_idle_3.png", "upgrade_v1/animations/shadow_scribe_run_0.png", "upgrade_v1/animations/shadow_scribe_run_1.png", "upgrade_v1/animations/shadow_scribe_run_2.png", "upgrade_v1/animations/shadow_scribe_run_3.png", "upgrade_v1/animations/shadow_scribe_attack_0.png", "upgrade_v1/animations/shadow_scribe_attack_1.png", "upgrade_v1/animations/shadow_scribe_attack_2.png", "upgrade_v1/animations/shadow_scribe_attack_3.png",
   "upgrade_v1/animations/quillmaster_idle_0.png", "upgrade_v1/animations/quillmaster_idle_1.png", "upgrade_v1/animations/quillmaster_idle_2.png", "upgrade_v1/animations/quillmaster_idle_3.png", "upgrade_v1/animations/quillmaster_run_0.png", "upgrade_v1/animations/quillmaster_run_1.png", "upgrade_v1/animations/quillmaster_run_2.png", "upgrade_v1/animations/quillmaster_run_3.png", "upgrade_v1/animations/quillmaster_attack_0.png", "upgrade_v1/animations/quillmaster_attack_1.png", "upgrade_v1/animations/quillmaster_attack_2.png", "upgrade_v1/animations/quillmaster_attack_3.png",
   "upgrade_v1/animations/rune_sorceress_idle_0.png", "upgrade_v1/animations/rune_sorceress_idle_1.png", "upgrade_v1/animations/rune_sorceress_idle_2.png", "upgrade_v1/animations/rune_sorceress_idle_3.png", "upgrade_v1/animations/rune_sorceress_run_0.png", "upgrade_v1/animations/rune_sorceress_run_1.png", "upgrade_v1/animations/rune_sorceress_run_2.png", "upgrade_v1/animations/rune_sorceress_run_3.png", "upgrade_v1/animations/rune_sorceress_attack_0.png", "upgrade_v1/animations/rune_sorceress_attack_1.png", "upgrade_v1/animations/rune_sorceress_attack_2.png", "upgrade_v1/animations/rune_sorceress_attack_3.png",
@@ -902,6 +1475,8 @@ const spriteList = [
   // Bullets & Drops
   "bullet_bolt.png", "bullet_boomerang.png", "bullet_rocket.png",
   "bullet_flame.png", "bullet_enemy_red.png", "ink_bullet.png", "ink_drop.png",
+  "effects/combat_hit_0.png", "effects/combat_hit_1.png", "effects/combat_hit_2.png", "effects/combat_hit_3.png",
+  "effects/combat_hit_4.png", "effects/combat_hit_5.png", "effects/combat_hit_6.png", "effects/combat_hit_7.png",
   // Enemies
   "typo_slime.png", "typo_splinter.png", "grammar_goblin.png",
   "punctuation_phantom.png", "syntax_titan.png", "spelling_spectre.png",
@@ -921,6 +1496,7 @@ const spriteList = [
   "brazier_pedestal.png", "illuminated_lectern.png", "touch_weapon_icon.png",
   "bookshelf_wall.png", "wax_seal.png"
 ];
+spriteList.push(...Object.values(WEAPONS_CATALOG).map(weapon => weapon.sprite));
 
 function loadAssets(callback) {
   let loaded = 0;
@@ -1566,13 +2142,24 @@ function getChapterForWave(wave) {
 
 function toggleInventoryModal(forcedState) {
   const modal = document.getElementById("inventory-modal");
-  const isVisible = forcedState !== undefined ? !forcedState : (modal.style.display === "flex");
-  modal.style.display = isVisible ? "none" : "flex";
-  if (!isVisible) {
+  const shouldOpen = forcedState !== undefined ? forcedState : modal.style.display !== "flex";
+  if (shouldOpen && !state.is_wave_active) return;
+  state.is_inventory_open = shouldOpen;
+  modal.style.display = shouldOpen ? "flex" : "none";
+  if (shouldOpen) {
     renderInventoryView();
   }
   syncMobileControlsVisibility();
 }
+
+document.getElementById("inventory-weapons-tab")?.addEventListener("click", () => {
+  state.inventory_category = "weapons";
+  renderInventoryView();
+});
+document.getElementById("inventory-gadgets-tab")?.addEventListener("click", () => {
+  state.inventory_category = "gadgets";
+  renderInventoryView();
+});
 
 // Scribe's Mistake Notebook (Hata Defteri & Pekiştirme)
 const mistakesBtn = document.getElementById("mistakes-btn");
@@ -1645,7 +2232,7 @@ window.addEventListener("keydown", e => {
     e.preventDefault();
   }
   if (e.key.toLowerCase() === "i") {
-    toggleInventoryModal();
+    if (state.is_wave_active || state.is_inventory_open) toggleInventoryModal();
   }
   if (e.key.toLowerCase() === "m") {
     toggleMistakesModal();
@@ -1988,9 +2575,11 @@ function initTitleScreen() {
   setGameSpeed(state.game_speed || 1.0);
 }
 
-const onStartGame = (e) => {
+const onStartGame = async (e) => {
   if (e) e.stopPropagation();
   if (state.is_wave_active) return;
+  if (weaponVisualsStatus !== "ready" && !(await ensureWeaponVisuals())) return;
+  await utilityCatalogReady;
   sounds.init();
   bgm.start();
   bgm.setMode("battle");
@@ -2000,6 +2589,8 @@ const onStartGame = (e) => {
 document.getElementById("start-game-btn").onclick = onStartGame;
 
 function resetStats() {
+  state.is_inventory_open = false;
+  state.milestone_boss_delay = 0;
   const c = CHARACTERS[state.selected_char];
   const d = DIFFICULTIES[state.difficulty];
 
@@ -2020,10 +2611,19 @@ function resetStats() {
   state.reserve_weapons = [];
   state.active_weapon_index = 0;
 
-  state.active_gadget_id = c.starting_gadget || "eraser_dash";
+  state.active_gadget_id = normalizeGadgetId(c.starting_gadget || "eraser_dash");
+  state.owned_gadgets = [state.active_gadget_id];
+  state.inventory_category = "weapons";
   state.gadget_timer = 0;
   state.chrono_timer = 0;
   state.shield_charges = 0;
+  state.shield_timer = 0;
+  state.magnet_timer = 0;
+  state.gadget_cards = [];
+  state.gadget_trails = [];
+  state.gadget_decoys = [];
+  state.mnemonic_used_this_wave = false;
+  state.gadget_cooldown_mult = 1;
 
   state.current_wave = 1;
   state.ink_count = 15;
@@ -2031,6 +2631,10 @@ function resetStats() {
   state.words_learned = [];
   state.active_synergies = {};
   state.artifacts_owned = [];
+  state.run_started_at = Date.now();
+  state.run_submission_id = createSubmissionId();
+  state.latest_run_result = null;
+  state.run_result_recorded = false;
 
   state.player.x = 0;
   state.player.y = 0;
@@ -2041,6 +2645,8 @@ function resetStats() {
   state.player.dash_timer = 0;
   state.player.dash_hit_ids = new Set();
   state.player.attack_anim_timer = 0;
+  state.player.attack_anim_duration = 0.28;
+  state.player.run_phase = 0;
   state.player.slow_timer = 0;
 
   state.enemies = [];
@@ -2048,10 +2654,13 @@ function resetStats() {
   state.projectiles = [];
   state.punctuation_mines = [];
   state.turrets = [];
+  state.weapon_fields = [];
   state.ink_drops = [];
   state.health_drops = [];
   state.ink_puddles = [];
   state.particles = [];
+  state.hit_effects = [];
+  state.hit_feedback_shake_cooldown = 0;
   state.active_boss = null;
 
   document.getElementById("boss-hp-container").style.display = "none";
@@ -2065,11 +2674,13 @@ function syncWeapons() {
   state.equipped_weapons.forEach((item, i) => {
     const wData = WEAPONS_CATALOG[item.id] || WEAPONS_CATALOG["quill_blaster"];
     const tierBonus = TIER_MULTIPLIERS[item.tier] || TIER_MULTIPLIERS[1];
-    state.weapons.push({
+    const weapon = {
       id: item.id,
       data: wData,
       tier: item.tier,
       tier_data: tierBonus,
+      archetype: getWeaponArchetype(item.id),
+      evolution: getWeaponEvolution(item.id, item.tier),
       shoot_timer: 0.1 * i,
       rotation: 0,
       recoil: 0,
@@ -2077,8 +2688,15 @@ function syncWeapons() {
       swing_timer: 0,
       swing_hit: false,
       is_active: (i === state.active_weapon_index),
-      alt_side: false
-    });
+      alt_side: false,
+      beam_ticks_pending: 0,
+      beam_tick_timer: 0,
+      flame_phase: "burst",
+      flame_phase_timer: 0,
+      burst_shots: 0
+    };
+    resolveWeaponSignature(weapon);
+    state.weapons.push(weapon);
   });
 }
 
@@ -2091,6 +2709,8 @@ function startWave() {
   state.wave_duration = Math.min(42.0, 22.0 + (state.current_wave - 1) * 0.25);
   state.wave_time_left = state.wave_duration;
   state.is_wave_active = true;
+  state.mnemonic_used_this_wave = false;
+  state.milestone_boss_delay = state.current_wave % 5 === 0 ? 1.8 : 0;
   if (state.selected_char === "lexicon_alchemist") state.ink_count += 10;
   document.getElementById("shop-screen").style.display = "none";
   updateHUD();
@@ -2098,6 +2718,7 @@ function startWave() {
   bgm.start();
   bgm.setMode(state.current_wave % 5 === 0 ? "boss" : "battle");
   bgm.setBiomeForWave(state.current_wave);
+  sounds.playAsset("wave", 0.58);
 
   // Tactical Alert Announcements on Key Waves
   const w = state.current_wave;
@@ -2123,17 +2744,12 @@ function startWave() {
     triggerTacticalAlert("OMEGA EJDERHA", "Son kuşatma başladı. Cephaneliğinizi ve gereçlerinizi kullanın.");
   }
 
-  // Milestone Boss every 5 waves
-  if (state.current_wave % 5 === 0) {
-    setTimeout(() => {
-      if (state.is_wave_active) spawnMilestoneBoss(state.current_wave);
-    }, 1800);
-  }
 }
 
 function endWave() {
   if (!state.is_wave_active) return;
   state.is_wave_active = false;
+  state.milestone_boss_delay = 0;
   // Enemies still alive when the timer expires were not defeated by the player.
   // Clear them without awarding kill credit, drops, or rewards.
   state.enemies = [];
@@ -2155,10 +2771,11 @@ function endWave() {
 // =========================================
 function activateActiveGadget() {
   if (state.gadget_timer > 0 || !state.is_wave_active) return;
-  const gid = state.active_gadget_id;
+  const gid = normalizeGadgetId(state.active_gadget_id);
   const gData = GADGETS_CATALOG[gid] || GADGETS_CATALOG["eraser_dash"];
-  state.gadget_timer = gData.cooldown;
-  sounds.gadget();
+  state.active_gadget_id = gid;
+  state.gadget_timer = Math.max(1.5, gData.cooldown * state.gadget_cooldown_mult);
+  sounds.gadget(gid);
 
   const p = state.player;
 
@@ -2181,11 +2798,12 @@ function activateActiveGadget() {
     p.dash_timer = 0.22;
     p.dash_dir = { x: dx, y: dy };
     p.dash_hit_ids = new Set();
-    p.invuln_timer = 0.28;
+    p.invuln_timer = gData.values?.invulnerability || 0.35;
+    state.gadget_trails.push({ x: p.x, y: p.y, dx, dy, timer: gData.values?.trail_seconds || 1.4, tick: 0 });
     triggerHaptic("medium");
     triggerScreenShake(0.12, 3.5);
 
-    const eraseDmg = 65.0 * state.damage_mult;
+    const eraseDmg = (gData.values?.damage || 60) * state.damage_mult;
     state.enemies.forEach(e => {
       if (!p.dash_hit_ids.has(e) && Math.hypot(e.x - p.x, e.y - p.y) < 75) {
         p.dash_hit_ids.add(e);
@@ -2198,45 +2816,127 @@ function activateActiveGadget() {
     // Screen-wide ink bomb: delete all enemy projectiles, stun & deal AoE damage
     state.enemy_projectiles = [];
     state.particles.push({
-      x: p.x, y: p.y, radius: 20, max_radius: 360,
+      x: p.x, y: p.y, radius: 20, max_radius: gData.values?.radius || 420,
       alpha: 1.0, color: "rgba(147, 51, 234, "
     });
     state.enemies.forEach(e => {
       const dist = Math.hypot(e.x - p.x, e.y - p.y);
-      if (dist < 340) {
-        e.hp -= 85.0 * state.damage_mult;
-        e.vx = 0; e.vy = 0;
-        e.speed *= 0.1; // Stunned for 2.5s
-        setTimeout(() => { e.speed /= 0.1; }, 2500);
+      if (dist < (gData.values?.radius || 420)) {
+        e.hp -= (gData.values?.damage || 95) * state.damage_mult;
+        const knock = (gData.values?.knockback || 220) / Math.max(1, dist);
+        e.vx = (e.x - p.x) * knock; e.vy = (e.y - p.y) * knock;
+        e.stun_timer = Math.max(e.stun_timer || 0, gData.values?.stun_seconds || 1.3);
       }
     });
   } else if (gid === "chrono_comma") {
-    state.chrono_timer = 4.0;
+    state.chrono_timer = gData.values?.duration || 3.5;
     state.particles.push({
       x: p.x, y: p.y, radius: 10, max_radius: 280,
       alpha: 0.9, color: "rgba(56, 189, 248, "
     });
   } else if (gid === "lexicon_aegis") {
-    state.shield_charges = 4;
+    state.shield_charges = gData.values?.charges || 3;
+    state.shield_timer = gData.values?.duration || 5;
+    state.shield_counter_damage = gData.values?.counter_damage || 32;
+    state.shield_counter_radius = gData.values?.counter_radius || 90;
     state.particles.push({
       x: p.x, y: p.y, radius: 10, max_radius: 80,
       alpha: 1.0, color: "rgba(56, 189, 248, "
     });
   } else if (gid === "grammar_magnet") {
-    // Instantly attract all ink drops & health parchments on map
-    state.ink_drops.forEach(d => { d.x = p.x; d.y = p.y; });
-    state.health_drops.forEach(h => { h.x = p.x; h.y = p.y; });
-    sounds.pickup();
+    state.magnet_timer = gData.values?.duration || 2.6;
     state.particles.push({
       x: p.x, y: p.y, radius: 10, max_radius: 200,
       alpha: 1.0, color: "rgba(250, 204, 21, "
     });
+  } else if (gid === "index_storm") {
+    const count = gData.values?.cards || 3;
+    state.gadget_cards = Array.from({ length: count }, (_, index) => ({
+      angle: Math.PI * 2 * index / count, timer: gData.values?.duration || 2.8,
+      tick: 0.12 * index, hitTargets: new Set(), damage: (gData.values?.damage || 26) * state.damage_mult
+    }));
+  } else if (gid === "redact_field") {
+    const aim = Math.atan2(p.last_aim?.y || 0, p.last_aim?.x || (p.facing_left ? -1 : 1));
+    const range = gData.values?.range || 260, halfAngle = gData.values?.half_angle || 0.72;
+    for (const enemy of state.enemies) {
+      if (enemy.dead) continue;
+      const dx = enemy.x - p.x, dy = enemy.y - p.y, distance = Math.hypot(dx, dy);
+      if (distance > range || Math.cos(Math.atan2(dy, dx) - aim) < Math.cos(halfAngle)) continue;
+      enemy.stun_timer = Math.max(enemy.stun_timer || 0, gData.values?.duration || 1.8);
+      enemy.telegraph_timer = 0;
+      enemy.slow_timer = Math.max(enemy.slow_timer || 0, gData.values?.duration || 1.8);
+      enemy.slow_factor = gData.values?.slow_factor || 0.45;
+    }
+    state.particles.push({ x: p.x, y: p.y, radius: 25, max_radius: range, alpha: 0.7, color: "rgba(207, 80, 105, " });
+  } else if (gid === "palimpsest_step") {
+    const angle = Math.atan2(p.last_aim?.y || 0, p.last_aim?.x || (p.facing_left ? -1 : 1));
+    const oldX = p.x, oldY = p.y, distance = gData.values?.blink_distance || 130;
+    p.x += Math.cos(angle) * distance; p.y += Math.sin(angle) * distance;
+    clampPlayerToArena(p);
+    state.gadget_decoys.push({ x: oldX, y: oldY, timer: gData.values?.decoy_seconds || 1.5, hp: 1 });
+    p.invuln_timer = Math.max(p.invuln_timer, 0.35);
   }
+}
+
+function updateGadgetEffects(dt) {
+  if (state.shield_timer > 0) {
+    state.shield_timer = Math.max(0, state.shield_timer - dt);
+    if (state.shield_timer === 0) state.shield_charges = 0;
+  }
+  state.magnet_timer = Math.max(0, state.magnet_timer - dt);
+  state.gadget_trails = state.gadget_trails.filter(trail => {
+    trail.timer -= dt;
+    trail.tick -= dt;
+    trail.x += trail.dx * 24 * dt;
+    trail.y += trail.dy * 24 * dt;
+    if (trail.tick <= 0 && trail.timer > 0) {
+      trail.tick = 0.32;
+      const x = trail.x + trail.dx * 48, y = trail.y + trail.dy * 48;
+      for (const enemy of state.enemies) {
+        if (!enemy.dead && Math.hypot(enemy.x - x, enemy.y - y) < 48) {
+          const damage = 18 * state.damage_mult;
+          enemy.hp -= damage;
+          applyHitFeedback(enemy, { x: trail.dx, y: trail.dy }, "slash", false, false, 45);
+          addFloatingText(enemy.x, enemy.y - 10, `${Math.round(damage)}`, "#7bf0d1", 12);
+        }
+      }
+    }
+    return trail.timer > 0;
+  });
+  state.gadget_cards = state.gadget_cards.filter(card => {
+    card.timer -= dt; card.tick -= dt; card.angle += dt * 4.6;
+    if (card.tick <= 0 && card.hitTargets.size < (GADGETS_CATALOG.index_storm.values?.target_cap || 3)) {
+      card.tick = 0.62;
+      const target = selectWeaponTarget({ id: "quill_blaster" }, state.enemies.filter(enemy => !card.hitTargets.has(enemy)));
+      if (target) {
+        card.hitTargets.add(target);
+        target.hp -= card.damage;
+        const angle = Math.atan2(target.y - state.player.y, target.x - state.player.x);
+        applyHitFeedback(target, { x: Math.cos(angle), y: Math.sin(angle) }, "piercing", false, false, 95);
+        addFloatingText(target.x, target.y - 12, `${Math.round(card.damage)}`, "#e8d27d", 13);
+      }
+    }
+    return card.timer > 0;
+  });
+  state.gadget_decoys = state.gadget_decoys.filter(decoy => (decoy.timer -= dt) > 0);
 }
 
 // =========================================
 // 10. SIMULTANEOUS WEAPONS FIRING & PLAYER LOGIC
 // =========================================
+function requestAttackPose(weaponId, actionKind, aim) {
+  if (actionKind === "ranged" || !["melee", "cast", "heavy"].includes(actionKind)) return;
+  const p = state.player;
+  if (aim && Math.hypot(aim.x, aim.y) > 0.01) {
+    p.last_aim = { x: aim.x, y: aim.y };
+    p.facing_left = getHorizontalFacing(Math.atan2(aim.y, aim.x), p.facing_left);
+  }
+  const meleeTiming = MELEE_TIMINGS[weaponId];
+  p.attack_anim_duration = meleeTiming ? meleeTiming.windup + meleeTiming.active + meleeTiming.recovery
+    : actionKind === "heavy" ? 0.36 : actionKind === "cast" ? 0.32 : 0.28;
+  p.attack_anim_timer = p.attack_anim_duration;
+}
+
 function updatePlayer(dt) {
   const p = state.player;
 
@@ -2280,22 +2980,38 @@ function updatePlayer(dt) {
       dx *= 0.7071; dy *= 0.7071;
     }
 
-    p.vx = dx * effectiveSpeed;
-    p.vy = dy * effectiveSpeed;
+    const desiredVx = dx * effectiveSpeed;
+    const desiredVy = dy * effectiveSpeed;
+    const response = dx !== 0 || dy !== 0 ? 1050 : 900;
+    const deltaVx = desiredVx - p.vx;
+    const deltaVy = desiredVy - p.vy;
+    const maxDelta = response * dt;
+    const deltaLength = Math.hypot(deltaVx, deltaVy);
+    const scale = deltaLength > maxDelta && deltaLength > 0 ? maxDelta / deltaLength : 1;
+    p.vx += deltaVx * scale;
+    p.vy += deltaVy * scale;
+    const speed = Math.hypot(p.vx, p.vy);
+    if (speed > effectiveSpeed && effectiveSpeed > 0) {
+      p.vx = p.vx / speed * effectiveSpeed;
+      p.vy = p.vy / speed * effectiveSpeed;
+    }
     p.x += p.vx * dt;
     p.y += p.vy * dt;
 
+    if (speed > 24) p.run_phase += speed * dt / 17;
+
     if (dx !== 0) p.facing_left = dx < 0;
+    if (dx !== 0 || dy !== 0) p.last_aim = { x: dx, y: dy };
   }
 
-  p.x = Math.max(-1168, Math.min(1168, p.x));
-  p.y = Math.max(-868, Math.min(868, p.y));
+  clampPlayerToArena(p);
 
   // Ink drops
   state.ink_drops.forEach(drop => {
     const dist = Math.hypot(drop.x - p.x, drop.y - p.y);
-    if (dist < state.pickup_radius) {
-      const pull = (380 + (state.pickup_radius - dist) * 2.5) * dt;
+    const pullRadius = state.magnet_timer > 0 ? (GADGETS_CATALOG.grammar_magnet.values?.radius || 1200) : state.pickup_radius;
+    if (dist < pullRadius) {
+      const pull = (state.magnet_timer > 0 ? (GADGETS_CATALOG.grammar_magnet.values?.pull_speed || 520) : (380 + (state.pickup_radius - dist) * 2.5)) * dt;
       drop.x += ((p.x - drop.x) / dist) * pull;
       drop.y += ((p.y - drop.y) / dist) * pull;
       if (dist < 24) {
@@ -2313,15 +3029,23 @@ function updatePlayer(dt) {
   // Health Drops / Şifa Parşömeni (+18 HP)
   state.health_drops.forEach(drop => {
     const dist = Math.hypot(drop.x - p.x, drop.y - p.y);
-    if (dist < state.pickup_radius) {
-      const pull = (380 + (state.pickup_radius - dist) * 2.5) * dt;
+    const pullRadius = state.magnet_timer > 0 ? (GADGETS_CATALOG.grammar_magnet.values?.radius || 1200) : state.pickup_radius;
+    if (dist < pullRadius) {
+      const pull = (state.magnet_timer > 0 ? (GADGETS_CATALOG.grammar_magnet.values?.pull_speed || 520) : (380 + (state.pickup_radius - dist) * 2.5)) * dt;
       drop.x += ((p.x - drop.x) / dist) * pull;
       drop.y += ((p.y - drop.y) / dist) * pull;
       if (dist < 26) {
         drop.collected = true;
         sounds.pickup();
-        const healing = Math.round(drop.value * (state.selected_char === "lexicon_alchemist" ? 1.5 : 1.0));
+        const threadActive = state.artifacts_owned.includes("mnemonic_thread") && !state.mnemonic_used_this_wave;
+        const threadValues = ARTIFACTS_CATALOG.mnemonic_thread.values || {};
+        const healing = Math.round((drop.value + (threadActive ? (threadValues.heal_bonus || 14) : 0)) * (state.selected_char === "lexicon_alchemist" ? 1.5 : 1.0));
         state.hp = Math.min(state.max_hp, state.hp + healing);
+        if (threadActive) {
+          state.mnemonic_used_this_wave = true;
+          state.shield_charges = Math.max(state.shield_charges, 1);
+          state.shield_timer = Math.max(state.shield_timer, threadValues.shield_seconds || 0.65);
+        }
         addFloatingText(p.x, p.y - 25, `+${healing} HP`, "#4ade80", 14);
         triggerHaptic("light");
         state.particles.push({
@@ -2361,112 +3085,163 @@ function updatePlayer(dt) {
 
   // ALL SLOTTED WEAPONS FIRE SIMULTANEOUSLY (Brotato Mechanic!)
   state.weapons.forEach((w, idx) => {
+    resolveWeaponSignature(w);
+    advanceWeaponChannels(w, dt);
     w.shoot_timer -= dt;
     w.recoil = Math.max(0, (w.recoil || 0) - dt * 8.5);
     w.flash_timer = Math.max(0, (w.flash_timer || 0) - dt);
     if (w.swing_timer > 0) {
-      const previousSwing = w.swing_timer;
+      const previousElapsed = w.swing_elapsed || 0;
+      w.swing_elapsed = previousElapsed + dt;
+      const swingTiming = getMeleeTiming(w.id);
       w.swing_timer = Math.max(0, w.swing_timer - dt);
-      if (!w.swing_hit && previousSwing > 0.11 && w.swing_timer <= 0.11) {
+      if (!w.swing_hit && previousElapsed < swingTiming.arcPeakTime && w.swing_elapsed >= swingTiming.arcPeakTime) {
         w.swing_hit = true;
         resolveMeleeWeaponHit(w);
       }
     }
 
-    let nearest = null;
-    let minDist = 650;
-    state.enemies.forEach(e => {
-      const d = Math.hypot(e.x - p.x, e.y - p.y);
-      if (d < minDist) {
-        minDist = d;
-        nearest = e;
-      }
-    });
+    const nearest = selectWeaponTarget(w, state.enemies, p);
+    const minDist = nearest ? Math.hypot(nearest.x - p.x, nearest.y - p.y) : Infinity;
 
     if (nearest) {
       w.rotation = Math.atan2(nearest.y - p.y, nearest.x - p.x);
     }
 
     let effectiveAtkSpd = Math.max(0.1, state.attack_speed_mult);
-    if (state.chrono_timer > 0) effectiveAtkSpd *= 1.40;
+    if (state.chrono_timer > 0) effectiveAtkSpd *= GADGETS_CATALOG.chrono_comma.values?.player_attack_speed_factor || 1.2;
     if (idx === state.active_weapon_index) effectiveAtkSpd *= 1.25;
 
     const tierCdMult = w.tier_data.cooldown || 1.0;
     const effectiveCd = Math.max(0.06, (w.data.cooldown * tierCdMult) / effectiveAtkSpd);
 
-    if (w.shoot_timer <= 0) {
+    if (w.shoot_timer <= 0 && !(w.id === "ink_flamethrower" && w.flame_phase === "vent")
+      && !(w.id === "lexicon_beam" && w.beam_ticks_pending > 0)) {
       w.shoot_timer = effectiveCd;
 
       if (w.id === "dictionary_blade") {
+        if (minDist > (getWeaponArchetype(w.id)?.limits?.radius || 132) + 18) return;
         sounds.shoot("dictionary_blade");
-        w.swing_timer = 0.24;
+        w.recoil = 0.8;
+        w.flash_timer = 0.055;
+        w.swing_timer = getMeleeTiming(w.id).total;
+        w.swing_elapsed = 0;
+        w.parry_window = 0;
         w.swing_hit = false;
-        p.attack_anim_timer = 0.28;
+        w.hitTargets = new Set();
+        requestAttackPose(w.id, "melee", { x: Math.cos(w.rotation), y: Math.sin(w.rotation) });
       } else if (w.id === "calligraphy_katana") {
+        if (minDist > (getWeaponArchetype(w.id)?.limits?.range || 178) + 40) return;
         sounds.shoot("calligraphy_katana");
+        w.recoil = 0.8;
+        w.flash_timer = 0.055;
         const slashDmg = w.data.damage * (w.tier_data.damage || 1.0) * state.damage_mult;
-        w.swing_timer = 0.28;
+        w.swing_timer = getMeleeTiming(w.id).total;
+        w.swing_elapsed = 0;
         w.swing_hit = false;
-        p.attack_anim_timer = 0.28;
+        w.hitTargets = new Set();
+        requestAttackPose(w.id, "melee", { x: Math.cos(w.rotation), y: Math.sin(w.rotation) });
         // Crescent ink wave projectile forward
         if (nearest) {
           const dirX = Math.cos(w.rotation); const dirY = Math.sin(w.rotation);
+          const muzzle = weaponMuzzleWorld(w, idx);
           spawnProjectile({
-            type: "katana_wave", x: p.x, y: p.y, dx: dirX, dy: dirY,
-            dmg: slashDmg * 0.8, pierce: 3, spd: 540, color: "#38bdf8", size: 28
+            type: "katana_wave", x: muzzle.x, y: muzzle.y, dx: dirX, dy: dirY,
+            dmg: slashDmg * 0.8, pierce: 3, spd: 540, color: "#38bdf8", size: 28,
+            weapon_id: w.id, impact_profile: getWeaponVisual(w.id)?.impact || "slash",
+            tier: w.tier, sharedHitTargets: w.hitTargets
           });
+          if (w.tier >= 2) {
+            const crossAngle = w.tier >= 3 ? 0.23 : 0.14;
+            spawnProjectile({ type: "katana_wave", x: muzzle.x, y: muzzle.y,
+              dx: Math.cos(w.rotation + crossAngle), dy: Math.sin(w.rotation + crossAngle),
+              dmg: slashDmg * 0.42, pierce: 2, spd: 520, color: "#a5f3fc", size: 22,
+              weapon_id: w.id, impact_profile: "slash", tier: w.tier, sharedHitTargets: w.hitTargets });
+          }
         }
       } else if (w.id === "scroll_turret") {
-        // Place turret near player
-        if (state.turrets.length < 3) {
+        // Place a focused, capped turret near the player.
+        if (canPlaceTurret(w.id, state.turrets.length, w.tier)) {
+          requestAttackPose(w.id, "cast", { x: Math.cos(w.rotation), y: Math.sin(w.rotation) });
+          const turretLimit = getWeaponArchetype(w.id)?.limits || {};
           state.turrets.push({
             x: p.x + (Math.random() - 0.5) * 60,
             y: p.y + (Math.random() - 0.5) * 60,
-            lifetime: 14.0, shoot_timer: 0.35, damage: w.data.damage * (w.tier_data.damage || 1.0)
+            lifetime: (turretLimit.turret_seconds || 12.0) * (w.tier >= 2 ? 1.18 : 1),
+            shoot_timer: 0.35,
+            fire_seconds: turretLimit.fire_seconds || 0.82,
+            damage: w.data.damage * (w.tier_data.damage || 1.0),
+            synchronized_focus: w.tier >= 4
           });
         }
       } else if (w.id === "punctuation_bomb") {
-        dropPunctuationMine(w, nearest);
+        dropPunctuationMine(w, nearest, idx);
       } else if (nearest) {
-        shootWeapon(w, nearest);
+        shootWeapon(w, nearest, idx);
       }
     }
   });
 
-  // Update Turrets
-  state.turrets.forEach(t => {
-    t.lifetime -= dt;
-    t.shoot_timer -= dt;
-    if (t.shoot_timer <= 0) {
-      t.shoot_timer = 0.45;
-      let near = null; let minD = 500;
-      state.enemies.forEach(e => {
-        const d = Math.hypot(e.x - t.x, e.y - t.y);
-        if (d < minD) { minD = d; near = e; }
-      });
-      if (near) {
-        sounds.shoot("scroll_turret");
-        const dirX = (near.x - t.x) / minD;
-        const dirY = (near.y - t.y) / minD;
-        spawnProjectile({
-          type: "turret_bolt", x: t.x, y: t.y, dx: dirX, dy: dirY,
-          dmg: t.damage * state.damage_mult, pierce: 1, spd: 620, color: "#00e5ff", size: 16
-        });
-      }
-    }
-  });
-  state.turrets = state.turrets.filter(t => t.lifetime > 0);
+  updateTurrets(dt);
+  updateWeaponFields(dt);
 
   updatePunctuationMines(dt);
   updateProjectiles(dt);
+  updateHitEffects(dt);
 }
 
-function dropPunctuationMine(w, target) {
+function updateTurrets(dt) {
+  const synchronizedTarget = state.turrets.some(turret => turret.synchronized_focus)
+    ? selectWeaponTarget({ id: "scroll_turret" }, state.enemies, state.player) : null;
+  state.turrets.forEach(turret => {
+    turret.lifetime -= dt;
+    turret.shoot_timer -= dt;
+    if (turret.shoot_timer > 0) return;
+    turret.shoot_timer = turret.fire_seconds || getWeaponArchetype("scroll_turret")?.limits?.fire_seconds || 0.82;
+    let target = synchronizedTarget;
+    let minDistance = target ? Math.hypot(target.x - turret.x, target.y - turret.y) : 500;
+    if (!target) {
+      state.enemies.forEach(enemy => {
+        const distance = Math.hypot(enemy.x - turret.x, enemy.y - turret.y);
+        if (!enemy.dead && distance < minDistance) { minDistance = distance; target = enemy; }
+      });
+    }
+    if (!target || minDistance <= 0.001) return;
+    sounds.shoot("scroll_turret");
+    const dirX = (target.x - turret.x) / minDistance;
+    const dirY = (target.y - turret.y) / minDistance;
+    spawnProjectile({
+      type: "turret_bolt", x: turret.x, y: turret.y, dx: dirX, dy: dirY,
+      dmg: turret.damage * state.damage_mult, pierce: 1, spd: 620, color: "#00e5ff", size: 16,
+      weapon_id: "scroll_turret", impact_profile: "gold"
+    });
+  });
+  state.turrets = state.turrets.filter(turret => turret.lifetime > 0);
+}
+
+function updateWeaponFields(dt) {
+  state.weapon_fields.forEach(field => {
+    field.lifetime -= dt;
+    field.tick_timer -= dt;
+    if (field.tick_timer > 0) return;
+    field.tick_timer = field.tick_seconds || 0.5;
+    state.enemies.forEach(enemy => {
+      if (!enemy.dead && Math.hypot(enemy.x - field.x, enemy.y - field.y) <= field.radius) {
+        enemy.hp -= field.damage;
+        applyHitFeedback(enemy, { x: enemy.x - field.x, y: enemy.y - field.y }, field.impact || "heavy", false, true, 80);
+      }
+    });
+  });
+  state.weapon_fields = state.weapon_fields.filter(field => field.lifetime > 0);
+}
+
+function dropPunctuationMine(w, target, weaponIndex = state.weapons.indexOf(w)) {
   sounds.shoot("punctuation_bomb");
   w.recoil = 0.75;
   w.flash_timer = 0.05;
-  state.player.attack_anim_timer = 0.28;
+  requestAttackPose(w.id, "cast", target ? { x: target.x - state.player.x, y: target.y - state.player.y } : { x: 1, y: 0 });
   const p = state.player;
+  const muzzle = weaponMuzzleWorld(w, weaponIndex);
   let offX = (Math.random() - 0.5) * 60;
   let offY = (Math.random() - 0.5) * 60;
   if (target) {
@@ -2475,23 +3250,41 @@ function dropPunctuationMine(w, target) {
     offY = Math.sin(ang) * 50;
   }
   const isCrit = Math.random() < state.crit_chance;
-  state.punctuation_mines.push({
-    x: p.x + offX, y: p.y + offY,
+  const limits = getWeaponArchetype(w.id)?.limits || {};
+  const mineCap = limits.mine_cap || 3;
+  if (state.punctuation_mines.length >= mineCap) state.punctuation_mines.shift();
+  const mine = {
+    x: muzzle.x + offX, y: muzzle.y + offY,
     damage: w.data.damage * (w.tier_data.damage || 1.0) * state.damage_mult * (isCrit ? 2.0 : 1.0),
-    blast_radius: 140, lifetime: 8.0, pulse: 0
-  });
+    blast_radius: (limits.blast_radius || 125) * (w.tier >= 2 ? 1.18 : 1),
+    fuse_seconds: Math.max(0.55, (limits.fuse_seconds || 1.05) - (w.tier >= 2 ? 0.18 : 0)),
+    fuse_elapsed: 0,
+    hazard_seconds: limits.hazard_seconds || 2.2,
+    lifetime: 8.0, pulse: 0, pulse_duration: 0.13,
+    tier: w.tier, impact_profile: getWeaponVisual(w.id)?.impact || "heavy"
+  };
+  state.punctuation_mines.push(mine);
+  if (w.tier >= 3 && state.punctuation_mines.length < mineCap) {
+    state.punctuation_mines.push({ ...mine, x: mine.x - offY * 0.7, y: mine.y + offX * 0.7,
+      fuse_elapsed: 0, pulse: 0, damage: mine.damage * 0.65 });
+  }
 }
 
 function updatePunctuationMines(dt) {
   state.punctuation_mines.forEach(mine => {
     mine.pulse += dt * 5;
-    mine.lifetime -= dt;
-    let trigger = (mine.lifetime <= 0);
-    if (!trigger) {
+    if (mine.detonated) {
+      mine.hazard_seconds -= dt;
+      return;
+    }
+    mine.fuse_elapsed += dt;
+    let proximityTrigger = false;
+    if (mine.fuse_elapsed >= 0.35) {
       for (const e of state.enemies) {
-        if (Math.hypot(e.x - mine.x, e.y - mine.y) < 36) { trigger = true; break; }
+        if (!e.dead && Math.hypot(e.x - mine.x, e.y - mine.y) < 36) { proximityTrigger = true; break; }
       }
     }
+    const trigger = proximityTrigger || mine.fuse_elapsed >= mine.fuse_seconds;
     if (trigger && !mine.detonated) {
       mine.detonated = true;
       sounds.detonateMine();
@@ -2505,21 +3298,36 @@ function updatePunctuationMines(dt) {
           const falloff = 1.0 - (d / mine.blast_radius) * 0.35;
           e.hp -= mine.damage * falloff;
           const ang = Math.atan2(e.y - mine.y, e.x - mine.x);
-          e.vx = Math.cos(ang) * 320; e.vy = Math.sin(ang) * 320;
+          applyHitFeedback(e, { x: Math.cos(ang), y: Math.sin(ang) }, mine.impact_profile || "heavy", false, true, 320);
         }
+      });
+      if (mine.tier >= 4) addWeaponField({
+        x: mine.x, y: mine.y, radius: mine.blast_radius * 0.65,
+        lifetime: 2.4, tick_timer: 0, tick_seconds: 0.6,
+        damage: mine.damage * 0.22, impact: "heavy"
       });
     }
   });
-  state.punctuation_mines = state.punctuation_mines.filter(m => !m.detonated);
+  state.punctuation_mines = state.punctuation_mines.filter(m => !m.detonated || m.hazard_seconds > 0);
+}
+
+function weaponPistolFireNow(weapon) {
+  const shot = weapon.pistol_queue?.shift();
+  if (shot) spawnProjectile({ ...shot, weapon_id: weapon.id, impact_profile: "gold" });
 }
 
 // =========================================
 // 11. PROJECTILES (14 WEAPONS)
 // =========================================
-function shootWeapon(w, target) {
-  w.recoil = 1.0;
+function shootWeapon(w, target, weaponIndex = state.weapons.indexOf(w)) {
+  const visual = getWeaponVisual(w.id);
+  const recoilScale = (visual?.recoil_px || 3.5) / 4.8;
+  w.recoil = recoilScale;
   w.flash_timer = 0.065;
-  state.player.attack_anim_timer = 0.28;
+  const actionKind = ["thesaurus_rocket", "grammar_sniper", "crossword_crossbow"].includes(w.id) ? "heavy"
+    : ["rune_orb", "scroll_turret"].includes(w.id) ? "cast"
+    : w.id === "calligraphy_katana" ? "melee" : "ranged";
+  requestAttackPose(w.id, actionKind, { x: target.x - state.player.x, y: target.y - state.player.y });
   const p = state.player;
   const isCrit = Math.random() < (state.crit_chance + (w.tier_data.crit || 0));
   const critMult = isCrit ? 2.0 : 1.0;
@@ -2529,6 +3337,12 @@ function shootWeapon(w, target) {
   const extraProj = w.tier_data.projectile || 0;
   const dirX = Math.cos(w.rotation);
   const dirY = Math.sin(w.rotation);
+  const muzzle = weaponMuzzleWorld(w, weaponIndex);
+  const impactProfile = visual?.impact || "ink";
+  const spawnShot = (projectile) => spawnProjectile({
+    ...projectile, weapon_id: w.id, impact_profile: impactProfile, tier: w.tier,
+    evolution: w.evolution || getWeaponEvolution(w.id, w.tier)
+  });
 
   sounds.shoot(w.id);
 
@@ -2536,8 +3350,8 @@ function shootWeapon(w, target) {
     case "quill_blaster": {
       const count = state.projectile_count + extraProj;
       if (count === 1) {
-        spawnProjectile({
-          type: "quill", x: p.x, y: p.y, dx: dirX, dy: dirY,
+        spawnShot({
+          type: "quill", x: muzzle.x, y: muzzle.y, dx: dirX, dy: dirY,
           dmg: baseDmg, pierce: state.pierce_count + extraPrc, spd: 590,
           color: "#fff8e7", crit: isCrit, sprite: "ink_bullet.png", size: 18
         });
@@ -2546,8 +3360,8 @@ function shootWeapon(w, target) {
         const start = -((count - 1) * spread) / 2;
         for (let i = 0; i < count; i++) {
           const ang = w.rotation + start + i * spread;
-          spawnProjectile({
-            type: "quill", x: p.x, y: p.y, dx: Math.cos(ang), dy: Math.sin(ang),
+          spawnShot({
+            type: "quill", x: muzzle.x, y: muzzle.y, dx: Math.cos(ang), dy: Math.sin(ang),
             dmg: baseDmg, pierce: state.pierce_count + extraPrc, spd: 590,
             color: "#fff8e7", crit: isCrit, sprite: "ink_bullet.png", size: 18
           });
@@ -2556,131 +3370,275 @@ function shootWeapon(w, target) {
       break;
     }
     case "syllable_shotgun": {
-      const pellets = 5 + (state.projectile_count - 1 + extraProj) * 2;
+      const archetype = getWeaponArchetype(w.id);
+      const pellets = (archetype?.limits?.pellets || 5) + (state.projectile_count - 1 + extraProj) * 2 + (w.tier >= 2 ? 2 : 0);
+      const fan = getShotgunFanAngles(w.id, pellets, w.tier);
       for (let i = 0; i < pellets; i++) {
-        const spread = (Math.random() - 0.5) * 0.55;
+        const spread = fan[i];
         const spd = 480 + Math.random() * 150;
-        spawnProjectile({
-          type: "pellet", x: p.x, y: p.y, dx: Math.cos(w.rotation + spread), dy: Math.sin(w.rotation + spread),
-          dmg: baseDmg * 0.85, pierce: 1 + extraPrc, spd: spd,
+        spawnShot({
+          type: "pellet", x: muzzle.x, y: muzzle.y, dx: Math.cos(w.rotation + spread), dy: Math.sin(w.rotation + spread),
+          dmg: baseDmg * (w.tier >= 3 && Math.abs(spread) < 0.08 ? 1.15 : 0.85), pierce: 1 + extraPrc, spd: spd,
           color: "#ffa726", crit: isCrit, sprite: "bullet_flame.png", size: 16
         });
+      }
+      if (w.tier >= 4 && Math.hypot(target.x - p.x, target.y - p.y) <= (archetype?.limits?.stagger_range || 112)) {
+        spawnShot({ type: "punctuation_bomb", x: target.x, y: target.y, dx: 0, dy: 0,
+          dmg: baseDmg * 0.65, pierce: 1, spd: 0, size: 38, lifetime: 0.12, color: "#ffc857", crit: isCrit });
       }
       break;
     }
     case "lexicon_beam": {
-      spawnProjectile({
-        type: "beam", x: p.x, y: p.y, dx: dirX, dy: dirY,
-        dmg: baseDmg * 1.1, pierce: state.pierce_count + 8 + extraPrc, spd: 960,
-        color: "#5ce1e6", crit: isCrit, size: 24
-      });
+      const rhythm = getWeaponArchetype(w.id).rhythm;
+      const limits = getWeaponArchetype(w.id).limits;
+      const active = rhythm.active + (w.tier >= 2 ? 0.18 : 0);
+      const ticks = Math.max(1, Math.floor(active / limits.tick_seconds));
+      w.beam_ticks_pending = ticks;
+      w.beam_tick_timer = rhythm.windup;
+      w.beam_charge_remaining = rhythm.windup;
+      w.beam_tick_damage = baseDmg * 1.1 / ticks;
+      w.beam_crit = isCrit;
+      w.beam_split_pending = false;
       break;
     }
     case "crossword_crossbow": {
-      spawnProjectile({
-        type: "crossword_bolt", x: p.x, y: p.y, dx: dirX, dy: dirY,
-        dmg: baseDmg, pierce: 1 + extraPrc, spd: 630,
-        color: "#d4af37", crit: isCrit, sprite: "bullet_bolt.png", size: 24
+      spawnShot({
+        type: "crossword_bolt", x: muzzle.x, y: muzzle.y, dx: dirX, dy: dirY,
+        dmg: baseDmg, pierce: (w.tier >= 2 ? 3 : 1) + extraPrc, spd: 630,
+        color: "#d4af37", crit: isCrit, sprite: "bullet_bolt.png", size: 24, tier: w.tier
       });
       break;
     }
     case "hyphen_boomerang": {
-      spawnProjectile({
-        type: "boomerang", x: p.x, y: p.y, dx: dirX, dy: dirY,
+      spawnShot({
+        type: "boomerang", x: muzzle.x, y: muzzle.y, dx: dirX, dy: dirY,
         dmg: baseDmg, pierce: 999, spd: 530,
         color: "#ff7043", crit: isCrit, sprite: "bullet_boomerang.png", size: 24,
-        origin_x: p.x, origin_y: p.y, time_alive: 0
+        origin_x: muzzle.x, origin_y: muzzle.y, time_alive: 0, tier: w.tier
       });
       break;
     }
     case "ink_flamethrower": {
-      const spread = (Math.random() - 0.5) * 0.4;
-      spawnProjectile({
-        type: "flame", x: p.x + dirX * 20, y: p.y + dirY * 20,
+      const spread = (Math.random() - 0.5) * (getWeaponArchetype(w.id)?.limits?.cone_radians || 0.48) * (w.tier >= 2 ? 1.4 : 1);
+      spawnShot({
+        type: "flame", x: muzzle.x, y: muzzle.y,
         dx: Math.cos(w.rotation + spread), dy: Math.sin(w.rotation + spread),
         dmg: baseDmg, pierce: 3 + extraPrc, spd: 370 + Math.random() * 80,
-        color: "#ff5722", crit: isCrit, sprite: "bullet_flame.png", size: 18, lifetime: 0.65
+        color: "#ff5722", crit: isCrit, sprite: "bullet_flame.png", size: 18, lifetime: 0.65, tier: w.tier
       });
       break;
     }
     case "thesaurus_rocket": {
-      spawnProjectile({
-        type: "rocket", x: p.x, y: p.y, dx: dirX, dy: dirY,
+      const limits = getWeaponArchetype(w.id)?.limits || {};
+      spawnShot({
+        type: "rocket", x: muzzle.x, y: muzzle.y, dx: dirX, dy: dirY,
         dmg: baseDmg, pierce: 1, spd: 430,
-        color: "#ab47bc", crit: isCrit, sprite: "bullet_rocket.png", size: 26
+        color: "#ab47bc", crit: isCrit, sprite: "bullet_rocket.png", size: 26,
+        target, homing_strength: limits.homing_strength || 0.55, tier: w.tier
       });
       break;
     }
     case "quote_pistols": {
-      w.alt_side = !w.alt_side;
-      const side = (w.alt_side ? 1 : -1) * 12;
-      spawnProjectile({
-        type: "quote", x: p.x - dirY * side, y: p.y + dirX * side, dx: dirX, dy: dirY,
-        dmg: baseDmg * 1.05, pierce: state.pierce_count + extraPrc, spd: 650,
-        color: "#ffd54f", crit: isCrit, sprite: "bullet_bolt.png", size: 16
-      });
+      const burstCount = w.tier >= 3 ? 3 : 2;
+      w.pistol_queue = [];
+      for (let i = 0; i < burstCount; i++) {
+        const side = getNextPistolSide(w) * 12;
+        w.pistol_queue.push({ type: "quote", x: muzzle.x - dirY * side, y: muzzle.y + dirX * side, dx: dirX, dy: dirY,
+          dmg: baseDmg * (w.tier >= 3 ? 0.35 : 0.525), pierce: state.pierce_count + extraPrc, spd: 650,
+          color: "#ffd54f", crit: isCrit, sprite: "bullet_bolt.png", size: 16, tier: w.tier });
+      }
+      weaponPistolFireNow(w);
+      w.pistol_queue_timer = getWeaponArchetype(w.id)?.limits?.shot_gap || 0.10;
       break;
     }
     case "rune_orb": {
-      spawnProjectile({
-        type: "bouncing_orb", x: p.x, y: p.y, dx: dirX, dy: dirY,
+      spawnShot({
+        type: "bouncing_orb", x: muzzle.x, y: muzzle.y, dx: dirX, dy: dirY,
         dmg: baseDmg, pierce: 4 + extraPrc, spd: 510,
-        color: "#f472b6", crit: isCrit, sprite: "rune_orb.png", size: 20
+        color: "#f472b6", crit: isCrit, sprite: "rune_orb.png", size: 20, tier: w.tier
       });
       break;
     }
     case "grammar_sniper": {
-      spawnProjectile({
-        type: "rail_slug", x: p.x, y: p.y, dx: dirX, dy: dirY,
-        dmg: baseDmg * 1.35, pierce: 12 + extraPrc, spd: 1100,
-        color: "#00f0ff", crit: isCrit, size: 28
+      spawnShot({
+        type: "rail_slug", x: muzzle.x, y: muzzle.y, dx: dirX, dy: dirY,
+        dmg: baseDmg * 1.35, pierce: w.tier >= 3 ? 999 : 12 + extraPrc, spd: 1100,
+        color: "#00f0ff", crit: isCrit, size: 28, tier: w.tier
       });
       break;
     }
   }
 }
 
-function resolveMeleeWeaponHit(w) {
+function resolveMeleeWeaponHit(w, enemies = state.enemies) {
   const p = state.player;
-  const range = w.id === "calligraphy_katana" ? 170 : 150;
+  const limits = getWeaponArchetype(w.id)?.limits || {};
+  let deflectedShots = 0;
+  if (w.id === "dictionary_blade") {
+    w.parry_window = limits.parry_window || 0.14;
+    const guardRadius = limits.parry_radius || limits.radius || 132;
+    state.enemy_projectiles.forEach(ep => {
+      if (!ep.dead && Math.hypot(ep.x - p.x, ep.y - p.y) <= guardRadius) {
+        ep.dead = true;
+        deflectedShots++;
+      }
+    });
+    if (deflectedShots) state.particles.push({ x: p.x, y: p.y, radius: 16, alpha: 0.9, color: "rgba(235, 202, 125, " });
+    if (deflectedShots && w.tier >= 3) {
+      const target = selectWeaponTarget(w, enemies, p);
+      if (target) {
+        const angle = Math.atan2(target.y - p.y, target.x - p.x);
+        spawnProjectile({ type: "guard_counter", x: p.x, y: p.y, dx: Math.cos(angle), dy: Math.sin(angle),
+          dmg: w.data.damage * (w.tier_data.damage || 1) * state.damage_mult * 0.65,
+          pierce: 1, spd: 760, size: 16, lifetime: 1.3, weapon_id: w.id, impact_profile: "gold", tier: w.tier });
+      }
+    }
+  }
+  const range = w.id === "calligraphy_katana" ? (limits.range || 178) : (limits.radius || 132);
   const force = w.id === "calligraphy_katana" ? 300 : 260;
   const damage = w.data.damage * (w.tier_data.damage || 1.0) * state.damage_mult;
   const forwardX = Math.cos(w.rotation);
   const forwardY = Math.sin(w.rotation);
-  state.enemies.forEach(e => {
+  if (!w.hitTargets) w.hitTargets = new Set();
+  let hitCount = 0;
+  enemies.forEach(e => {
     const dx = e.x - p.x;
     const dy = e.y - p.y;
     const distance = Math.hypot(dx, dy);
-    if (distance > range || distance < 0.001 || (dx / distance) * forwardX + (dy / distance) * forwardY < -0.1) return;
-    e.hp -= damage;
-    e.vx = (dx / distance) * force;
-    e.vy = (dy / distance) * force;
+    const arc = limits.arc_radians || 1.15;
+    const facingDot = (dx / distance) * forwardX + (dy / distance) * forwardY;
+    const outsideArc = w.id === "calligraphy_katana" && facingDot < (w.tier >= 4 ? -0.1 : Math.cos(arc / 2));
+    if (e.dead || w.hitTargets.has(e) || distance > range || distance < 0.001 || outsideArc) return;
+    w.hitTargets.add(e);
+    const marked = (e.quill_mark_timer || 0) > 0;
+    const multiplier = w.id === "calligraphy_katana" && w.tier >= 4 && marked ? 1.6 : 1;
+    const hitDamage = applyUtilityRelicHit(e, damage * multiplier);
+    e.hp -= hitDamage;
+    const direction = { x: dx / distance, y: dy / distance };
+    applyHitFeedback(e, direction, getWeaponVisual(w.id)?.impact || "slash", false, false, force);
+    if (w.id === "dictionary_blade" && ((w.parry_window || 0) > 0 || w.tier >= 4)) e.stun_timer = Math.max(e.stun_timer || 0, w.tier >= 4 ? 0.35 : 0.28);
+    addFloatingText(e.x, e.y - 14, `${Math.round(hitDamage)}`, "#fff1cf", 12);
+    hitCount++;
   });
+  return hitCount;
 }
 
 function spawnProjectile(proj) {
+  if (state.projectiles.length >= 600) state.projectiles.shift();
   state.projectiles.push(Object.assign({
-    lifetime: 2.2, hitEnemies: new Set()
+    lifetime: 2.2, hitEnemies: new Set(),
+    hitEnemiesByPass: { outbound: new Set(), returning: new Set() },
+    pass: "outbound", delay: 0
   }, proj));
+}
+
+function addWeaponField(field) {
+  if (state.weapon_fields.length >= 8) state.weapon_fields.shift();
+  state.weapon_fields.push(field);
+}
+
+function applyWeaponHitSignature(projectile, enemy, effectiveDamage) {
+  const weapon = state.weapons.find(item => item.id === projectile.weapon_id);
+  const tier = weapon?.tier || projectile.tier || 1;
+  if (projectile.weapon_id === "quill_blaster" && !projectile.echo_shot) {
+    const row = getWeaponArchetype("quill_blaster");
+    const markDuration = (row?.limits?.mark_seconds || 2.2) * (tier >= 2 ? 1.5 : 1);
+    enemy.quill_mark_timer = Math.max(enemy.quill_mark_timer || 0, markDuration);
+    enemy.quill_mark_hits = (enemy.quill_mark_hits || 0) + 1;
+    if (tier >= 3 && enemy.quill_mark_hits >= 2 && (enemy.quill_echo_cooldown || 0) <= 0) {
+      enemy.quill_echo_cooldown = 2.2;
+      const next = selectWeaponTarget({ id: "quill_blaster" }, state.enemies.filter(target => target !== enemy && !projectile.hitEnemies.has(target)), enemy);
+      if (next) {
+        const followups = tier >= 4 ? selectWeaponTarget({ id: "quill_blaster" }, state.enemies.filter(target => target !== enemy && target !== next && !projectile.hitEnemies.has(target)), enemy) : null;
+        [next, followups].filter(Boolean).forEach(target => {
+          const angle = Math.atan2(target.y - enemy.y, target.x - enemy.x);
+          spawnProjectile({ type: "quill_echo", x: enemy.x, y: enemy.y,
+            dx: Math.cos(angle), dy: Math.sin(angle), dmg: effectiveDamage * (tier >= 4 ? 0.30 : 0.42),
+            pierce: 1, spd: 620, color: "#d8eefc", size: 14, weapon_id: "quill_blaster",
+            impact_profile: "piercing", echo_shot: true, tier });
+        });
+      }
+    }
+  }
+  if (projectile.weapon_id === "ink_flamethrower") {
+    const limit = getWeaponArchetype("ink_flamethrower")?.limits?.burn_stack_cap || 2;
+    enemy.burn_stacks = clampBurnStacks("ink_flamethrower", (enemy.burn_stacks || 0) + 1, tier);
+    enemy.burn_timer = Math.max(enemy.burn_timer || 0, (getWeaponArchetype("ink_flamethrower")?.limits?.burn_seconds || 1.1) * (tier >= 2 ? 1.25 : 1));
+    enemy.burn_tick_timer = Math.min(enemy.burn_tick_timer || 0.35, 0.35);
+    enemy.burn_damage = projectile.dmg * (tier >= 3 ? 0.19 : 0.15) * enemy.burn_stacks;
+    if (tier >= 4) enemy.burn_ignition_pending = true;
+  }
+  if (projectile.weapon_id === "syllable_shotgun") {
+    const limits = getWeaponArchetype("syllable_shotgun")?.limits || {};
+    if (Math.hypot(enemy.x - state.player.x, enemy.y - state.player.y) <= (limits.stagger_range || 112)) {
+      enemy.stun_timer = Math.max(enemy.stun_timer || 0, tier >= 4 ? 0.28 : 0.14);
+    }
+  }
+  if (projectile.weapon_id === "quote_pistols" && tier >= 4 && !projectile.ricochet_shot) {
+    const next = selectWeaponTarget({ id: "quote_pistols" }, state.enemies.filter(target => target !== enemy && !projectile.hitEnemies.has(target)), enemy);
+    if (next) {
+      const angle = Math.atan2(next.y - enemy.y, next.x - enemy.x);
+      spawnProjectile({ type: "quote_ricochet", x: enemy.x, y: enemy.y,
+        dx: Math.cos(angle), dy: Math.sin(angle), dmg: effectiveDamage * 0.25,
+        pierce: 1, spd: 700, color: "#ffe082", size: 12, weapon_id: "quote_pistols",
+        impact_profile: "gold", ricochet_shot: true, tier });
+    }
+  }
 }
 
 function updateProjectiles(dt) {
   const p = state.player;
 
   state.projectiles.forEach(pr => {
+    if ((pr.delay || 0) > 0) {
+      pr.delay = Math.max(0, pr.delay - dt);
+      return;
+    }
+    const skipCollisionThisFrame = !!pr.just_chained;
+    pr.just_chained = false;
     pr.lifetime -= dt;
 
-    if (pr.type === "boomerang") {
+    if (pr.type === "blade_orbit") {
+      pr.orbit_angle = (pr.orbit_angle || 0) + dt * 5;
+      pr.x = p.x + Math.cos(pr.orbit_angle) * 48;
+      pr.y = p.y + Math.sin(pr.orbit_angle) * 48;
+    } else if (pr.type === "boomerang_orbit") {
+      pr.orbit_time -= dt;
+      pr.orbit_angle = (pr.orbit_angle || 0) + dt * 4.2;
+      pr.x = p.x + Math.cos(pr.orbit_angle) * 46;
+      pr.y = p.y + Math.sin(pr.orbit_angle) * 46;
+      if (pr.orbit_time <= 0) pr.pierce = 0;
+    } else if (pr.type === "rocket" && pr.target && !pr.target.dead) {
+      const desiredAngle = Math.atan2(pr.target.y - pr.y, pr.target.x - pr.x);
+      const currentAngle = Math.atan2(pr.dy, pr.dx);
+      const difference = Math.atan2(Math.sin(desiredAngle - currentAngle), Math.cos(desiredAngle - currentAngle));
+      const nextAngle = currentAngle + Math.max(-pr.homing_strength * dt, Math.min(pr.homing_strength * dt, difference));
+      pr.dx = Math.cos(nextAngle); pr.dy = Math.sin(nextAngle);
+      pr.x += pr.dx * pr.spd * dt; pr.y += pr.dy * pr.spd * dt;
+    } else if (pr.type === "boomerang" || pr.type === "boomerang_orbit") {
       pr.time_alive = (pr.time_alive || 0) + dt;
-      if (pr.time_alive < 0.6) {
+      const returnAt = (getWeaponArchetype("hyphen_boomerang")?.limits?.return_seconds || 0.6) * (pr.tier >= 2 ? 1.25 : 1);
+      if (pr.time_alive < returnAt) {
         pr.x += pr.dx * pr.spd * dt; pr.y += pr.dy * pr.spd * dt;
       } else {
+        if (pr.pass !== "returning") {
+          pr.pass = "returning";
+          pr.hitEnemiesByPass.returning = new Set();
+        }
         const dist = Math.hypot(p.x - pr.x, p.y - pr.y);
         if (dist > 10) {
           pr.dx = (p.x - pr.x) / dist; pr.dy = (p.y - pr.y) / dist;
           pr.x += pr.dx * (pr.spd * 1.3) * dt; pr.y += pr.dy * (pr.spd * 1.3) * dt;
         }
-        if (dist < 30 && pr.time_alive > 0.8) pr.pierce = 0;
+        if (dist < 30 && pr.time_alive > 0.8) {
+          if (pr.tier >= 4 && pr.type !== "boomerang_orbit") {
+            pr.type = "boomerang_orbit";
+            pr.orbit_time = getWeaponArchetype("hyphen_boomerang")?.limits?.orbit_seconds || 1.4;
+            pr.orbit_angle = 0;
+            pr.pass = "orbit";
+            pr.hitEnemiesByPass.orbit = new Set();
+          } else if (pr.type !== "boomerang_orbit") pr.pierce = 0;
+        }
       }
     } else {
       pr.x += pr.dx * pr.spd * dt;
@@ -2688,11 +3646,22 @@ function updateProjectiles(dt) {
     }
 
     state.enemies.forEach(e => {
-      if (pr.pierce > 0 && !pr.hitEnemies.has(e)) {
+      if (skipCollisionThisFrame || (pr.chain_target && e !== pr.chain_target)) return;
+      if (pr.sharedHitTargets?.has(e)) return;
+      const passSet = (pr.type === "boomerang" || pr.type === "boomerang_orbit")
+        ? (pr.hitEnemiesByPass[pr.pass] || (pr.hitEnemiesByPass[pr.pass] = new Set())) : pr.hitEnemies;
+      if (pr.pierce > 0 && !passSet.has(e)) {
         const hitDist = (pr.size || 18) / 2 + (e.size || 34) / 2;
         if (Math.hypot(e.x - pr.x, e.y - pr.y) < hitDist) {
+          passSet.add(e);
           pr.hitEnemies.add(e);
+          if (pr.sharedHitTargets) pr.sharedHitTargets.add(e);
           let effectiveDmg = pr.dmg;
+          if (pr.weapon_id === "grammar_sniper" && (e.is_elite || e.is_boss)) effectiveDmg = getSniperDamage("grammar_sniper", effectiveDmg, true);
+          if ((e.armor_break_timer || 0) > 0) effectiveDmg *= 1.12;
+          if ((pr.weapon_id === "calligraphy_katana" || pr.weapon_id === "quill_blaster") && (e.quill_mark_timer || 0) > 0) effectiveDmg *= 1.12;
+          if (pr.weapon_id === "hyphen_boomerang" && pr.pass === "returning" && (e.hyphen_mark_timer || 0) > 0) effectiveDmg *= 1.18;
+          let shieldDeflect = false;
 
           // Tactical Shielded Affix Check
           if (e.affix === "shielded") {
@@ -2700,6 +3669,7 @@ function updateProjectiles(dt) {
             const isFrontHit = facingLeft ? (pr.dx > 0) : (pr.dx < 0);
             if (isFrontHit && pr.type !== "rocket" && pr.type !== "punctuation_bomb") {
               effectiveDmg *= 0.25; // 75% absorbed by frontal shield!
+              shieldDeflect = true;
               sounds.playTone(650, "triangle", 0.05, 0.14);
               state.particles.push({
                 x: pr.x, y: pr.y, radius: 4, max_radius: 18, alpha: 0.85,
@@ -2708,40 +3678,93 @@ function updateProjectiles(dt) {
             }
           }
 
+          effectiveDmg = applyUtilityRelicHit(e, effectiveDmg);
           e.hp -= effectiveDmg;
-          e.vx = pr.dx * 180;
-          e.vy = pr.dy * 180;
+          if (pr.weapon_id === "grammar_sniper" && pr.tier >= 2) e.armor_break_timer = Math.max(e.armor_break_timer || 0, 2.4);
+          if (pr.weapon_id === "crossword_crossbow") e.stun_timer = Math.max(e.stun_timer || 0, getWeaponArchetype(pr.weapon_id)?.limits?.pin_seconds || 0.24);
+          if (pr.weapon_id === "hyphen_boomerang" && pr.tier >= 3) e.hyphen_mark_timer = Math.max(e.hyphen_mark_timer || 0, 2.0);
+          applyHitFeedback(e, { x: pr.dx, y: pr.dy }, shieldDeflect ? "shield" : (pr.impact_profile || (pr.type === "rocket" ? "heavy" : "ink")), !shieldDeflect && !!pr.crit, !shieldDeflect && pr.type === "rocket", 180);
+          if (!shieldDeflect) applyWeaponHitSignature(pr, e, effectiveDmg);
           addFloatingText(e.x + (Math.random() - 0.5) * 16, e.y - 14, pr.crit ? `CRIT ${Math.round(effectiveDmg)}!` : `${Math.round(effectiveDmg)}`, pr.crit ? "#ffd700" : "#ffffff", pr.crit ? 16 : 13);
           if (pr.crit) triggerHaptic("light");
           if (pr.crit && state.selected_char === "shadow_lexicographer") {
             e.slow_timer = 1.2;
             e.slow_factor = 0.58;
           }
-          pr.pierce--;
+          if (pr.weapon_id === "rune_orb" && !shieldDeflect) {
+            pr.chain_hits = (pr.chain_hits || 0) + 1;
+            const maxTargets = (getWeaponArchetype("rune_orb")?.limits?.bounce_targets || 3) + (pr.tier >= 2 ? 2 : 0);
+            const next = pr.chain_hits < maxTargets
+              ? pickRuneChainTargets({ x: e.x, y: e.y }, state.enemies.filter(target => target !== e && !pr.hitEnemies.has(target)), 1)[0]
+              : null;
+            if (next) {
+              const angle = Math.atan2(next.y - e.y, next.x - e.x);
+              pr.dx = Math.cos(angle); pr.dy = Math.sin(angle);
+              pr.x = e.x + pr.dx * ((e.size || 30) * 0.55 + 2);
+              pr.y = e.y + pr.dy * ((e.size || 30) * 0.55 + 2);
+              pr.chain_target = next;
+              pr.just_chained = true;
+              pr.dmg *= 0.76;
+              if (pr.tier >= 3 && pr.chain_hits + 1 >= maxTargets) {
+                state.particles.push({ x: next.x, y: next.y, radius: 8, max_radius: 42, alpha: 0.9, color: "rgba(244, 114, 182, " });
+              }
+              return;
+            }
+            pr.pierce = 0;
+            if (pr.tier >= 4) addWeaponField({ x: e.x, y: e.y, radius: 58, lifetime: 1.5, tick_timer: 0, tick_seconds: 0.5, damage: pr.dmg * 0.18, impact: "rune" });
+          } else pr.pierce--;
 
-          if (pr.type === "crossword_bolt") {
-            [0, Math.PI / 2, Math.PI, -Math.PI / 2].forEach(a => {
+          if (pr.type === "crossword_bolt" && pr.tier >= 3 && !pr.split) {
+            pr.split = true;
+            const directions = pr.tier >= 4
+              ? [0, Math.PI / 4, Math.PI / 2, Math.PI * 0.75, Math.PI, -Math.PI * 0.75, -Math.PI / 2, -Math.PI / 4]
+              : [0, Math.PI / 2, Math.PI, -Math.PI / 2];
+            directions.forEach(a => {
               spawnProjectile({
                 type: "splinter_bolt", x: pr.x, y: pr.y,
-                dx: Math.cos(a), dy: Math.sin(a), dmg: pr.dmg * 0.55,
-                pierce: 1, spd: 460, color: "#ffd700", size: 14, lifetime: 0.8
+                dx: Math.cos(a), dy: Math.sin(a), dmg: pr.dmg * (pr.tier >= 4 ? 0.32 : 0.55),
+                pierce: 1, spd: 460, color: "#ffd700", size: 14, lifetime: 0.8,
+                weapon_id: "crossword_crossbow", impact_profile: "piercing", tier: pr.tier, split: true
               });
             });
           }
 
-          if (pr.type === "rocket") {
-            sounds.rocketBlast();
+          if (pr.type === "rocket" || pr.type === "rocket_cluster" || pr.type === "punctuation_bomb") {
+            if (pr.type !== "punctuation_bomb") sounds.rocketBlast();
+            const limits = getWeaponArchetype(pr.weapon_id)?.limits || {};
+            const blastRadius = (pr.type === "punctuation_bomb" ? 78 : (limits.blast_radius || 140)) * (pr.tier >= 2 ? 1.18 : 1);
             state.particles.push({
-              x: pr.x, y: pr.y, radius: 15, max_radius: 140,
+              x: pr.x, y: pr.y, radius: 15, max_radius: blastRadius,
               alpha: 1.0, color: "rgba(171, 71, 188, "
             });
             state.enemies.forEach(target => {
-              if (Math.hypot(target.x - pr.x, target.y - pr.y) < 140) {
+              if (Math.hypot(target.x - pr.x, target.y - pr.y) < blastRadius) {
                 target.hp -= pr.dmg * 0.75;
                 const ang = Math.atan2(target.y - pr.y, target.x - pr.x);
-                target.vx = Math.cos(ang) * 320; target.vy = Math.sin(ang) * 320;
+                applyHitFeedback(target, { x: Math.cos(ang), y: Math.sin(ang) }, "heavy", !!pr.crit, true, 320);
               }
             });
+      if ((pr.type === "rocket" || pr.type === "rocket_cluster") && pr.tier >= 3 && !pr.cluster_child) {
+              const clusterCount = pr.tier >= 4 ? 4 : (getWeaponArchetype("thesaurus_rocket")?.limits?.cluster_rockets || 3);
+              for (let i = 0; i < clusterCount; i++) {
+                const angle = (Math.PI * 2 * i) / clusterCount;
+                spawnProjectile({ type: "rocket_cluster", x: pr.x, y: pr.y, dx: Math.cos(angle), dy: Math.sin(angle),
+                  dmg: pr.dmg * 0.22, pierce: 1, spd: 360, color: "#c084fc", size: 14, lifetime: 0.7,
+                  weapon_id: "thesaurus_rocket", impact_profile: "heavy", tier: pr.tier, target: pr.target,
+                  homing_strength: 0.35, cluster_child: true });
+              }
+            }
+            if (pr.tier >= 4) addWeaponField({ x: pr.x, y: pr.y, radius: 72, lifetime: 2.0, tick_timer: 0, tick_seconds: 0.5, damage: pr.dmg * 0.16, impact: "heavy" });
+          }
+          if (pr.weapon_id === "grammar_sniper" && pr.tier >= 4 && e.hp <= 0 && (pr.sniper_chain_count || 0) < 2) {
+            const next = selectWeaponTarget({ id: "grammar_sniper" }, state.enemies.filter(target => target !== e && !target.dead && !pr.hitEnemies.has(target)), e);
+            if (next) {
+              const angle = Math.atan2(next.y - e.y, next.x - e.x);
+              spawnProjectile({ type: "weakpoint_chain", x: e.x, y: e.y, dx: Math.cos(angle), dy: Math.sin(angle),
+                dmg: pr.dmg * 0.52, pierce: 1, spd: 1180, size: 16, lifetime: 0.8,
+                weapon_id: pr.weapon_id, impact_profile: "critical", tier: pr.tier,
+                sniper_chain_count: (pr.sniper_chain_count || 0) + 1 });
+            }
           }
         }
       }
@@ -2904,6 +3927,12 @@ function updateEnemies(dt) {
     state.telegraphs = state.telegraphs.filter(tg => tg.timer > 0);
   }
 
+  // Milestone bosses use the same simulation clock as waves so inventory pauses hold the reveal.
+  if (state.milestone_boss_delay > 0) {
+    state.milestone_boss_delay = Math.max(0, state.milestone_boss_delay - dt);
+    if (state.milestone_boss_delay === 0) spawnMilestoneBoss(state.current_wave);
+  }
+
   // Hardcore Massive Horde Swarm Spawn Curve: rapid spawn rate & batch spawns
   spawnTimer -= dt;
   const diffFactor = state.difficulty === "easy" ? 1.15 : (state.difficulty === "hard" ? 0.75 : 1.0);
@@ -2937,13 +3966,60 @@ function updateEnemies(dt) {
   });
 
   state.enemies.forEach(e => {
+    e.hit_flash_timer = Math.max(0, (e.hit_flash_timer || 0) - dt);
+    e.armor_break_timer = Math.max(0, (e.armor_break_timer || 0) - dt);
+    e.quill_mark_timer = Math.max(0, (e.quill_mark_timer || 0) - dt);
+    e.hyphen_mark_timer = Math.max(0, (e.hyphen_mark_timer || 0) - dt);
+    e.quill_echo_cooldown = Math.max(0, (e.quill_echo_cooldown || 0) - dt);
     e.vx *= Math.pow(0.06, dt);
     e.vy *= Math.pow(0.06, dt);
-    e.slow_timer = Math.max(0, (e.slow_timer || 0) - dt);
+    if ((e.burn_timer || 0) > 0) {
+      e.burn_timer = Math.max(0, e.burn_timer - dt);
+      e.burn_tick_timer = (e.burn_tick_timer || 0.35) - dt;
+      if (e.burn_tick_timer <= 0) {
+        e.burn_tick_timer = 0.35;
+        const burnDamage = Math.max(0, e.burn_damage || 0);
+        e.hp -= burnDamage;
+        if (burnDamage > 0) applyHitFeedback(e, { x: e.vx, y: e.vy }, "heavy", false, false, 0);
+      }
+      if (e.burn_timer === 0) {
+        if (e.burn_ignition_pending) {
+          const radius = 76;
+          state.particles.push({ x: e.x, y: e.y, radius: 8, max_radius: radius, alpha: 0.9, color: "rgba(255, 104, 48, " });
+          state.enemies.forEach(other => {
+            if (other !== e && !other.dead && Math.hypot(other.x - e.x, other.y - e.y) <= radius) {
+              other.hp -= (e.burn_damage || 0) * 0.55;
+              applyHitFeedback(other, { x: other.x - e.x, y: other.y - e.y }, "heavy", false, false, 60);
+            }
+          });
+        }
+        e.burn_stacks = 0;
+        e.burn_ignition_pending = false;
+      }
+    }
+    if ((e.stun_timer || 0) > 0) {
+      e.stun_timer = Math.max(0, e.stun_timer - dt);
+      e.x += e.vx * dt; e.y += e.vy * dt;
+      return;
+    }
+    if ((e.slow_timer || 0) > 0) {
+      e.slow_timer = Math.max(0, e.slow_timer - dt);
+      if (e.slow_timer === 0) e.slow_factor = 1;
+    }
 
-    const dist = Math.hypot(p.x - e.x, p.y - e.y);
-    const dirX = dist > 0.1 ? (p.x - e.x) / dist : 0;
-    const dirY = dist > 0.1 ? (p.y - e.y) / dist : 0;
+    const playerDist = Math.hypot(p.x - e.x, p.y - e.y);
+    let aiTarget = p;
+    let dist = playerDist;
+    (state.gadget_decoys || []).forEach(decoy => {
+      if (!decoy || decoy.timer <= 0 || decoy.hp <= 0) return;
+      const decoyDist = Math.hypot(decoy.x - e.x, decoy.y - e.y);
+      if (decoyDist < dist) {
+        aiTarget = decoy;
+        dist = decoyDist;
+      }
+    });
+    const dirX = dist > 0.1 ? (aiTarget.x - e.x) / dist : 0;
+    const dirY = dist > 0.1 ? (aiTarget.y - e.y) / dist : 0;
     e.facing_left = dirX < 0;
 
     let spd = e.speed * chronoMult * (e.slow_timer > 0 ? (e.slow_factor || 0.58) : 1.0);
@@ -3000,24 +4076,64 @@ function updateEnemies(dt) {
         break;
       }
       case "Idiom Imp": {
-        e.puddle_timer = (e.puddle_timer || 3.5) - dt;
-        if (e.puddle_timer <= 0) {
-          e.puddle_timer = 4.0;
-          state.ink_puddles.push({ x: e.x, y: e.y, radius: 24, lifetime: 4.5 });
+        e.behavior_phase ||= "approach";
+        if (e.behavior_phase === "windup") {
+          e.behavior_timer = Math.max(0, e.behavior_timer - dt);
+          if (e.behavior_timer === 0) {
+            const activePuddles = state.ink_puddles.filter(puddle => puddle.enemy_hazard);
+            if (activePuddles.length >= 4) state.ink_puddles.splice(state.ink_puddles.indexOf(activePuddles[0]), 1);
+            state.ink_puddles.push({ x: e.puddle_target_x, y: e.puddle_target_y, radius: 30, lifetime: 4.5, enemy_hazard: true });
+            e.behavior_phase = "recovery";
+            e.behavior_timer = 0.5;
+            e.puddle_cooldown = 3.8;
+          }
+        } else if (e.behavior_phase === "recovery") {
+          e.behavior_timer = Math.max(0, e.behavior_timer - dt);
+          if (e.behavior_timer === 0) e.behavior_phase = "approach";
+        } else {
+          e.puddle_cooldown = (e.puddle_cooldown ?? 1.2) - dt;
+          if (e.puddle_cooldown <= 0 && dist <= 380) {
+            e.puddle_target_x = aiTarget.x;
+            e.puddle_target_y = aiTarget.y;
+            e.behavior_phase = "windup";
+            e.behavior_timer = 0.9;
+          } else {
+            e.x += (dirX * spd + e.vx) * dt;
+            e.y += (dirY * spd + e.vy) * dt;
+          }
         }
-        e.x += (dirX * spd + e.vx) * dt;
-        e.y += (dirY * spd + e.vy) * dt;
         break;
       }
       case "Homophone Harpy": {
-        e.dive_timer = (e.dive_timer || 3.5) - dt;
-        if (e.dive_timer <= 0 && dist < 420) {
-          e.dive_timer = 4.2;
-          e.vx = dirX * 300 * chronoMult; e.vy = dirY * 300 * chronoMult;
-          sounds.enemyShoot();
+        e.behavior_phase ||= "approach";
+        if (e.behavior_phase === "windup") {
+          e.behavior_timer = Math.max(0, e.behavior_timer - dt);
+          if (e.behavior_timer === 0) {
+            spawnEnemyProjectile(e.x + e.attack_dx * 22, e.y + e.attack_dy * 22,
+              e.attack_dx, e.attack_dy, e.damage * 0.55, 175 * chronoMult);
+            sounds.enemyShoot();
+            e.behavior_phase = "recovery";
+            e.behavior_timer = 0.48;
+            e.dive_cooldown = 2.7;
+          }
+        } else if (e.behavior_phase === "recovery") {
+          e.behavior_timer = Math.max(0, e.behavior_timer - dt);
+          if (e.behavior_timer === 0) e.behavior_phase = "approach";
+        } else {
+          e.dive_cooldown = (e.dive_cooldown ?? 1.0) - dt;
+          if (e.dive_cooldown <= 0 && dist < 440) {
+            e.attack_dx = dirX;
+            e.attack_dy = dirY;
+            e.behavior_phase = "windup";
+            e.behavior_timer = 0.88;
+          } else if (dist < 205) {
+            e.x -= dirX * spd * 0.7 * dt; e.y -= dirY * spd * 0.7 * dt;
+          } else if (dist > 350) {
+            e.x += dirX * spd * 0.65 * dt; e.y += dirY * spd * 0.65 * dt;
+          } else {
+            e.x += -dirY * spd * 0.42 * dt; e.y += dirX * spd * 0.42 * dt;
+          }
         }
-        e.x += (dirX * spd + e.vx) * dt;
-        e.y += (dirY * spd + e.vy) * dt;
         break;
       }
       case "Vocabulary Void": {
@@ -3030,21 +4146,34 @@ function updateEnemies(dt) {
         break;
       }
       case "Oxymoron Ogre": {
-        e.slam_timer = (e.slam_timer || 4.0) - dt;
-        if (e.slam_timer <= 0 && dist < 130) {
-          e.slam_timer = 4.5;
-          sounds.detonateMine();
-          state.particles.push({
-            x: e.x, y: e.y, radius: 10, max_radius: 110,
-            alpha: 1.0, color: "rgba(234, 88, 12, "
-          });
-          if (dist < 110 && p.invuln_timer <= 0 && !p.is_dashing) {
-            takePlayerDamage(e.damage * 1.2);
-            p.invuln_timer = 0.70;
+        e.behavior_phase ||= "approach";
+        if (e.behavior_phase === "windup") {
+          e.behavior_timer = Math.max(0, e.behavior_timer - dt);
+          if (e.behavior_timer === 0) {
+            sounds.detonateMine();
+            state.particles.push({ x: e.x, y: e.y, radius: 12, max_radius: 118, alpha: 0.95, color: "rgba(249, 115, 22, " });
+            const playerDistToPulse = Math.hypot(p.x - e.x, p.y - e.y);
+            if (playerDistToPulse <= 118 && p.invuln_timer <= 0 && !p.is_dashing) {
+              takePlayerDamage(e.damage * 0.75);
+              p.invuln_timer = 0.70;
+            }
+            e.behavior_phase = "recovery";
+            e.behavior_timer = 0.78;
+            e.slam_cooldown = 3.0;
+          }
+        } else if (e.behavior_phase === "recovery") {
+          e.behavior_timer = Math.max(0, e.behavior_timer - dt);
+          if (e.behavior_timer === 0) e.behavior_phase = "approach";
+        } else {
+          e.slam_cooldown = (e.slam_cooldown ?? 1.0) - dt;
+          if (e.slam_cooldown <= 0 && dist <= 170) {
+            e.behavior_phase = "windup";
+            e.behavior_timer = 0.84;
+          } else {
+            e.x += (dirX * spd + e.vx) * dt;
+            e.y += (dirY * spd + e.vy) * dt;
           }
         }
-        e.x += (dirX * spd + e.vx) * dt;
-        e.y += (dirY * spd + e.vy) * dt;
         break;
       }
       case "Tautology Twin": {
@@ -3056,13 +4185,29 @@ function updateEnemies(dt) {
         break;
       }
       case "Run-on Reaper": {
-        e.x += (dirX * spd * 1.15 + e.vx) * dt;
-        e.y += (dirY * spd * 1.15 + e.vy) * dt;
-        if (Math.random() < 0.25) {
-          state.particles.push({
-            x: e.x, y: e.y, radius: 4, max_radius: 12, alpha: 0.6,
-            color: "rgba(147, 51, 234, "
-          });
+        e.behavior_phase ||= "approach";
+        if (e.behavior_phase === "windup") {
+          e.behavior_timer = Math.max(0, e.behavior_timer - dt);
+          if (e.behavior_timer === 0) { e.behavior_phase = "charge"; e.behavior_timer = 0.42; }
+        } else if (e.behavior_phase === "charge") {
+          e.x += e.attack_dx * 500 * chronoMult * dt;
+          e.y += e.attack_dy * 500 * chronoMult * dt;
+          e.behavior_timer = Math.max(0, e.behavior_timer - dt);
+          if (e.behavior_timer === 0) { e.behavior_phase = "recovery"; e.behavior_timer = 0.72; e.charge_cooldown = 3.0; }
+        } else if (e.behavior_phase === "recovery") {
+          e.behavior_timer = Math.max(0, e.behavior_timer - dt);
+          if (e.behavior_timer === 0) e.behavior_phase = "approach";
+        } else {
+          e.charge_cooldown = (e.charge_cooldown ?? 1.0) - dt;
+          if (e.charge_cooldown <= 0 && dist <= 380) {
+            e.attack_dx = dirX;
+            e.attack_dy = dirY;
+            e.behavior_phase = "windup";
+            e.behavior_timer = 0.78;
+          } else {
+            e.x += (dirX * spd * 1.15 + e.vx) * dt;
+            e.y += (dirY * spd * 1.15 + e.vy) * dt;
+          }
         }
         break;
       }
@@ -3182,7 +4327,7 @@ function updateEnemies(dt) {
 
     // Contact damage with generous 0.70s i-frame & pushback spacing
     const contactDist = (e.size || 34) / 2 + 15;
-    if (dist < contactDist && p.invuln_timer <= 0 && !p.is_dashing) {
+    if (playerDist < contactDist && p.invuln_timer <= 0 && !p.is_dashing) {
       sounds.hit();
       takePlayerDamage(e.damage);
       p.invuln_timer = 0.70;
@@ -3533,16 +4678,20 @@ function spawnInkDrop(x, y, value) {
 
 function takePlayerDamage(amount) {
   if (state.shield_charges > 0) {
+    const finalCharge = state.shield_charges === 1;
     state.shield_charges--;
     sounds.hit();
-    // Reflect shockwave
-    state.enemies.forEach(e => {
-      if (Math.hypot(e.x - state.player.x, e.y - state.player.y) < 160) {
-        e.hp -= amount * 1.5;
+    if (finalCharge) {
+      // The final charge becomes a readable counter pulse.
+      state.enemies.forEach(e => {
+        if (Math.hypot(e.x - state.player.x, e.y - state.player.y) < state.shield_counter_radius) {
+          e.hp -= state.shield_counter_damage * state.damage_mult;
         const a = Math.atan2(e.y - state.player.y, e.x - state.player.x);
-        e.vx = Math.cos(a) * 320; e.vy = Math.sin(a) * 320;
-      }
-    });
+          e.vx = Math.cos(a) * 220; e.vy = Math.sin(a) * 220;
+          applyHitFeedback(e, { x: Math.cos(a), y: Math.sin(a) }, "shield", false, true, 220);
+        }
+      });
+    }
     return;
   }
 
@@ -3558,6 +4707,7 @@ function takePlayerDamage(amount) {
 }
 
 function gameOver() {
+  finalizeRunResult(false);
   triggerHaptic("fail");
   state.is_wave_active = false;
   bgm.setMode("peaceful");
@@ -3590,6 +4740,7 @@ function gameOver() {
 }
 
 function victoryScreen() {
+  finalizeRunResult(true);
   state.is_wave_active = false;
   bgm.setMode("peaceful");
   syncMobileControlsVisibility();
@@ -3612,6 +4763,144 @@ function victoryScreen() {
 
   modal.style.display = "flex";
 }
+
+// Global scores are opt-in. Without a configured Worker the same UI uses a local board.
+const leaderboardMeta = document.querySelector('meta[name="leaderboard-api"]');
+const leaderboardApiBase = (window.LEADERBOARD_API_URL || leaderboardMeta?.content || "").trim();
+const leaderboardApiUrl = leaderboardApiBase
+  ? new URL(leaderboardApiBase.endsWith("/api/leaderboard") ? leaderboardApiBase : "/api/leaderboard", leaderboardApiBase).toString()
+  : "";
+const leaderboardNode = id => document.getElementById(id);
+
+function createSubmissionId() {
+  if (globalThis.crypto?.randomUUID) return globalThis.crypto.randomUUID();
+  return "xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx".replace(/[xy]/g, char => {
+    const random = Math.random() * 16 | 0;
+    return (char === "x" ? random : (random & 3 | 8)).toString(16);
+  });
+}
+
+function finalizeRunResult(victory) {
+  if (state.run_result_recorded && state.latest_run_result) return state.latest_run_result;
+  const cleared = victory ? 100 : Math.max(0, state.current_wave - 1);
+  state.latest_run_result = {
+    submissionId: state.run_submission_id || createSubmissionId(), alias: "",
+    wavesCleared: cleared, kills: Math.max(0, Math.floor(state.kill_count || 0)),
+    elapsedMs: Math.max(1000, Date.now() - (state.run_started_at || Date.now())),
+    characterId: state.selected_char, difficultyId: state.difficulty
+  };
+  state.run_result_recorded = true;
+  return state.latest_run_result;
+}
+
+function readLocalLeaderboard(difficulty) {
+  try {
+    const rows = JSON.parse(localStorage.getItem(`lexicon_leaderboard_${difficulty}`) || "[]");
+    return Array.isArray(rows) ? rows.slice(0, 20) : [];
+  } catch (_) { return []; }
+}
+
+function saveLocalLeaderboard(row) {
+  const rows = [...readLocalLeaderboard(row.difficultyId).filter(existing => existing.submissionId !== row.submissionId), row]
+    .sort((a, b) => b.wavesCleared - a.wavesCleared || b.kills - a.kills || a.elapsedMs - b.elapsedMs)
+    .slice(0, 20);
+  try { localStorage.setItem(`lexicon_leaderboard_${row.difficultyId}`, JSON.stringify(rows)); } catch (_) {}
+  return rows;
+}
+
+function renderLeaderboard(rows) {
+  const list = leaderboardNode("leaderboard-entries");
+  if (!list) return;
+  list.replaceChildren();
+  if (!rows.length) {
+    const empty = document.createElement("li"); empty.textContent = "Henüz kayıt yok."; list.appendChild(empty); return;
+  }
+  rows.forEach((row, index) => {
+    const item = document.createElement("li");
+    item.textContent = `${row.rank || index + 1}. ${row.alias}  ·  ${row.wavesCleared} dalga  ·  ${row.kills} düşman  ·  ${(row.elapsedMs / 60000).toFixed(1)} dk`;
+    item.style.cssText = "padding:7px 9px;border:1px solid rgba(123,94,54,.25);background:rgba(255,250,239,.68);font-size:12px;color:#41372d";
+    list.appendChild(item);
+  });
+}
+
+async function refreshLeaderboard() {
+  const difficulty = leaderboardNode("leaderboard-difficulty")?.value || state.difficulty;
+  const status = leaderboardNode("leaderboard-status");
+  renderLeaderboard(readLocalLeaderboard(difficulty));
+  if (!leaderboardApiUrl) {
+    if (status) status.textContent = "Yerel cihaz tablosu · Küresel sıralama henüz yapılandırılmadı.";
+    return;
+  }
+  if (status) status.textContent = "Küresel tablo yükleniyor…";
+  try {
+    const response = await fetch(`${leaderboardApiUrl}?difficulty=${encodeURIComponent(difficulty)}&limit=20`, { cache: "no-store" });
+    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+    const data = await response.json();
+    renderLeaderboard(Array.isArray(data.entries) ? data.entries : []);
+    if (status) status.textContent = "Küresel sıralama · en iyi 20 koşu";
+  } catch (_) {
+    if (status) status.textContent = "Küresel tabloya ulaşılamadı; bu cihazdaki kayıtlar gösteriliyor.";
+  }
+}
+
+function openLeaderboard() {
+  const overlay = leaderboardNode("leaderboard-overlay");
+  if (!overlay) return;
+  overlay.hidden = false; overlay.style.display = "flex";
+  const alias = leaderboardNode("leaderboard-alias");
+  try { if (alias && !alias.value) alias.value = localStorage.getItem("lexicon_leaderboard_alias") || ""; } catch (_) {}
+  const selector = leaderboardNode("leaderboard-difficulty");
+  if (selector) {
+    selector.value = state.latest_run_result?.difficultyId || state.difficulty;
+    selector.disabled = false;
+  }
+  refreshLeaderboard();
+  alias?.focus({ preventScroll: true });
+}
+
+function closeLeaderboard() {
+  const overlay = leaderboardNode("leaderboard-overlay");
+  if (overlay) { overlay.hidden = true; overlay.style.display = "none"; }
+}
+
+leaderboardNode("title-leaderboard-btn")?.addEventListener("click", openLeaderboard);
+leaderboardNode("gameover-leaderboard-btn")?.addEventListener("click", openLeaderboard);
+leaderboardNode("leaderboard-close-btn")?.addEventListener("click", closeLeaderboard);
+leaderboardNode("leaderboard-refresh-btn")?.addEventListener("click", refreshLeaderboard);
+leaderboardNode("leaderboard-difficulty")?.addEventListener("change", refreshLeaderboard);
+leaderboardNode("leaderboard-overlay")?.addEventListener("click", event => {
+  if (event.target?.id === "leaderboard-overlay") closeLeaderboard();
+});
+leaderboardNode("leaderboard-submit-form")?.addEventListener("submit", async event => {
+  event.preventDefault();
+  const aliasInput = leaderboardNode("leaderboard-alias");
+  const alias = aliasInput?.value.trim().replace(/\s+/g, " ").slice(0, 20) || "";
+  const status = leaderboardNode("leaderboard-status");
+  if (!alias) { if (status) status.textContent = "Görünen adını yaz."; aliasInput?.focus(); return; }
+  try { localStorage.setItem("lexicon_leaderboard_alias", alias); } catch (_) {}
+  const result = state.latest_run_result;
+  if (!result) { if (status) status.textContent = "Önce bir koşuyu tamamla; sonra skorunu gönderebilirsin."; return; }
+  const row = { ...result, alias };
+  saveLocalLeaderboard(row);
+  if (!leaderboardApiUrl) {
+    await refreshLeaderboard();
+    if (status) status.textContent = "Skor bu cihazda saklandı. Küresel tablo henüz yapılandırılmadı.";
+    return;
+  }
+  const button = leaderboardNode("leaderboard-submit-btn");
+  if (button) button.disabled = true;
+  if (status) status.textContent = "Skor gönderiliyor…";
+  try {
+    const response = await fetch(leaderboardApiUrl, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(row) });
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok) throw new Error(data.error || `HTTP ${response.status}`);
+    await refreshLeaderboard();
+    if (status) status.textContent = `Skor kaydedildi · küresel sıra #${data.rank || "—"}`;
+  } catch (error) {
+    if (status) status.textContent = `Gönderilemedi (${String(error?.message || "bağlantı")}); skor bu cihazda saklandı.`;
+    renderLeaderboard(readLocalLeaderboard(row.difficultyId));
+  } finally { if (button) button.disabled = false; }
+});
 
 const onRestart = () => {
   clearAutoRunCountdown();
@@ -3816,7 +5105,7 @@ function renderShopView() {
         <div class="shop-meta"><span>Silah</span><span>Teçhizat</span></div>
         <div style="display: flex; align-items: center; gap: 8px; margin: 2px 0;">
           <img src="assets/sprites/${w.sprite}" style="width: 32px; height: 32px; object-fit: contain;" alt="${w.name}">
-          <h3 class="shop-title">${w.name.split(" ")[0]}</h3>
+          <h3 class="shop-title" style="min-width:0; overflow-wrap:anywhere;">${w.name}</h3>
         </div>
         <div class="shop-description">${w.desc}</div>
         <div class="shop-data">
@@ -3844,24 +5133,31 @@ function renderShopView() {
     Object.keys(GADGETS_CATALOG).forEach(gId => {
       const g = GADGETS_CATALOG[gId];
       const isAct = state.active_gadget_id === gId;
+      const isOwned = state.owned_gadgets.includes(gId);
       const card = document.createElement("div");
       card.className = "choice-card shop-card";
       card.innerHTML = `
         <div class="shop-meta"><span>Gereç</span><span>Aktif donanım</span></div>
         <div style="display: flex; align-items: center; gap: 8px; margin: 2px 0;">
-          <img src="assets/sprites/${g.sprite}" style="width: 32px; height: 32px; object-fit: contain;" alt="${g.name}">
-          <h3 class="shop-title">${g.name.split(" ")[0]}</h3>
+          <img src="${g.icon}" style="width: 38px; height: 38px; object-fit: contain; flex: 0 0 auto;" alt="">
+          <h3 class="shop-title">${g.name}</h3>
         </div>
         <div class="shop-description">${g.desc}</div>
         <div class="shop-data">
-          Bekleme Süresi: ${g.cooldown}s
+          Bekleme Süresi: ${Math.max(1.5, g.cooldown * state.gadget_cooldown_mult).toFixed(1)} sn
         </div>
-        <div class="shop-buy-row"><span class="shop-price">${isAct ? 'Kuşanıldı' : (g.cost > 0 ? `${g.cost} mürekkep` : 'Ücretsiz')}</span><button class="btn shop-buy" id="gad-buy-${gId}" ${isAct || state.ink_count < g.cost ? 'disabled' : ''}>${isAct ? 'Kuşanıldı' : (state.ink_count < g.cost ? 'Mürekkep yetersiz' : 'Kuşan')}</button></div>
+        <div class="shop-buy-row"><span class="shop-price">${isAct ? 'Kuşanıldı' : isOwned ? 'Sahip' : (g.cost > 0 ? `${g.cost} mürekkep` : 'Ücretsiz')}</span><button class="btn shop-buy" id="gad-buy-${gId}" ${isAct || (!isOwned && state.ink_count < g.cost) ? 'disabled' : ''}>${isAct ? 'Kuşanıldı' : isOwned ? 'Kuşan' : (state.ink_count < g.cost ? 'Mürekkep yetersiz' : 'Satın al · kuşan')}</button></div>
       `;
       if (!isAct) {
         card.querySelector(`#gad-buy-${gId}`).onclick = () => {
-          if (state.ink_count >= g.cost) {
+          if (isOwned) {
+            state.active_gadget_id = gId;
+            renderShopView();
+            updateShopTopBar();
+            updateHUD();
+          } else if (state.ink_count >= g.cost) {
             state.ink_count -= g.cost;
+            state.owned_gadgets.push(gId);
             state.active_gadget_id = gId;
             renderShopView();
             updateShopTopBar();
@@ -3874,25 +5170,25 @@ function renderShopView() {
   } else if (currentShopTab === "artifacts") {
     Object.keys(ARTIFACTS_CATALOG).forEach(aId => {
       const a = ARTIFACTS_CATALOG[aId];
-      const isOwned = state.artifacts_owned.includes(aId) && aId !== "slot_expansion";
+      const isOwned = state.artifacts_owned.includes(aId);
       const card = document.createElement("div");
       card.className = "choice-card shop-card";
       card.innerHTML = `
         <div class="shop-meta"><span>Yadigâr</span><span>Pasif eser</span></div>
-        <h3 class="shop-title">${a.name}</h3>
+        <div style="display:flex;align-items:center;gap:9px;min-width:0;margin:2px 0;">
+          <img src="${a.icon || "assets/sprites/relics/magnifying_glass.png"}" width="38" height="38" style="object-fit:contain;flex:0 0 auto;" alt="">
+          <h3 class="shop-title" style="min-width:0;overflow-wrap:anywhere;">${a.name}</h3>
+        </div>
         <div class="shop-description">${a.desc}</div>
-        <div class="shop-buy-row"><span class="shop-price">${isOwned ? 'Sahip' : `${a.cost} mürekkep <img class="ui-icon" src="assets/ui/icons/ink.svg" alt="">`}</span><button class="btn shop-buy" id="art-buy-${aId}" ${isOwned || state.ink_count < a.cost ? "disabled" : ""}>${isOwned ? 'Alındı' : (state.ink_count < a.cost ? 'Mürekkep yetersiz' : 'Satın al')}</button></div>
+        <div class="shop-buy-row"><span class="shop-price">${isOwned ? 'Sahip' : `${a.cost} mürekkep <img class="ui-icon" src="assets/ui/icons/ink.svg" alt="">`}</span><button class="btn shop-buy" id="art-buy-${aId}" ${isOwned || state.ink_count < a.cost || (aId === "slot_expansion" && state.max_weapon_slots >= 6) ? "disabled" : ""}>${isOwned ? 'Alındı' : (aId === "slot_expansion" && state.max_weapon_slots >= 6 ? 'Yuvalar dolu' : (state.ink_count < a.cost ? 'Mürekkep yetersiz' : 'Satın al'))}</button></div>
       `;
       if (!isOwned) {
         card.querySelector(`#art-buy-${aId}`).onclick = () => {
+          if (aId === "slot_expansion" && state.max_weapon_slots >= 6) return;
           if (state.ink_count >= a.cost) {
             state.ink_count -= a.cost;
-            if (aId === "slot_expansion") {
-              if (state.max_weapon_slots < 6) state.max_weapon_slots++;
-            } else {
-              state.artifacts_owned.push(aId);
-              applyArtifact(a);
-            }
+            state.artifacts_owned.push(aId);
+            applyArtifact(a);
             renderShopView();
             updateShopTopBar();
             updateHUD();
@@ -3905,7 +5201,7 @@ function renderShopView() {
 }
 
 function applyArtifact(art) {
-  Object.keys(art.stats).forEach(k => {
+  Object.keys(art.stats || {}).forEach(k => {
     const val = art.stats[k];
     if (k === "max_hp") { state.max_hp += val; state.hp += val; }
     else if (k === "move_speed") state.move_speed += val;
@@ -3914,6 +5210,8 @@ function applyArtifact(art) {
     else if (k === "armor") state.armor = Math.min(0.85, state.armor + val);
     else if (k === "crit_chance") state.crit_chance = Math.min(1.0, state.crit_chance + val);
     else if (k === "ink_mult") state.ink_mult += val;
+    else if (k === "gadget_cooldown_mult") state.gadget_cooldown_mult = Math.max(0.65, 1 + val);
+    else if (k === "max_weapon_slots") state.max_weapon_slots = Math.min(6, state.max_weapon_slots + val);
   });
 }
 
@@ -4132,6 +5430,53 @@ function triggerSynergyBanner(name, desc) {
 // 14. INVENTORY MODAL & COMBINE VIEW
 // =========================================
 function renderInventoryView() {
+  const weaponsPanel = document.getElementById("inventory-weapons-panel");
+  const gadgetsPanel = document.getElementById("inventory-gadgets-panel");
+  const weaponsTab = document.getElementById("inventory-weapons-tab");
+  const gadgetsTab = document.getElementById("inventory-gadgets-tab");
+  const showingGadgets = state.inventory_category === "gadgets";
+  weaponsPanel.style.display = showingGadgets ? "none" : "block";
+  gadgetsPanel.style.display = showingGadgets ? "block" : "none";
+  weaponsTab.classList.toggle("active", !showingGadgets);
+  gadgetsTab.classList.toggle("active", showingGadgets);
+  weaponsTab.setAttribute("aria-selected", String(!showingGadgets));
+  gadgetsTab.setAttribute("aria-selected", String(showingGadgets));
+  if (showingGadgets) {
+    const gadgetList = document.getElementById("inv-gadgets-list");
+    gadgetList.replaceChildren();
+    for (const gadgetId of state.owned_gadgets) {
+      const gadget = GADGETS_CATALOG[gadgetId];
+      if (!gadget) continue;
+      const button = document.createElement("button");
+      button.type = "button";
+      button.className = "inventory-gadget-card";
+      button.setAttribute("role", "button");
+      button.setAttribute("aria-pressed", String(state.active_gadget_id === gadgetId));
+      const icon = document.createElement("img");
+      icon.src = gadget.icon || "assets/sprites/gadgets/eraser_dash.png";
+      icon.alt = "";
+      const copy = document.createElement("span");
+      const name = document.createElement("strong");
+      name.textContent = `${state.active_gadget_id === gadgetId ? "KUŞANILDI · " : ""}${gadget.name}`;
+      const description = document.createElement("small");
+      description.textContent = gadget.desc || gadget.description || "Aktif gereç";
+      copy.append(name, description);
+      button.append(icon, copy);
+      button.addEventListener("click", () => {
+        state.active_gadget_id = gadgetId;
+        updateHUD();
+        toggleInventoryModal(false);
+      });
+      gadgetList.appendChild(button);
+    }
+    if (!gadgetList.children.length) {
+      const empty = document.createElement("p");
+      empty.className = "inventory-gadget-note";
+      empty.textContent = "Henüz gereç yok. Dalgalar arasındaki dükkândan bir gereç kuşan.";
+      gadgetList.appendChild(empty);
+    }
+    return;
+  }
   const activeContainer = document.getElementById("inv-active-slots");
   const reserveContainer = document.getElementById("inv-reserve-slots");
   activeContainer.innerHTML = "";
@@ -4321,7 +5666,8 @@ function updateHUD() {
 
   // Gadget badge
   const gData = GADGETS_CATALOG[state.active_gadget_id] || GADGETS_CATALOG["eraser_dash"];
-  document.getElementById("gadget-panel-icon").src = "assets/sprites/" + gData.sprite;
+  const gadgetIcon = gData.icon || gData.sprite || "assets/sprites/gadgets/eraser_dash.png";
+  document.getElementById("gadget-panel-icon").src = gadgetIcon.startsWith("assets/") ? gadgetIcon : `assets/sprites/${gadgetIcon}`;
   document.getElementById("gadget-panel-name").textContent = `${gData.name.split(" ")[0]} [SPACE]:`;
   const gStatus = document.getElementById("gadget-status");
   if (state.gadget_timer <= 0.05) {
@@ -4395,16 +5741,12 @@ function render() {
   // One full arena illustration keeps the playable surface coherent and avoids
   // a high-contrast repeating tile beneath the characters.
   ctx.fillStyle = "#0a0e0c";
-  ctx.fillRect(-2250, -1800, 4500, 3600);
+  ctx.fillRect(-ARENA_LAYOUT.width / 2, -ARENA_LAYOUT.height / 2, ARENA_LAYOUT.width, ARENA_LAYOUT.height);
   const frameImg = images[frameSprite];
   if (frameImg) {
-    // Fit the illustrated room to the visible viewport so its unique frame
-    // stays around the play area instead of disappearing beyond world bounds.
-    const viewW = canvas.width / zoom;
-    const viewH = canvas.height / zoom;
-    const sceneW = Math.max(viewW, viewH * (4 / 3));
-    const sceneH = sceneW * (3 / 4);
-    ctx.drawImage(frameImg, p.x - sceneW / 2, p.y - sceneH / 2, sceneW, sceneH);
+    // The library is one fixed room in world space; its frame no longer follows
+    // the camera, and sprite extents stay inside the visible shelf line.
+    ctx.drawImage(frameImg, -ARENA_LAYOUT.width / 2, -ARENA_LAYOUT.height / 2, ARENA_LAYOUT.width, ARENA_LAYOUT.height);
   }
 
   // Central Double-Rotating Magical Rune Circle
@@ -4582,6 +5924,23 @@ function render() {
     ctx.scale(s, s);
     const mSpr = images["punctuation_mine.png"];
     if (mSpr) ctx.drawImage(mSpr, -16, -16, 32, 32);
+    if (!mine.detonated) {
+      const fuseLeft = Math.max(0, mine.fuse_seconds - mine.fuse_elapsed);
+      ctx.strokeStyle = fuseLeft < 0.35 ? "#ff6848" : "#e3bf67";
+      ctx.lineWidth = 2;
+      ctx.beginPath(); ctx.arc(0, 0, 20 + (1 - Math.min(1, fuseLeft / mine.fuse_seconds)) * 5, -Math.PI / 2,
+        -Math.PI / 2 + Math.PI * 2 * (1 - fuseLeft / mine.fuse_seconds)); ctx.stroke();
+    }
+    ctx.restore();
+  });
+
+  state.weapon_fields.forEach(field => {
+    ctx.save();
+    const rune = field.impact === "rune";
+    ctx.strokeStyle = rune ? "rgba(244,114,182,0.8)" : "rgba(255,151,76,0.7)";
+    ctx.fillStyle = rune ? "rgba(244,114,182,0.10)" : "rgba(255,151,76,0.08)";
+    ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.arc(field.x, field.y, field.radius, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
     ctx.restore();
   });
 
@@ -4617,6 +5976,57 @@ function render() {
 
   // Enemies
   state.enemies.forEach(e => {
+    if (e.behavior_phase === "windup" && (e.type === "Homophone Harpy" || e.type === "Run-on Reaper")) {
+      const length = e.type === "Homophone Harpy" ? 340 : 280;
+      const color = e.type === "Homophone Harpy" ? "rgba(255, 191, 71, 0.9)" : "rgba(248, 72, 76, 0.9)";
+      ctx.save();
+      ctx.strokeStyle = color;
+      ctx.lineWidth = 3;
+      ctx.setLineDash([12, 7]);
+      ctx.beginPath();
+      ctx.moveTo(e.x, e.y);
+      ctx.lineTo(e.x + e.attack_dx * length, e.y + e.attack_dy * length);
+      ctx.stroke();
+      ctx.setLineDash([]);
+      ctx.restore();
+    }
+    if (e.type === "Idiom Imp" && e.behavior_phase === "windup") {
+      const pulse = 1 + Math.sin(performance.now() * 0.018) * 0.08;
+      ctx.save();
+      ctx.fillStyle = "rgba(124, 58, 237, 0.14)";
+      ctx.strokeStyle = "rgba(192, 132, 252, 0.95)";
+      ctx.lineWidth = 3;
+      ctx.beginPath();
+      ctx.arc(e.puddle_target_x, e.puddle_target_y, 30 * pulse, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.stroke();
+      ctx.restore();
+    }
+    if (e.type === "Oxymoron Ogre" && e.behavior_phase === "windup") {
+      const progress = 1 - e.behavior_timer / 0.84;
+      ctx.save();
+      ctx.strokeStyle = "rgba(251, 146, 60, 0.92)";
+      ctx.lineWidth = 4;
+      ctx.beginPath();
+      ctx.arc(e.x, e.y, 24 + 94 * progress, 0, Math.PI * 2);
+      ctx.stroke();
+      ctx.strokeStyle = "rgba(253, 224, 71, 0.48)";
+      ctx.lineWidth = 1.5;
+      ctx.beginPath();
+      ctx.arc(e.x, e.y, 118, 0, Math.PI * 2);
+      ctx.stroke();
+      ctx.restore();
+    }
+    if ((e.type === "Run-on Reaper" || e.type === "Oxymoron Ogre") && e.behavior_phase === "recovery") {
+      ctx.save();
+      ctx.strokeStyle = "rgba(74, 222, 128, 0.78)";
+      ctx.lineWidth = 2.5;
+      ctx.beginPath();
+      ctx.arc(e.x, e.y, (e.size || 40) * 0.72, 0, Math.PI * 2);
+      ctx.stroke();
+      ctx.restore();
+    }
+
     // Commander Aura Ring
     if (e.affix === "commander") {
       ctx.save();
@@ -4648,7 +6058,11 @@ function render() {
     const spr = images[e.sprite];
     const sz = e.size || 36;
     const spriteSize = sz * 1.55;
-    if (spr) ctx.drawImage(spr, -spriteSize / 2, -spriteSize / 2, spriteSize, spriteSize);
+    if (spr) {
+      if (e.hit_flash_timer > 0) ctx.filter = `brightness(${1 + Math.min(1.6, e.hit_flash_timer * 14)}) saturate(0.72)`;
+      ctx.drawImage(spr, -spriteSize / 2, -spriteSize / 2, spriteSize, spriteSize);
+      ctx.filter = "none";
+    }
 
     if (e.is_elite && images["elite_crown.png"]) {
       ctx.drawImage(images["elite_crown.png"], -10, -sz / 2 - 16, 20, 20);
@@ -4719,9 +6133,45 @@ function render() {
     ctx.restore();
   });
 
+  // Weapon-aware hit confirmations. The eight generated pixel sprites stay short-lived and capped.
+  state.hit_effects.forEach(effect => {
+    const sprite = images[`effects/combat_hit_${effect.frame}.png`];
+    if (!sprite) return;
+    const progress = 1 - effect.lifetime / effect.max_lifetime;
+    const scale = 0.72 + progress * (effect.heavy || effect.critical ? 0.5 : 0.36);
+    ctx.save();
+    ctx.translate(effect.x, effect.y);
+    ctx.rotate(Math.atan2(effect.dy, effect.dx));
+    ctx.globalAlpha = Math.min(1, effect.lifetime / Math.min(0.07, effect.max_lifetime * 0.55));
+    const size = effect.size * scale;
+    ctx.drawImage(sprite, -size / 2, -size / 2, size, size);
+    ctx.restore();
+  });
+
   // Player
+  state.gadget_trails.forEach(trail => {
+    const alpha = Math.min(0.55, trail.timer / 2);
+    ctx.strokeStyle = `rgba(97, 230, 203, ${alpha})`;
+    ctx.lineWidth = 9;
+    ctx.beginPath(); ctx.moveTo(trail.x - trail.dx * 33, trail.y - trail.dy * 33); ctx.lineTo(trail.x + trail.dx * 33, trail.y + trail.dy * 33); ctx.stroke();
+  });
+  state.gadget_cards.forEach(card => {
+    const x = p.x + Math.cos(card.angle) * 43, y = p.y + Math.sin(card.angle) * 43;
+    ctx.save(); ctx.translate(x, y); ctx.rotate(card.angle + Math.PI / 2);
+    ctx.fillStyle = "#e9d79b"; ctx.strokeStyle = "#344255"; ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.roundRect(-7, -11, 14, 22, 3); ctx.fill(); ctx.stroke();
+    ctx.strokeStyle = "#9a7043"; ctx.lineWidth = 1.5; ctx.beginPath(); ctx.moveTo(-3, -5); ctx.lineTo(3, -5); ctx.moveTo(-3, 0); ctx.lineTo(3, 0); ctx.stroke(); ctx.restore();
+  });
+  state.gadget_decoys.forEach(decoy => {
+    const sprite = images[CHARACTERS[state.selected_char]?.sprite];
+    ctx.save(); ctx.globalAlpha = Math.min(0.65, decoy.timer / 1.5); ctx.globalCompositeOperation = "screen";
+    if (sprite) ctx.drawImage(sprite, decoy.x - 24, decoy.y - 28, 48, 56);
+    else { ctx.strokeStyle = "#8de6df"; ctx.lineWidth = 3; ctx.beginPath(); ctx.arc(decoy.x, decoy.y, 22, 0, Math.PI * 2); ctx.stroke(); }
+    ctx.restore();
+  });
   ctx.save();
-  ctx.translate(p.x, p.y);
+  const playerPoseOffset = getLocomotionPoseOffset(p);
+  ctx.translate(p.x + playerPoseOffset.x, p.y + playerPoseOffset.y);
   if (p.invuln_timer > 0 && Math.floor(performance.now() / 60) % 2 === 0) {
     ctx.globalAlpha = 0.35;
   }
@@ -4737,9 +6187,13 @@ function render() {
   const cData = CHARACTERS[state.selected_char];
   const isMoving = Math.hypot(p.vx, p.vy) > 20;
   const action = p.attack_anim_timer > 0 ? "attack" : isMoving ? "run" : "idle";
+  const bodyDirection = action === "attack" ? p.last_aim : isMoving
+    ? { x: p.vx / Math.hypot(p.vx, p.vy), y: p.vy / Math.hypot(p.vx, p.vy) } : p.last_aim;
+  const bodyTilt = Math.max(-0.38, Math.min(0.38, (bodyDirection?.y || 0) * 0.38));
+  ctx.rotate(bodyTilt);
   const frame = action === "attack"
-    ? Math.min(3, Math.floor((0.28 - p.attack_anim_timer) / 0.07))
-    : Math.floor(performance.now() / (action === "run" ? 90 : 240)) % 4;
+    ? Math.min(3, Math.floor((p.attack_anim_duration - p.attack_anim_timer) / (p.attack_anim_duration / 4)))
+    : action === "run" ? Math.floor(p.run_phase) % (state.selected_char === "inky" ? 8 : 4) : Math.floor(performance.now() / 240) % 4;
   const animationKey = state.selected_char === "inky" ? "inky"
     : state.selected_char === "quillmaster" ? "quillmaster"
     : state.selected_char === "word_knight" ? "word_knight"
@@ -4755,26 +6209,29 @@ function render() {
 
   // Floating Slotted Weapons Arsenal
   state.weapons.forEach((w, idx) => {
+    const root = getWeaponRootWorld(w, idx);
+    const visual = root.visual || getWeaponVisual(w.id);
+    if (!visual) return;
+    const drawSize = visual.draw_size;
+    const artAngle = visual.art_angle_deg * Math.PI / 180;
+    const timing = MELEE_TIMINGS[w.id] ? getMeleeTiming(w.id) : null;
+    let swingRotation = 0;
+    if (timing && w.swing_timer > 0) {
+      const elapsed = w.swing_elapsed || 0;
+      if (elapsed < timing.windup) swingRotation = -0.28 * (elapsed / timing.windup);
+      else if (elapsed < timing.windup + timing.active) {
+        const phase = (elapsed - timing.windup) / timing.active;
+        swingRotation = -0.36 + phase * 0.72;
+      } else {
+        const phase = Math.min(1, (elapsed - timing.windup - timing.active) / timing.recovery);
+        swingRotation = 0.36 * (1 - phase);
+      }
+    }
     ctx.save();
-    let wx = p.x; let wy = p.y;
     const isAct = (idx === state.active_weapon_index);
-    const facing = p.facing_left ? -1 : 1;
-    if (isAct) {
-      wx += 10 * facing - Math.cos(w.rotation) * (w.recoil || 0) * 5;
-      wy += 2 - Math.sin(w.rotation) * (w.recoil || 0) * 5;
-    } else {
-      const holsterRow = idx < state.active_weapon_index ? idx : idx - 1;
-      wx += 6 * facing;
-      wy += 11 + Math.max(0, holsterRow) * 5;
-    }
-    ctx.translate(wx, wy);
-    ctx.rotate(w.rotation);
-
-    if (isAct) {
-      ctx.shadowColor = "rgba(190, 156, 99, 0.55)";
-      ctx.shadowBlur = 7;
-      ctx.scale(1.12, 1.12);
-    }
+    ctx.translate(root.x, root.y);
+    ctx.rotate(getWeaponRenderAngle(w.id, w.rotation, swingRotation));
+    ctx.imageSmoothingEnabled = false;
 
     const wSpr = images[w.data.sprite];
     const weaponInHeroFrame = (state.selected_char === "inky" && w.id === "quill_blaster")
@@ -4782,20 +6239,45 @@ function render() {
       || (state.selected_char === "word_knight" && w.id === "dictionary_blade")
       || (state.selected_char === "rune_sorceress" && w.id === "rune_orb")
       || (state.selected_char === "shadow_lexicographer" && w.id === "calligraphy_katana");
-    if (wSpr && !weaponInHeroFrame) ctx.drawImage(wSpr, 4, -16, 32, 32);
-    if (w.flash_timer > 0 && isAct) {
-      ctx.fillStyle = `rgba(232, 205, 148, ${Math.min(0.9, w.flash_timer * 12)})`;
-      ctx.beginPath();
-      ctx.arc(36, 0, 4 + w.flash_timer * 48, 0, Math.PI * 2);
-      ctx.fill();
+    if (wSpr && !weaponInHeroFrame) {
+      if (isAct) {
+        ctx.shadowColor = "rgba(190, 156, 99, 0.45)";
+        ctx.shadowBlur = 5;
+      }
+      ctx.drawImage(wSpr, -visual.grip[0] * drawSize, -visual.grip[1] * drawSize, drawSize, drawSize);
+      ctx.shadowBlur = 0;
     }
-    if (w.swing_timer > 0 && (w.id === "dictionary_blade" || w.id === "calligraphy_katana")) {
-      const progress = 1 - w.swing_timer / (w.id === "calligraphy_katana" ? 0.28 : 0.24);
-      ctx.strokeStyle = `rgba(226, 215, 185, ${Math.max(0, 0.82 - progress * 0.72)})`;
+    if (w.flash_timer > 0) {
+      const muzzleX = (visual.muzzle[0] - visual.grip[0]) * drawSize;
+      const muzzleY = (visual.muzzle[1] - visual.grip[1]) * drawSize;
+      const flashAlpha = Math.min(0.9, w.flash_timer * 16) * (isAct ? 1 : 0.72);
+      ctx.fillStyle = `rgba(255, 235, 169, ${flashAlpha})`;
+      ctx.shadowColor = "#ffd77a";
+      ctx.shadowBlur = 7 + w.flash_timer * 55;
+      ctx.beginPath();
+      ctx.ellipse(muzzleX, muzzleY, 2.5 + w.flash_timer * 30, 1.8 + w.flash_timer * 13, getWeaponFlashLocalAngle(w.id), 0, Math.PI * 2);
+      ctx.fill();
+      ctx.shadowBlur = 0;
+    }
+    if (timing && w.swing_timer > 0) {
+      const elapsed = w.swing_elapsed || 0;
+      const activeProgress = Math.max(0, Math.min(1, (elapsed - timing.windup) / timing.active));
+      const inWindup = elapsed < timing.windup;
+      const inRecovery = elapsed > timing.windup + timing.active;
+      const recoveryProgress = inRecovery ? Math.min(1, (elapsed - timing.windup - timing.active) / timing.recovery) : 0;
+      const alpha = inWindup ? 0.2 + (elapsed / timing.windup) * 0.25
+        : inRecovery ? Math.max(0, 0.88 * (1 - recoveryProgress)) : 0.68 + Math.sin(activeProgress * Math.PI) * 0.25;
+      const sweepOffset = -0.92 + activeProgress * 1.84;
+      ctx.rotate(artAngle);
+      ctx.globalAlpha = alpha;
+      ctx.strokeStyle = w.id === "calligraphy_katana" ? "#bfeeff" : "#ffe5a6";
+      ctx.shadowColor = ctx.strokeStyle;
+      ctx.shadowBlur = 4;
       ctx.lineWidth = w.id === "calligraphy_katana" ? 4 : 3;
       ctx.beginPath();
-      ctx.arc(5, 0, w.id === "calligraphy_katana" ? 54 : 44, -0.96 + progress * 0.32, 0.96 + progress * 0.32);
+      ctx.arc(5, 0, w.id === "calligraphy_katana" ? 52 : 45, sweepOffset - 1.0, sweepOffset + 0.62);
       ctx.stroke();
+      ctx.shadowBlur = 0;
     }
     ctx.restore();
   });
@@ -4840,30 +6322,196 @@ function gameLoop(now) {
   requestAnimationFrame(gameLoop);
 }
 
+window.weaponVisualTestApi = Object.freeze({
+  snapshot: () => ({
+    visualStatus: weaponVisualsStatus,
+    visualError: weaponVisualsError,
+    visuals: WEAPON_VISUALS,
+    archetypes: WEAPON_ARCHETYPES,
+    effectCount: state.hit_effects.length,
+    hitEffectCap: 80,
+    hitSpritesReady: Array.from({ length: 8 }, (_, frame) => images[`effects/combat_hit_${frame}.png`]).every(image => image?.complete && image.naturalWidth > 0)
+  }),
+  getWeaponMuzzleWorld,
+  flashAxisWorld: (weaponId, aimAngle) => getWeaponRenderAngle(weaponId, aimAngle) + getWeaponFlashLocalAngle(weaponId),
+  horizontalFacing: getHorizontalFacing,
+  locomotionBobAt: getLocomotionBob,
+  locomotionPose: getLocomotionPoseOffset,
+  applyHitFeedback,
+  meleeTiming: getMeleeTiming,
+  simulateMeleeHit: (weaponId, enemies, aimAngle = 0, hitTargets = new Set()) => {
+    const p = state.player;
+    const previous = { x: p.x, y: p.y };
+    p.x = 0; p.y = 0;
+    const weapon = {
+      id: weaponId, rotation: aimAngle, data: WEAPONS_CATALOG[weaponId],
+      tier_data: TIER_MULTIPLIERS[1], hitTargets
+    };
+    const count = resolveMeleeWeaponHit(weapon, enemies);
+    p.x = previous.x; p.y = previous.y;
+    return count;
+  },
+  fireTestShot: (weaponId, aimAngle = 0) => {
+    const p = state.player;
+    const old = {
+      weapons: state.weapons, active: state.active_weapon_index, projectiles: state.projectiles,
+      player: { x: p.x, y: p.y, vx: p.vx, vy: p.vy, attack: p.attack_anim_timer, duration: p.attack_anim_duration, facing: p.facing_left },
+      shoot: sounds.shoot
+    };
+    const weapon = {
+      id: weaponId, data: WEAPONS_CATALOG[weaponId], tier_data: TIER_MULTIPLIERS[1],
+      rotation: aimAngle, recoil: 0, flash_timer: 0, alt_side: false
+    };
+    state.weapons = [weapon]; state.active_weapon_index = 0; state.projectiles = [];
+    p.x = 100; p.y = 200; p.vx = 0; p.vy = 0;
+    sounds.shoot = () => {};
+    try {
+      shootWeapon(weapon, { x: p.x + Math.cos(aimAngle) * 100, y: p.y + Math.sin(aimAngle) * 100 }, 0);
+      const projectile = state.projectiles[0];
+      const expected = weaponMuzzleWorld(weapon, 0);
+      return { projectile: { x: projectile?.x, y: projectile?.y }, expected, projectileCount: state.projectiles.length };
+    } finally {
+      state.weapons = old.weapons; state.active_weapon_index = old.active; state.projectiles = old.projectiles;
+      p.x = old.player.x; p.y = old.player.y; p.vx = old.player.vx; p.vy = old.player.vy;
+      p.attack_anim_timer = old.player.attack; p.attack_anim_duration = old.player.duration; p.facing_left = old.player.facing;
+      sounds.shoot = old.shoot;
+    }
+  }
+});
+
+function runMineHazardRuntimeContract() {
+  const old = { player: state.player, mines: state.punctuation_mines, enemies: state.enemies,
+    particles: state.particles, fields: state.weapon_fields, shoot: sounds.shoot, detonate: sounds.detonateMine };
+  try {
+    state.player = { x: 0, y: 0, vx: 0, vy: 0, run_phase: 0, is_dashing: false,
+      attack_anim_timer: 0, facing_left: false, last_aim: { x: 1, y: 0 } };
+    state.punctuation_mines = []; state.enemies = []; state.particles = []; state.weapon_fields = [];
+    sounds.shoot = () => {}; sounds.detonateMine = () => {};
+    const weapon = { id: "punctuation_bomb", rotation: 0, tier: 1, tier_data: { damage: 1 },
+      data: WEAPONS_CATALOG.punctuation_bomb, recoil: 0, flash_timer: 0 };
+    dropPunctuationMine(weapon, null, 0);
+    const mine = state.punctuation_mines[0];
+    mine.fuse_elapsed = mine.fuse_seconds;
+    updatePunctuationMines(0);
+    return { detonated: mine.detonated, hazardRemaining: mine.hazard_seconds };
+  } finally {
+    state.player = old.player; state.punctuation_mines = old.mines; state.enemies = old.enemies;
+    state.particles = old.particles; state.weapon_fields = old.fields;
+    sounds.shoot = old.shoot; sounds.detonateMine = old.detonate;
+  }
+}
+
+function runKatanaSharedHitContract() {
+  const old = { player: state.player, enemies: state.enemies, weapons: state.weapons, projectiles: state.projectiles,
+    effects: state.hit_effects, texts: state.floating_texts };
+  try {
+    state.player = { x: 0, y: 0, vx: 0, vy: 0, run_phase: 0, is_dashing: false,
+      attack_anim_timer: 0, facing_left: false };
+    const enemy = { id: "katana-regression-target", x: 100, y: 0, hp: 200, size: 34, dead: false };
+    const weapon = { id: "calligraphy_katana", rotation: 0, tier: 1,
+      tier_data: { damage: 1 }, data: WEAPONS_CATALOG.calligraphy_katana, hitTargets: new Set() };
+    state.enemies = [enemy]; state.weapons = [weapon]; state.projectiles = [];
+    state.hit_effects = []; state.floating_texts = [];
+    const damagePerHit = weapon.data.damage;
+    resolveMeleeWeaponHit(weapon);
+    spawnProjectile({ type: "katana_wave", x: enemy.x, y: enemy.y, dx: 1, dy: 0, dmg: damagePerHit,
+      pierce: 1, spd: 0, size: 28, lifetime: 0.5, weapon_id: weapon.id, sharedHitTargets: weapon.hitTargets });
+    updateProjectiles(1 / 60);
+    return { hits: Math.round((200 - enemy.hp) / damagePerHit) };
+  } finally {
+    state.player = old.player; state.enemies = old.enemies; state.weapons = old.weapons; state.projectiles = old.projectiles;
+    state.hit_effects = old.effects; state.floating_texts = old.texts;
+  }
+}
+
+function runGuardParryRuntimeContract() {
+  const old = { player: state.player, enemies: state.enemies, weapons: state.weapons,
+    projectiles: state.projectiles, enemyProjectiles: state.enemy_projectiles,
+    effects: state.hit_effects, texts: state.floating_texts };
+  try {
+    state.player = { x: 0, y: 0, vx: 0, vy: 0, run_phase: 0, is_dashing: false,
+      attack_anim_timer: 0, facing_left: false };
+    const enemy = { id: "guard-counter-target", x: 86, y: 12, hp: 200, size: 34, dead: false };
+    const near = { x: 42, y: 20, dx: -1, dy: 0, spd: 160, damage: 1, lifetime: 2, dead: false };
+    const far = { x: 260, y: 0, dx: -1, dy: 0, spd: 160, damage: 1, lifetime: 2, dead: false };
+    const weapon = { id: "dictionary_blade", rotation: 0, tier: 3, tier_data: TIER_MULTIPLIERS[3],
+      data: WEAPONS_CATALOG.dictionary_blade, hitTargets: new Set() };
+    state.enemies = [enemy]; state.weapons = [weapon]; state.projectiles = [];
+    state.enemy_projectiles = [near, far]; state.hit_effects = []; state.floating_texts = [];
+    resolveMeleeWeaponHit(weapon);
+    return { nearbyCleared: near.dead, farPreserved: !far.dead,
+      counterShot: state.projectiles.some(projectile => projectile.type === "guard_counter") };
+  } finally {
+    state.player = old.player; state.enemies = old.enemies; state.weapons = old.weapons;
+    state.projectiles = old.projectiles; state.enemy_projectiles = old.enemyProjectiles;
+    state.hit_effects = old.effects; state.floating_texts = old.texts;
+  }
+}
+
+window.weaponArchetypeTestApi = Object.freeze({
+  snapshot: () => ({ status: weaponVisualsStatus, error: weaponVisualsError, archetypes: WEAPON_ARCHETYPES }),
+  getSignature: getWeaponSignature,
+  getSignatureData: getWeaponArchetype,
+  getEvolution: getWeaponEvolution,
+  beamPhase: weaponId => elapsed => getWeaponRhythmPhase(weaponId, elapsed),
+  shotgunFan: getShotgunFanAngles,
+  minePhase: getMinePhase,
+  simulateBoomerangPasses,
+  clampBurnStacks,
+  nextPistolSide: getNextPistolSide,
+  canPlaceTurret,
+  pickRuneChainTargets,
+  getMeleePhase: getWeaponMeleePhase,
+  sniperDamage: getSniperDamage,
+  mineRuntimeContract: runMineHazardRuntimeContract,
+  katanaSharedHitContract: runKatanaSharedHitContract,
+  guardParryContract: runGuardParryRuntimeContract,
+  signsTurretAndRuneConsistently: () => getWeaponSignature("scroll_turret") === "place_focus_turret"
+    && getWeaponSignature("rune_orb") === "pulse_bounce"
+    && typeof updateTurrets === "function"
+    && typeof updateProjectiles === "function"
+});
+
 function updateGame(dt) {
   if (state.is_wave_active) {
-    updatePlayer(dt);
-    updateEnemies(dt);
+    if (!state.is_inventory_open) {
+      updatePlayer(dt);
+      updateEnemies(dt);
+      updateGadgetEffects(dt);
+    }
     updateHUD();
   }
 }
 
 window.render_game_to_text = () => JSON.stringify({
   coordinate_system: "arena origin at center; +x right, +y down",
+  weapon_visuals: { status: weaponVisualsStatus, error: weaponVisualsError, effect_count: state.hit_effects.length },
   mode: state.hp <= 0 ? "gameover" : state.is_wave_active ? "wave" : (getComputedStyle(document.getElementById("shop-screen")).display !== "none" ? "shop" : "title"),
   wave: state.current_wave,
   wave_time_left: Number(state.wave_time_left.toFixed(1)),
+  milestone_boss_delay: Number(state.milestone_boss_delay.toFixed(1)),
+  inventory_open: state.is_inventory_open,
   character: state.selected_char,
   player: {
     x: Math.round(state.player.x), y: Math.round(state.player.y),
     vx: Math.round(state.player.vx), vy: Math.round(state.player.vy),
     hp: Math.round(state.hp), max_hp: Math.round(state.max_hp),
     animation: state.player.attack_anim_timer > 0 ? "attack" : Math.hypot(state.player.vx, state.player.vy) > 20 ? "run" : "idle",
+    animation_phase: Number((state.player.run_phase % (state.selected_char === "inky" ? 8 : 4)).toFixed(2)),
+    body_tilt: Number(Math.max(-0.38, Math.min(0.38, ((state.player.attack_anim_timer > 0 ? state.player.last_aim?.y : state.player.vy) || 0) * 0.38)).toFixed(3)),
+    locomotion_pose_offset: getLocomotionPoseOffset(state.player),
+    action_recovery: Number(state.player.attack_anim_timer.toFixed(2)),
     dashing: state.player.is_dashing, gadget_cooldown: Number(state.gadget_timer.toFixed(1))
   },
   enemies: state.enemies.filter(e => !e.dead).slice(0, 24).map(e => ({
     type: e.type, x: Math.round(e.x), y: Math.round(e.y), hp: Math.round(e.hp),
-    boss: !!e.is_boss
+    speed: Number(e.speed.toFixed(1)), slow_timer: Number((e.slow_timer || 0).toFixed(1)),
+    slow_factor: Number((e.slow_factor || 1).toFixed(2)), boss: !!e.is_boss
+  })),
+  weapons: state.weapons.map((weapon, index) => ({
+    id: weapon.id, aim: Number(weapon.rotation.toFixed(3)),
+    root: getWeaponRootWorld(weapon, index), muzzle: weaponMuzzleWorld(weapon, index),
+    swing_elapsed: Number((weapon.swing_elapsed || 0).toFixed(3)), swing_timer: Number((weapon.swing_timer || 0).toFixed(3))
   })),
   alive_count: state.enemies.reduce((n, e) => n + (e.dead ? 0 : 1), 0),
   alive_cap: getWaveEnemyCap(),
@@ -4880,6 +6528,7 @@ window.advanceTime = (ms) => {
 // Immediate initial sync for instant interactivity on mobile & iPad
 initTitleScreen();
 initTouchControls();
+ensureWeaponVisuals();
 
 loadAssets(() => {
   initTitleScreen();
