@@ -15,6 +15,7 @@
 
     document.getElementById("touch-inv-btn").click();
     assert(document.getElementById("inventory-modal").style.display === "flex", "inventory should open");
+    assert(state.is_inventory_open === true, "inventory state should be true while its modal is open");
     const paused = readGame();
     await wait(waitMs);
     const stillPaused = readGame();
@@ -27,6 +28,7 @@
 
     document.getElementById("close-inventory-btn").click();
     assert(document.getElementById("inventory-modal").style.display === "none", "inventory should close");
+    assert(state.is_inventory_open === false, "inventory state should clear when its modal closes");
     assert(getComputedStyle(document.getElementById("mobile-touch-controls")).display === "block", "mobile controls should return after close");
 
     const joystickSurface = document.getElementById("touch-joystick-surface");
@@ -110,10 +112,14 @@
     endWave();
     assert(document.getElementById("shop-screen").style.display !== "none", "test should enter the between-wave shop");
     const inventoryModal = document.getElementById("inventory-modal");
+    toggleInventoryModal(true);
+    assert(inventoryModal.style.display === "none", "forced open toggle opened inventory over the shop");
     document.getElementById("inventory-btn").click();
     assert(inventoryModal.style.display === "none", "HUD inventory button opened inventory over the shop");
     document.getElementById("touch-inv-btn").click();
     assert(inventoryModal.style.display === "none", "touch inventory button opened inventory over the shop");
+    document.getElementById("mobile-open-inv-btn").click();
+    assert(inventoryModal.style.display === "none", "mobile quick-menu forced-open route opened inventory over the shop");
     window.dispatchEvent(new KeyboardEvent("keydown", { key: "i", bubbles: true }));
     assert(inventoryModal.style.display === "none", "I shortcut opened inventory over the shop");
     assert(state.is_inventory_open === false, "inventory state opened while the wave was inactive");
