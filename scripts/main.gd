@@ -15,7 +15,7 @@ extends Node2D
 @onready var audio_manager = $AudioManager
 
 func _ready():
-	process_mode = Node.PROCESS_MODE_ALWAYS
+	process_mode = Node.PROCESS_MODE_PAUSABLE
 	# The scene-specific frame contains its own coherent, non-repeating floor.
 	arena_floor.hide()
 	game_over_layer.hide()

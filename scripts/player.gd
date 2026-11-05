@@ -289,7 +289,8 @@ func _physics_process(delta: float):
 		
 		if dash_timer <= 0:
 			is_dashing = false
-			is_invulnerable = false
+			if invuln_timer.time_left <= 0.0:
+				is_invulnerable = false
 		_update_hero_animation()
 		return
 		
@@ -326,7 +327,19 @@ func play_attack_animation() -> void:
 func set_inventory_input_blocked(blocked: bool) -> void:
 	inventory_input_blocked = blocked
 	if blocked:
+		cancel_active_dash()
 		velocity = Vector2.ZERO
+
+func cancel_active_dash() -> void:
+	if not is_dashing:
+		return
+	is_dashing = false
+	dash_timer = 0.0
+	dash_velocity = Vector2.ZERO
+	if invuln_timer.time_left <= 0.0:
+		is_invulnerable = false
+		blink_timer = 0.0
+		sprite.modulate = character_base_color
 
 func get_gadget_direction() -> Vector2:
 	var direction := Input.get_vector("move_left", "move_right", "move_up", "move_down")

@@ -119,7 +119,12 @@ func _apply_touch_safe_area() -> void:
 	var viewport_size := get_viewport().get_visible_rect().size
 	var right_inset := maxf(0.0, float(screen_size.x - safe_rect.end.x)) * viewport_size.x / float(screen_size.x)
 	var bottom_inset := maxf(0.0, float(screen_size.y - safe_rect.end.y)) * viewport_size.y / float(screen_size.y)
+	_apply_touch_safe_area_insets(right_inset, bottom_inset)
+
+func _apply_touch_safe_area_insets(right_inset: float, bottom_inset: float) -> void:
+	touch_controls.offset_left = -306.0 - right_inset
 	touch_controls.offset_right = -24.0 - right_inset
+	touch_controls.offset_top = -88.0 - bottom_inset
 	touch_controls.offset_bottom = -24.0 - bottom_inset
 
 func toggle_inventory() -> void:
@@ -240,9 +245,14 @@ func update_gadget(time_left: float, _total_time: float):
 		return
 	if time_left <= 0.05:
 		gadget_status.text = "HAZIR"
+		gadget_touch_button.text = "HAZIR"
+		gadget_touch_button.disabled = false
 		gadget_status.modulate = Color(0.77, 0.68, 0.49)
 	else:
-		gadget_status.text = str(snapped(time_left, 0.1)) + "s"
+		var countdown := str(snapped(time_left, 0.1)) + "s"
+		gadget_status.text = countdown
+		gadget_touch_button.text = countdown
+		gadget_touch_button.disabled = true
 		gadget_status.modulate = Color(0.72, 0.72, 0.66)
 
 func _on_gadget_switched(gadget_id: String) -> void:
@@ -263,6 +273,8 @@ func _on_gadget_switched(gadget_id: String) -> void:
 	gadget_name.text = labels.get(gadget_id, "GEREÇ · SPACE")
 	var texture_path: String = "res://assets/sprites/" + str(icons.get(gadget_id, "eraser_icon.png"))
 	gadget_glyph.texture = load(texture_path) as Texture2D
+	gadget_touch_button.icon = gadget_glyph.texture
+	gadget_touch_button.tooltip_text = labels.get(gadget_id, "GEREÇ · SPACE") + " · dokun ve kullan"
 	update_gadget(0.0, 0.0)
 	refresh_inventory()
 

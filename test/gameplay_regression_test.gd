@@ -22,10 +22,31 @@ func _run() -> void:
 	assert(hud.has_method("activate_gadget_touch"), "HUD must expose a touch action for the active gadget")
 	hud.set_touch_ui_enabled_override(true)
 	assert(hud.get_node("TouchControls").visible, "Touch actions must be visible when touchscreen input is enabled")
+	var touch_controls: Control = hud.get_node("TouchControls")
+	var original_control_width: float = touch_controls.offset_right - touch_controls.offset_left
+	var original_control_height: float = touch_controls.offset_bottom - touch_controls.offset_top
+	hud._apply_touch_safe_area_insets(72.0, 38.0)
+	assert(is_equal_approx(touch_controls.offset_right - touch_controls.offset_left, original_control_width), "Right safe-area inset must move the whole touch cluster without shrinking its width")
+	assert(is_equal_approx(touch_controls.offset_bottom - touch_controls.offset_top, original_control_height), "Bottom safe-area inset must move the whole touch cluster without shrinking its height")
+	assert(is_equal_approx(touch_controls.offset_left, -306.0 - 72.0) and is_equal_approx(touch_controls.offset_right, -24.0 - 72.0), "Right inset must translate both horizontal cluster edges equally")
+	assert(is_equal_approx(touch_controls.offset_top, -88.0 - 38.0) and is_equal_approx(touch_controls.offset_bottom, -24.0 - 38.0), "Bottom inset must translate both vertical cluster edges equally")
+	hud._apply_touch_safe_area_insets(0.0, 0.0)
+	var wave_manager = main.get_node("WaveManager")
+	wave_manager.spawn_enemy()
+	await process_frame
+	wave_manager.spawn_timer = 0.01
+	var wave_time_before_inventory: float = wave_manager.time_left
+	var enemy_count_before_inventory: int = get_nodes_in_group("enemies").size()
+	var paused_enemy: Node2D = get_nodes_in_group("enemies")[0]
+	var paused_enemy_position: Vector2 = paused_enemy.global_position
 	hud.set_inventory_open(true)
 	assert(hud.inventory_open and hud.get_node("InventoryOverlay").visible, "Inventory must open from the touch action")
 	assert(paused, "Inventory must pause wave and enemy simulation while open")
 	assert(main.player.inventory_input_blocked, "Opening inventory must block movement input")
+	await create_timer(0.2, true, false, true).timeout
+	assert(is_equal_approx(wave_manager.time_left, wave_time_before_inventory), "Wave timer must remain frozen while inventory is open")
+	assert(get_nodes_in_group("enemies").size() == enemy_count_before_inventory, "Enemy spawns must remain frozen while inventory is open")
+	assert(paused_enemy.global_position.is_equal_approx(paused_enemy_position), "Enemy physics must remain frozen while inventory is open")
 	assert(hud.select_inventory_item("gadget", "not_owned") == false, "An unowned gadget cannot be selected")
 	hud.inventory_gadgets_tab.pressed.emit()
 	assert(hud.inventory_category == "gadgets", "Gadget inventory tab switches to owned gadgets")
@@ -60,6 +81,10 @@ func _run() -> void:
 	assert(hud.activate_gadget_touch(), "Touch action activates a ready gadget")
 	assert(not hud.activate_gadget_touch(), "Touch action cannot activate the gadget while cooling down")
 	assert(main.player.gadget_timer > 0.0 and gadget_activation_count[0] == 1, "Touch activation starts exactly one gadget cooldown")
+	assert(hud.gadget_touch_button.icon != null, "Touch gadget action displays the selected gadget icon")
+	assert(hud.gadget_touch_button.text == hud.gadget_status.text and hud.gadget_touch_button.disabled, "Touch gadget action displays its cooldown countdown and disables re-use")
+	hud.update_gadget(0.0, main.player.gadget_cooldown)
+	assert(hud.gadget_touch_button.text == "HAZIR" and not hud.gadget_touch_button.disabled, "Touch gadget action displays readiness when cooldown ends")
 	var inventory_key := InputEventKey.new()
 	inventory_key.keycode = KEY_I
 	inventory_key.pressed = true
@@ -67,8 +92,21 @@ func _run() -> void:
 	assert(hud.inventory_open, "I key opens native inventory for keyboard users")
 	main.player._unhandled_input(inventory_key)
 	assert(not hud.inventory_open and not paused, "I key closes inventory and resumes the run")
+	main.player.gadget_timer = 0.0
+	main.player.start_eraser_dash(Vector2.RIGHT)
+	assert(main.player.is_dashing and main.player.is_invulnerable, "Dash grants temporary invulnerability")
+	hud.set_inventory_open(true)
+	assert(not main.player.is_dashing and not main.player.is_invulnerable, "Opening inventory cancels dash and its invulnerability")
+	hud.set_inventory_open(false)
+	main.player.invuln_timer.start(0.55)
+	main.player.is_invulnerable = true
+	main.player.start_eraser_dash(Vector2.RIGHT)
+	hud.set_inventory_open(true)
+	assert(not main.player.is_dashing and main.player.is_invulnerable, "Cancelling dash preserves damage i-frames already in progress")
+	hud.set_inventory_open(false)
+	main.player.invuln_timer.stop()
+	main.player.is_invulnerable = false
 
-	var wave_manager = main.get_node("WaveManager")
 	wave_manager.max_active_enemies = 220
 	for _i in range(90):
 		wave_manager.spawn_enemy()
