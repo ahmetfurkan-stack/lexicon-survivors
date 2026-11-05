@@ -166,14 +166,22 @@ function getHorizontalFacing(aimAngle, fallbackLeft = false) {
 }
 
 function selectWeaponTarget(weapon, enemies = state.enemies, origin = state.player) {
-  const valid = enemies.filter(enemy => enemy && !enemy.dead && enemy.hp > 0);
-  if (!valid.length) return null;
-  const distanceToOrigin = enemy => Math.hypot(enemy.x - origin.x, enemy.y - origin.y);
-  if (weapon?.id === "grammar_sniper" || state.artifacts_owned.includes("archivist_compass")) {
-    const elite = valid.filter(enemy => enemy.is_boss || enemy.is_elite || /boss/i.test(enemy.type || ""));
-    if (elite.length) return elite.sort((a, b) => distanceToOrigin(a) - distanceToOrigin(b))[0];
+  // A single pass replaces per-weapon filtering, full-array sorting and repeated sqrt.
+  const favorElites = weapon?.id === "grammar_sniper" || state.artifacts_owned.includes("archivist_compass");
+  let nearest = null, bestDistSq = Infinity, bestIsElite = false;
+  for (const enemy of enemies) {
+    if (!enemy || enemy.dead || enemy.hp <= 0) continue;
+    const elite = favorElites && (enemy.is_boss || enemy.is_elite || /boss/i.test(enemy.type || ""));
+    if (bestIsElite && !elite) continue;
+    const dx = enemy.x - origin.x, dy = enemy.y - origin.y;
+    const distanceSq = dx * dx + dy * dy;
+    if ((elite && !bestIsElite) || distanceSq < bestDistSq) {
+      nearest = enemy;
+      bestDistSq = distanceSq;
+      bestIsElite = !!elite;
+    }
   }
-  return valid.sort((a, b) => distanceToOrigin(a) - distanceToOrigin(b))[0];
+  return nearest;
 }
 
 function advanceWeaponChannels(weapon, dt) {
@@ -3244,8 +3252,10 @@ function updateWeaponFields(dt) {
     field.tick_timer -= dt;
     if (field.tick_timer > 0) return;
     field.tick_timer = field.tick_seconds || 0.5;
+    const radiusSq = field.radius * field.radius;
     state.enemies.forEach(enemy => {
-      if (!enemy.dead && Math.hypot(enemy.x - field.x, enemy.y - field.y) <= field.radius) {
+      const dx = enemy.x - field.x, dy = enemy.y - field.y;
+      if (!enemy.dead && dx * dx + dy * dy <= radiusSq) {
         enemy.hp -= field.damage;
         applyHitFeedback(enemy, { x: enemy.x - field.x, y: enemy.y - field.y }, field.impact || "heavy", false, true, 80);
       }
@@ -3605,8 +3615,45 @@ function applyWeaponHitSignature(projectile, enemy, effectiveDamage) {
   }
 }
 
+// Broad-phase spatial hash: checks only nearby enemies while preserving hit order.
+const COLLISION_CELL_SIZE = 160;
+function buildEnemyCollisionGrid(enemies) {
+  const buckets = new Map();
+  let maxEnemyHalfSize = 0;
+  for (let index = 0; index < enemies.length; index++) {
+    const enemy = enemies[index];
+    if (!enemy || enemy.dead) continue;
+    maxEnemyHalfSize = Math.max(maxEnemyHalfSize, (enemy.size || 34) / 2);
+    const cellX = Math.floor(enemy.x / COLLISION_CELL_SIZE);
+    const cellY = Math.floor(enemy.y / COLLISION_CELL_SIZE);
+    const key = cellX + "," + cellY;
+    let bucket = buckets.get(key);
+    if (!bucket) { bucket = []; buckets.set(key, bucket); }
+    bucket.push(index);
+  }
+  return { buckets, maxEnemyHalfSize };
+}
+function getNearbyEnemyIndices(grid, x, y, projectileHalfSize) {
+  const radius = projectileHalfSize + grid.maxEnemyHalfSize;
+  const minX = Math.floor((x - radius) / COLLISION_CELL_SIZE);
+  const maxX = Math.floor((x + radius) / COLLISION_CELL_SIZE);
+  const minY = Math.floor((y - radius) / COLLISION_CELL_SIZE);
+  const maxY = Math.floor((y + radius) / COLLISION_CELL_SIZE);
+  const result = [];
+  for (let cy = minY; cy <= maxY; cy++) {
+    for (let cx = minX; cx <= maxX; cx++) {
+      const bucket = grid.buckets.get(cx + "," + cy);
+      if (bucket) for (let i = 0; i < bucket.length; i++) result.push(bucket[i]);
+    }
+  }
+  result.sort((a, b) => a - b); // Retain original enemy hit/pierce priority.
+  return result;
+}
+
 function updateProjectiles(dt) {
   const p = state.player;
+  const spatialGrid = state.enemies.length >= 32 && state.projectiles.length >= 8
+    ? buildEnemyCollisionGrid(state.enemies) : null;
 
   state.projectiles.forEach(pr => {
     if ((pr.delay || 0) > 0) {
@@ -3664,7 +3711,14 @@ function updateProjectiles(dt) {
       pr.y += pr.dy * pr.spd * dt;
     }
 
-    state.enemies.forEach(e => {
+    // Rune chains can teleport the same projectile mid-collision iteration,
+    // so retain the full scan for that weapon to preserve chain mechanics.
+    const useGrid = spatialGrid && pr.weapon_id !== "rune_orb";
+    const collisionCandidates = useGrid
+      ? getNearbyEnemyIndices(spatialGrid, pr.x, pr.y, (pr.size || 18) / 2)
+      : state.enemies;
+    collisionCandidates.forEach(candidate => {
+      const e = useGrid ? state.enemies[candidate] : candidate;
       if (e.dead || pr.pierce <= 0 || skipCollisionThisFrame || (pr.chain_target && e !== pr.chain_target)) return;
       // Cheap broad-phase: reject distant enemies before Set lookups and sqrt.
       const range = (pr.size || 18) / 2 + (e.size || 34) / 2;
@@ -3981,7 +4035,8 @@ function updateEnemies(dt) {
   state.enemies.forEach(e => {
     if (e.affix === "commander" && !e.dead) {
       state.enemies.forEach(other => {
-        if (other !== e && Math.hypot(other.x - e.x, other.y - e.y) < 160) {
+        const dx = other.x - e.x, dy = other.y - e.y;
+        if (other !== e && dx * dx + dy * dy < 160 * 160) {
           other.is_buffed = true;
         }
       });
@@ -5637,17 +5692,24 @@ function renderInventoryView() {
 // =========================================
 // 15. HUD UPDATE
 // =========================================
+function setHUDText(id, text) {
+  const node = document.getElementById(id);
+  const value = String(text);
+  if (node.textContent !== value) node.textContent = value;
+}
 function updateHUD() {
-  document.getElementById("hp-fill").style.width = `${Math.max(0, (state.hp / state.max_hp) * 100)}%`;
-  document.getElementById("hp-text").textContent = `${Math.round(state.hp)} / ${Math.round(state.max_hp)} HP`;
+  const hpFill = document.getElementById("hp-fill");
+  const hpWidth = `${Math.max(0, (state.hp / state.max_hp) * 100)}%`;
+  if (hpFill.style.width !== hpWidth) hpFill.style.width = hpWidth;
+  setHUDText("hp-text", `${Math.round(state.hp)} / ${Math.round(state.max_hp)} HP`);
   const biomeName = state.current_wave < 26 ? "KÜTÜPHANE" : state.current_wave < 51 ? "DEHLİZ" : state.current_wave < 76 ? "GÖZLEMEVİ" : "SON SAYFA";
-  document.getElementById("timer-badge").textContent = `${biomeName} · ${state.current_wave} / 100 · ${Math.ceil(state.wave_time_left)}s`;
-  document.getElementById("ink-value").textContent = state.ink_count;
-  document.getElementById("kill-value").textContent = state.kill_count;
+  setHUDText("timer-badge", `${biomeName} · ${state.current_wave} / 100 · ${Math.ceil(state.wave_time_left)}s`);
+  setHUDText("ink-value", state.ink_count);
+  setHUDText("kill-value", state.kill_count);
 
   const c = CHARACTERS[state.selected_char];
   const d = DIFFICULTIES[state.difficulty];
-  document.getElementById("char-diff-info").textContent = `${c.name} · ${d.name}`;
+  setHUDText("char-diff-info", `${c.name} · ${d.name}`);
 
   // Slotted weapons preview
   const weaponsEl = document.getElementById("weapons-info");
@@ -5694,14 +5756,17 @@ function updateHUD() {
   // Gadget badge
   const gData = GADGETS_CATALOG[state.active_gadget_id] || GADGETS_CATALOG["eraser_dash"];
   const gadgetIcon = gData.icon || gData.sprite || "assets/sprites/gadgets/eraser_dash.png";
-  document.getElementById("gadget-panel-icon").src = gadgetIcon.startsWith("assets/") ? gadgetIcon : `assets/sprites/${gadgetIcon}`;
-  document.getElementById("gadget-panel-name").textContent = `${gData.name.split(" ")[0]} [SPACE]:`;
+  const gadgetIconNode = document.getElementById("gadget-panel-icon");
+  const nextGadgetIcon = gadgetIcon.startsWith("assets/") ? gadgetIcon : `assets/sprites/${gadgetIcon}`;
+  if (gadgetIconNode.getAttribute("src") !== nextGadgetIcon) gadgetIconNode.src = nextGadgetIcon;
+  setHUDText("gadget-panel-name", `${gData.name.split(" ")[0]} [SPACE]:`);
   const gStatus = document.getElementById("gadget-status");
   if (state.gadget_timer <= 0.05) {
-    gStatus.textContent = "HAZIR";
+    if (gStatus.textContent !== "HAZIR") gStatus.textContent = "HAZIR";
     gStatus.style.color = "#a9bda9";
   } else {
-    gStatus.textContent = state.gadget_timer.toFixed(1) + "s";
+    const cooldownText = state.gadget_timer.toFixed(1) + "s";
+    if (gStatus.textContent !== cooldownText) gStatus.textContent = cooldownText;
     gStatus.style.color = "#c89a87";
   }
 }
@@ -5709,6 +5774,8 @@ function updateHUD() {
 // =========================================
 // 16. RENDERING
 // =========================================
+let vignetteGradient = null;
+let vignetteCanvasWidth = 0, vignetteCanvasHeight = 0;
 function render() {
   ctx.clearRect(0, 0, canvas.width, canvas.height);
   ctx.imageSmoothingEnabled = false;
@@ -6339,11 +6406,14 @@ function render() {
   ctx.restore();
 
   // Dynamic Atmospheric Player Radial Lighting & Dark Academia Vignette
-  const lightGrad = ctx.createRadialGradient(cx, cy, 140, cx, cy, 680);
-  lightGrad.addColorStop(0, "rgba(0, 0, 0, 0)");
-  lightGrad.addColorStop(0.65, "rgba(8, 4, 3, 0.20)");
-  lightGrad.addColorStop(1, "rgba(4, 2, 2, 0.72)");
-  ctx.fillStyle = lightGrad;
+  if (!vignetteGradient || canvas.width !== vignetteCanvasWidth || canvas.height !== vignetteCanvasHeight) {
+    vignetteCanvasWidth = canvas.width; vignetteCanvasHeight = canvas.height;
+    vignetteGradient = ctx.createRadialGradient(cx, cy, 140, cx, cy, 680);
+    vignetteGradient.addColorStop(0, "rgba(0, 0, 0, 0)");
+    vignetteGradient.addColorStop(0.65, "rgba(8, 4, 3, 0.20)");
+    vignetteGradient.addColorStop(1, "rgba(4, 2, 2, 0.72)");
+  }
+  ctx.fillStyle = vignetteGradient;
   ctx.fillRect(0, 0, canvas.width, canvas.height);
 }
 
@@ -6355,14 +6425,16 @@ function gameLoop(now) {
   // Reduce expensive full-canvas draws on phones and under menu overlays.
   // Game dt still follows elapsed wall time; gameplay speed is unchanged.
   const activePlay = state.is_wave_active && !state.is_inventory_open;
-  const frameInterval = activePlay
-    ? (window.innerWidth <= 1080 || 'ontouchstart' in window ? 30 : 0)
-    : 50;
-  if (now - lastRenderedAt < frameInterval) {
+  const phoneOrTablet = window.innerWidth <= 1080 && window.matchMedia("(pointer: coarse)").matches;
+  const frameInterval = activePlay ? (phoneOrTablet ? 30 : 1000 / 60) : 50;
+  const elapsed = now - lastRenderedAt;
+  if (elapsed + 0.6 < frameInterval) {
     requestAnimationFrame(gameLoop);
     return;
   }
-  lastRenderedAt = now;
+  // Advance a stable frame schedule: 120/144 Hz monitors maintain ~60 FPS
+  // without the drift that occurs when resetting the clock at every callback.
+  lastRenderedAt = elapsed > frameInterval * 3 ? now : lastRenderedAt + frameInterval;
   const rawDt = Math.min(0.1, (now - lastTime) / 1000);
   lastTime = now;
   const dt = rawDt * (state.game_speed || 1.0);
