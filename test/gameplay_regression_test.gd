@@ -22,6 +22,8 @@ func _run() -> void:
 	assert(hud.has_method("activate_gadget_touch"), "HUD must expose a touch action for the active gadget")
 	hud.set_touch_ui_enabled_override(true)
 	assert(hud.get_node("TouchControls").visible, "Touch actions must be visible when touchscreen input is enabled")
+	for icon_button_path in ["TouchControls/ActionRow/GadgetTouchButton", "TouchControls/ActionRow/WeaponTouchButton", "TouchControls/ActionRow/InventoryTouchButton", "InventoryOverlay/InventoryPanel/InventoryLayout/InventoryTabs/WeaponsTab", "InventoryOverlay/InventoryPanel/InventoryLayout/InventoryTabs/GadgetsTab", "InventoryOverlay/InventoryPanel/InventoryLayout/InventoryHeader/InventoryCloseButton"]:
+		assert(hud.get_node(icon_button_path).icon != null, "%s must use a non-emoji UI asset" % icon_button_path)
 	var touch_controls: Control = hud.get_node("TouchControls")
 	var original_control_width: float = touch_controls.offset_right - touch_controls.offset_left
 	var original_control_height: float = touch_controls.offset_bottom - touch_controls.offset_top
@@ -88,10 +90,28 @@ func _run() -> void:
 	var inventory_key := InputEventKey.new()
 	inventory_key.keycode = KEY_I
 	inventory_key.pressed = true
-	main.player._unhandled_input(inventory_key)
+	Input.parse_input_event(inventory_key)
+	await process_frame
 	assert(hud.inventory_open, "I key opens native inventory for keyboard users")
-	main.player._unhandled_input(inventory_key)
+	var inventory_key_release := InputEventKey.new()
+	inventory_key_release.keycode = KEY_I
+	inventory_key_release.pressed = false
+	Input.parse_input_event(inventory_key_release)
+	await process_frame
+	Input.parse_input_event(inventory_key)
+	await process_frame
 	assert(not hud.inventory_open and not paused, "I key closes inventory and resumes the run")
+	Input.parse_input_event(inventory_key_release)
+	await process_frame
+	Input.parse_input_event(inventory_key)
+	await process_frame
+	assert(hud.inventory_open and paused, "I key opens inventory through the input system")
+	var escape_key := InputEventKey.new()
+	escape_key.keycode = KEY_ESCAPE
+	escape_key.pressed = true
+	Input.parse_input_event(escape_key)
+	await process_frame
+	assert(not hud.inventory_open and not paused, "Escape input closes inventory while the game tree is paused")
 	main.player.gadget_timer = 0.0
 	main.player.start_eraser_dash(Vector2.RIGHT)
 	assert(main.player.is_dashing and main.player.is_invulnerable, "Dash grants temporary invulnerability")

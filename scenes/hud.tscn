@@ -1,4 +1,4 @@
-[gd_scene load_steps=11 format=3 uid="uid://g9v4x2m1q7k8b"]
+[gd_scene load_steps=15 format=3 uid="uid://g9v4x2m1q7k8b"]
 
 [ext_resource type="Script" path="res://scripts/hud.gd" id="1_script"]
 [ext_resource type="Texture2D" path="res://assets/ui/icons/ink.svg" id="2_ink"]
@@ -6,6 +6,10 @@
 [ext_resource type="Texture2D" path="res://assets/ui/icons/dash.svg" id="4_dash"]
 [ext_resource type="Texture2D" path="res://assets/ui/icons/book.svg" id="5_book"]
 [ext_resource type="Texture2D" path="res://assets/ui/icons/corrections.svg" id="6_corrections"]
+[ext_resource type="Texture2D" path="res://assets/ui/icons/bag.svg" id="7_bag"]
+[ext_resource type="Texture2D" path="res://assets/ui/icons/weapons.svg" id="8_weapons"]
+[ext_resource type="Texture2D" path="res://assets/ui/icons/gadget.svg" id="9_gadget"]
+[ext_resource type="Texture2D" path="res://assets/ui/icons/close.svg" id="10_close"]
 
 [sub_resource type="StyleBoxFlat" id="ChapterCardStyle"]
 bg_color = Color(0.075, 0.095, 0.085, 0.97)
@@ -60,6 +64,7 @@ corner_radius_bottom_left = 3
 
 [node name="HUD" type="CanvasLayer"]
 script = ExtResource("1_script")
+process_mode = 3
 
 [node name="TouchControls" type="Control" parent="."]
 anchors_preset = 15
@@ -90,18 +95,23 @@ custom_minimum_size = Vector2(88, 64)
 text = "GEREÇ"
 tooltip_text = "Seçili gereci kullan · SPACE"
 icon_max_width = 22
+icon = ExtResource("9_gadget")
 
 [node name="WeaponTouchButton" type="Button" parent="TouchControls/ActionRow"]
 layout_mode = 2
 custom_minimum_size = Vector2(88, 64)
 text = "SİLAH"
 tooltip_text = "Sonraki silah · E"
+icon = ExtResource("8_weapons")
+icon_max_width = 22
 
 [node name="InventoryTouchButton" type="Button" parent="TouchControls/ActionRow"]
 layout_mode = 2
 custom_minimum_size = Vector2(88, 64)
 text = "ÇANTA"
 tooltip_text = "Silah ve gereç yükünü aç · I"
+icon = ExtResource("7_bag")
+icon_max_width = 22
 
 [node name="InventoryOverlay" type="Control" parent="."]
 visible = false
@@ -165,6 +175,8 @@ vertical_alignment = 1
 custom_minimum_size = Vector2(56, 48)
 layout_mode = 2
 text = "KAPAT"
+icon = ExtResource("10_close")
+icon_max_width = 18
 
 [node name="InventoryTabs" type="HBoxContainer" parent="InventoryOverlay/InventoryPanel/InventoryLayout"]
 layout_mode = 2
@@ -175,12 +187,16 @@ custom_minimum_size = Vector2(0, 50)
 layout_mode = 2
 size_flags_horizontal = 3
 text = "SİLAHLAR"
+icon = ExtResource("8_weapons")
+icon_max_width = 22
 
 [node name="GadgetsTab" type="Button" parent="InventoryOverlay/InventoryPanel/InventoryLayout/InventoryTabs"]
 custom_minimum_size = Vector2(0, 50)
 layout_mode = 2
 size_flags_horizontal = 3
 text = "GEREÇLER"
+icon = ExtResource("9_gadget")
+icon_max_width = 22
 
 [node name="InventoryScroll" type="ScrollContainer" parent="InventoryOverlay/InventoryPanel/InventoryLayout"]
 layout_mode = 2

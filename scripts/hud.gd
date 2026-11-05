@@ -130,6 +130,12 @@ func _apply_touch_safe_area_insets(right_inset: float, bottom_inset: float) -> v
 func toggle_inventory() -> void:
 	set_inventory_open(not inventory_open)
 
+func _input(event: InputEvent) -> void:
+	if event is InputEventKey and event.pressed and not event.echo and inventory_open:
+		if event.keycode in [KEY_ESCAPE, KEY_I, KEY_TAB]:
+			set_inventory_open(false)
+			get_viewport().set_input_as_handled()
+
 func set_inventory_open(open: bool) -> void:
 	if open and get_tree().paused and not inventory_open:
 		return
