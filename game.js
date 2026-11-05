@@ -482,6 +482,9 @@ class SoundManager {
   constructor() {
     this.ctx = null;
     this.assetVoices = [];
+    // Reuse sound elements; spawning an Audio element per enemy death causes mobile stutter.
+    this.assetPools = new Map();
+    this.assetLastPlayed = new Map();
     this.music = null;
     this.assetPaths = {
       quill_blaster: "weapon_quill_blaster_v1", syllable_shotgun: "weapon_syllable_shotgun_v1",
@@ -498,14 +501,28 @@ class SoundManager {
   playAsset(key, volume = 0.72) {
     const asset = this.assetPaths[key];
     if (!asset) return false;
+    const now = performance.now();
+    const minGap = (key === "death" || key === "hit" || key === "pickup") ? 85
+      : (key === "ink_flamethrower" ? 100 : 40);
+    if (now - (this.assetLastPlayed.get(key) ?? -Infinity) < minGap) return true;
+    this.assetLastPlayed.set(key, now);
     try {
-      const voice = new Audio(`assets/audio/${key === "gadget" ? "abilities" : key === "hit" || key === "death" || key === "pickup" || key === "wave" ? "gameplay" : "weapons"}/${asset}.wav`);
+      let pool = this.assetPools.get(key);
+      if (!pool) { pool = []; this.assetPools.set(key, pool); }
+      let voice = pool.find(item => item.paused || item.ended);
+      if (!voice && pool.length < 3) {
+        const category = key === "gadget" ? "abilities"
+          : (key === "hit" || key === "death" || key === "pickup" || key === "wave") ? "gameplay" : "weapons";
+        voice = new Audio(`assets/audio/${category}/${asset}.wav`);
+        voice.preload = "auto";
+        pool.push(voice);
+      }
+      if (!voice) return true; // Bound simultaneous voices during heavy combat.
       voice.volume = volume;
+      if (voice.readyState > 0) voice.currentTime = 0;
       voice.play().catch(() => {});
-      this.assetVoices.push(voice);
-      if (this.assetVoices.length > 24) this.assetVoices.splice(0, this.assetVoices.length - 24);
       return true;
-    } catch (_) { return false; }
+    } catch (_) { return true; }
   }
   startMusic() {
     if (!this.music) { this.music = new Audio("assets/audio/music/main_theme.mp3"); this.music.loop = true; this.music.volume = 0.24; }
@@ -1558,13 +1575,15 @@ function resizeGameCanvas() {
     const w = container.clientWidth || window.innerWidth;
     const h = container.clientHeight || window.innerHeight;
     const isPortrait = h > w;
+    // Render fewer internal pixels on phones; CSS still fills the same screen.
+    const baseResolution = Math.min(w, h) <= 650 ? 540 : 620;
 
     if (isPortrait) {
-      canvas.width = 720;
-      canvas.height = Math.round(720 * (h / Math.max(1, w)));
+      canvas.width = baseResolution;
+      canvas.height = Math.round(baseResolution * (h / Math.max(1, w)));
     } else {
-      canvas.height = 720;
-      canvas.width = Math.round(720 * (w / Math.max(1, h)));
+      canvas.height = baseResolution;
+      canvas.width = Math.round(baseResolution * (w / Math.max(1, h)));
     }
   } else {
     canvas.width = 1280;
@@ -3646,13 +3665,17 @@ function updateProjectiles(dt) {
     }
 
     state.enemies.forEach(e => {
-      if (skipCollisionThisFrame || (pr.chain_target && e !== pr.chain_target)) return;
+      if (e.dead || pr.pierce <= 0 || skipCollisionThisFrame || (pr.chain_target && e !== pr.chain_target)) return;
+      // Cheap broad-phase: reject distant enemies before Set lookups and sqrt.
+      const range = (pr.size || 18) / 2 + (e.size || 34) / 2;
+      if (Math.abs(e.x - pr.x) >= range || Math.abs(e.y - pr.y) >= range) return;
       if (pr.sharedHitTargets?.has(e)) return;
       const passSet = (pr.type === "boomerang" || pr.type === "boomerang_orbit")
         ? (pr.hitEnemiesByPass[pr.pass] || (pr.hitEnemiesByPass[pr.pass] = new Set())) : pr.hitEnemies;
       if (pr.pierce > 0 && !passSet.has(e)) {
         const hitDist = (pr.size || 18) / 2 + (e.size || 34) / 2;
-        if (Math.hypot(e.x - pr.x, e.y - pr.y) < hitDist) {
+        const deltaX = e.x - pr.x, deltaY = e.y - pr.y;
+        if (deltaX * deltaX + deltaY * deltaY < hitDist * hitDist) {
           passSet.add(e);
           pr.hitEnemies.add(e);
           if (pr.sharedHitTargets) pr.sharedHitTargets.add(e);
@@ -5628,8 +5651,11 @@ function updateHUD() {
 
   // Slotted weapons preview
   const weaponsEl = document.getElementById("weapons-info");
-  weaponsEl.innerHTML = "";
-  state.equipped_weapons.forEach((item, idx) => {
+  const weaponSignature = state.equipped_weapons.map(item => `${item.id}:${item.tier}`).join("|") + ":" + state.active_weapon_index;
+  if (weaponsEl.dataset.renderSignature !== weaponSignature) {
+    weaponsEl.dataset.renderSignature = weaponSignature;
+    weaponsEl.innerHTML = "";
+    state.equipped_weapons.forEach((item, idx) => {
     const isAct = (idx === state.active_weapon_index);
     const w = WEAPONS_CATALOG[item.id] || { name: item.id };
     const t = TIER_MULTIPLIERS[item.tier] || TIER_MULTIPLIERS[1];
@@ -5662,7 +5688,8 @@ function updateHUD() {
       selectWeaponIndex(idx);
     };
     weaponsEl.appendChild(badge);
-  });
+    });
+  }
 
   // Gadget badge
   const gData = GADGETS_CATALOG[state.active_gadget_id] || GADGETS_CATALOG["eraser_dash"];
@@ -5706,6 +5733,13 @@ function render() {
   if (zoom !== 1.0) {
     ctx.scale(zoom, zoom);
   }
+  // World-space visibility limits; do not draw entities beyond the camera.
+  const viewLeft = p.x - cx / zoom - 170;
+  const viewRight = p.x + cx / zoom + 170;
+  const viewTop = p.y - cy / zoom - 170;
+  const viewBottom = p.y + cy / zoom + 170;
+  const outsideView = entity => entity.x < viewLeft || entity.x > viewRight
+    || entity.y < viewTop || entity.y > viewBottom;
   ctx.translate(-p.x, -p.y);
 
   // 4 Dynamic Biomes based on progression across 100 Waves
@@ -5881,6 +5915,7 @@ function render() {
 
   // Ink drops
   state.ink_drops.forEach(drop => {
+    if (outsideView(drop)) return;
     if (images["ink_drop.png"]) {
       ctx.drawImage(images["ink_drop.png"], drop.x - 10, drop.y - 10, 20, 20);
     } else {
@@ -5960,6 +5995,7 @@ function render() {
 
   // Enemy Projectiles
   state.enemy_projectiles.forEach(ep => {
+    if (outsideView(ep)) return;
     ctx.save();
     ctx.translate(ep.x, ep.y);
     const spr = images["bullet_enemy_red.png"];
@@ -5976,6 +6012,7 @@ function render() {
 
   // Enemies
   state.enemies.forEach(e => {
+    if (e.dead || outsideView(e)) return;
     if (e.behavior_phase === "windup" && (e.type === "Homophone Harpy" || e.type === "Run-on Reaper")) {
       const length = e.type === "Homophone Harpy" ? 340 : 280;
       const color = e.type === "Homophone Harpy" ? "rgba(255, 191, 71, 0.9)" : "rgba(248, 72, 76, 0.9)";
@@ -6116,6 +6153,7 @@ function render() {
 
   // Projectiles
   state.projectiles.forEach(pr => {
+    if (outsideView(pr)) return;
     ctx.save();
     ctx.translate(pr.x, pr.y);
     ctx.rotate(Math.atan2(pr.dy, pr.dx));
@@ -6312,7 +6350,19 @@ function render() {
 // =========================================
 // 17. MAIN GAME LOOP
 // =========================================
+let lastRenderedAt = 0;
 function gameLoop(now) {
+  // Reduce expensive full-canvas draws on phones and under menu overlays.
+  // Game dt still follows elapsed wall time; gameplay speed is unchanged.
+  const activePlay = state.is_wave_active && !state.is_inventory_open;
+  const frameInterval = activePlay
+    ? (window.innerWidth <= 1080 || 'ontouchstart' in window ? 30 : 0)
+    : 50;
+  if (now - lastRenderedAt < frameInterval) {
+    requestAnimationFrame(gameLoop);
+    return;
+  }
+  lastRenderedAt = now;
   const rawDt = Math.min(0.1, (now - lastTime) / 1000);
   lastTime = now;
   const dt = rawDt * (state.game_speed || 1.0);
