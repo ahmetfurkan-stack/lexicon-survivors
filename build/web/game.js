@@ -8,10 +8,12 @@ const ARENA_LAYOUT = Object.freeze({
   innerShelfY: 870,
   playerColliderRadius: 15,
   playerColliderOffsetY: 3,
+  playerVisualHalfWidth: 44,
+  playerVisualHalfHeight: 44,
 });
-const PLAYER_CENTER_LIMIT_X = ARENA_LAYOUT.innerShelfX - ARENA_LAYOUT.playerColliderRadius;
-const PLAYER_CENTER_MIN_Y = -ARENA_LAYOUT.innerShelfY + ARENA_LAYOUT.playerColliderRadius - ARENA_LAYOUT.playerColliderOffsetY;
-const PLAYER_CENTER_MAX_Y = ARENA_LAYOUT.innerShelfY - ARENA_LAYOUT.playerColliderRadius - ARENA_LAYOUT.playerColliderOffsetY;
+const PLAYER_CENTER_LIMIT_X = ARENA_LAYOUT.innerShelfX - ARENA_LAYOUT.playerVisualHalfWidth;
+const PLAYER_CENTER_MIN_Y = -ARENA_LAYOUT.innerShelfY + ARENA_LAYOUT.playerVisualHalfHeight;
+const PLAYER_CENTER_MAX_Y = ARENA_LAYOUT.innerShelfY - ARENA_LAYOUT.playerVisualHalfHeight;
 
 function clampPlayerToArena(player) {
   player.x = Math.max(-PLAYER_CENTER_LIMIT_X, Math.min(PLAYER_CENTER_LIMIT_X, player.x));
@@ -4415,7 +4417,7 @@ function render() {
   const frameImg = images[frameSprite];
   if (frameImg) {
     // The library is one fixed room in world space; its frame no longer follows
-    // the camera, and the same measurements drive player collision bounds.
+    // the camera, and sprite extents stay inside the visible shelf line.
     ctx.drawImage(frameImg, -ARENA_LAYOUT.width / 2, -ARENA_LAYOUT.height / 2, ARENA_LAYOUT.width, ARENA_LAYOUT.height);
   }
 

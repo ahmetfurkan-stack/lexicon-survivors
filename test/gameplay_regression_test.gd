@@ -1,5 +1,7 @@
 extends SceneTree
 
+const ARENA_FRAME_SCRIPT := preload("res://scripts/arena_frame.gd")
+
 func _init() -> void:
 	call_deferred("_run")
 
@@ -227,17 +229,36 @@ func _run() -> void:
 	var left_wall: CollisionShape2D = main.get_node("ArenaWalls/LeftWall")
 	var top_wall: CollisionShape2D = main.get_node("ArenaWalls/TopWall")
 	var bottom_wall: CollisionShape2D = main.get_node("ArenaWalls/BottomWall")
-	var shelf_edge: Vector2 = load("res://scripts/arena_frame.gd").INNER_SHELF_EDGE
+	var shelf_edge: Vector2 = ARENA_FRAME_SCRIPT.INNER_SHELF_EDGE
 	assert(is_equal_approx(right_wall.position.x - right_wall.shape.size.x / 2.0, shelf_edge.x), "Right collision face must align to the visible shelf's inner edge")
 	assert(is_equal_approx(left_wall.position.x + left_wall.shape.size.x / 2.0, -shelf_edge.x), "Left collision face must align to the visible shelf's inner edge")
 	assert(is_equal_approx(bottom_wall.position.y - bottom_wall.shape.size.y / 2.0, shelf_edge.y), "Bottom collision face must align to the visible shelf's inner edge")
 	assert(is_equal_approx(top_wall.position.y + top_wall.shape.size.y / 2.0, -shelf_edge.y), "Top collision face must align to the visible shelf's inner edge")
 	var player_radius: float = player.get_node("CollisionShape2D").shape.radius
 	var player_shape_offset: Vector2 = player.get_node("CollisionShape2D").position
-	var max_center_x: float = shelf_edge.x - player_radius - player_shape_offset.x
-	var min_center_x: float = -shelf_edge.x + player_radius - player_shape_offset.x
-	var max_center_y: float = shelf_edge.y - player_radius - player_shape_offset.y
-	var min_center_y: float = -shelf_edge.y + player_radius - player_shape_offset.y
+	var collider_center_bounds: Rect2 = ARENA_FRAME_SCRIPT.PLAYER_COLLIDER_CENTER_BOUNDS
+	var visual_center_bounds: Rect2 = ARENA_FRAME_SCRIPT.PLAYER_VISUAL_CENTER_BOUNDS
+	assert(player_radius == ARENA_FRAME_SCRIPT.PLAYER_COLLIDER_RADIUS and player_shape_offset == ARENA_FRAME_SCRIPT.PLAYER_COLLIDER_OFFSET, "Arena bounds must use the actual player collision shape")
+	assert(collider_center_bounds.encloses(visual_center_bounds), "Visual bounds must stay inside the collision-safe room bounds")
+	var measured_visual_half_extent := Vector2.ZERO
+	for frame_file in DirAccess.get_files_at("res://assets/sprites/upgrade_v1/animations"):
+		if not frame_file.ends_with(".png"):
+			continue
+		var frame_texture := load("res://assets/sprites/upgrade_v1/animations/" + frame_file) as Texture2D
+		var frame_image := frame_texture.get_image()
+		var frame_alpha_bounds := frame_image.get_used_rect()
+		var frame_center := Vector2(frame_texture.get_size()) / 2.0
+		var frame_extent := Vector2(
+			maxf(absf(frame_alpha_bounds.position.x - frame_center.x), absf(frame_alpha_bounds.end.x - frame_center.x)) * player.sprite.scale.x,
+			maxf(absf(frame_alpha_bounds.position.y - frame_center.y), absf(frame_alpha_bounds.end.y - frame_center.y)) * player.sprite.scale.y
+		)
+		measured_visual_half_extent = Vector2(maxf(measured_visual_half_extent.x, frame_extent.x), maxf(measured_visual_half_extent.y, frame_extent.y))
+	assert(measured_visual_half_extent.x <= ARENA_FRAME_SCRIPT.PLAYER_MAX_VISUAL_HALF_EXTENT.x and measured_visual_half_extent.y <= ARENA_FRAME_SCRIPT.PLAYER_MAX_VISUAL_HALF_EXTENT.y, "Visual center margins must cover alpha extents of every character animation")
+	assert(absf(measured_visual_half_extent.x - ARENA_FRAME_SCRIPT.PLAYER_MAX_VISUAL_HALF_EXTENT.x) <= 0.5 and absf(measured_visual_half_extent.y - ARENA_FRAME_SCRIPT.PLAYER_MAX_VISUAL_HALF_EXTENT.y) <= 0.5, "Visual center margins must end at the maximum rendered alpha edge without a wide gap")
+	var max_center_x: float = visual_center_bounds.end.x
+	var min_center_x: float = visual_center_bounds.position.x
+	var max_center_y: float = visual_center_bounds.end.y
+	var min_center_y: float = visual_center_bounds.position.y
 	# Verify contact from each cardinal direction, then verify the diagonal corner.
 	for enemy in [harpy, reaper, phantom]:
 		enemy.queue_free()
@@ -255,6 +276,7 @@ func _run() -> void:
 		for _i in range(140):
 			await physics_frame
 			player.move_and_slide()
+			player._clamp_to_visible_shelf_edge()
 		if direction == Vector2.RIGHT:
 			assert(player.global_position.x > max_center_x - 35.0, "Player must approach the visible right shelf face")
 			assert(player.global_position.x <= max_center_x + 0.5, "Player collider must not cross the right shelf face")
@@ -272,6 +294,7 @@ func _run() -> void:
 		await physics_frame
 		player.velocity = Vector2(600.0, 600.0)
 		player.move_and_slide()
+		player._clamp_to_visible_shelf_edge()
 	print("Corner movement test stopped at ", player.global_position)
 	assert(player.global_position.x > max_center_x - 35.0 and player.global_position.y > max_center_y - 35.0, "Overlapping wall corners must leave the visible arena corner reachable")
 	assert(player.global_position.x <= max_center_x + 0.5 and player.global_position.y <= max_center_y + 0.5, "Player collider must not cross either shelf face at the corner")

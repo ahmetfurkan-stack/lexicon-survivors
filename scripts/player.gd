@@ -1,5 +1,7 @@
 extends CharacterBody2D
 
+const ARENA_FRAME_SCRIPT := preload("res://scripts/arena_frame.gd")
+
 signal gadget_cooldown_updated(time_left: float, total_time: float)
 
 @onready var sprite = $Sprite2D
@@ -283,6 +285,7 @@ func _physics_process(delta: float):
 		dash_timer -= delta
 		velocity = dash_velocity
 		move_and_slide()
+		_clamp_to_visible_shelf_edge()
 		
 		# Erase / damage slimes in contact while dashing
 		erase_nearby_enemies()
@@ -298,6 +301,7 @@ func _physics_process(delta: float):
 	var target_velocity = input_vector * StatsManager.move_speed
 	velocity = velocity.move_toward(target_velocity, 2200.0 * delta)
 	move_and_slide()
+	_clamp_to_visible_shelf_edge()
 	
 	if input_vector.x != 0:
 		sprite.flip_h = input_vector.x < 0
@@ -346,6 +350,15 @@ func get_gadget_direction() -> Vector2:
 	if direction == Vector2.ZERO:
 		direction = Vector2.LEFT if sprite.flip_h else Vector2.RIGHT
 	return direction.normalized()
+
+func _clamp_to_visible_shelf_edge() -> void:
+	var previous_position := global_position
+	var visual_bounds: Rect2 = ARENA_FRAME_SCRIPT.PLAYER_VISUAL_CENTER_BOUNDS
+	global_position = global_position.clamp(visual_bounds.position, visual_bounds.end)
+	if not is_equal_approx(global_position.x, previous_position.x):
+		velocity.x = 0.0
+	if not is_equal_approx(global_position.y, previous_position.y):
+		velocity.y = 0.0
 
 func _update_hero_animation() -> void:
 	var animation_set: Dictionary = HERO_ANIMATIONS.get(StatsManager.selected_character, {})
