@@ -10,14 +10,20 @@ extends Node2D
 @onready var title_layer = $TitleLayer
 @onready var title_screen = $TitleLayer/TitleScreen
 @onready var player = $Player
+@onready var arena_floor = $Floor
+@onready var arena_frame = $ArenaFrame
+@onready var audio_manager = $AudioManager
 
 func _ready():
 	process_mode = Node.PROCESS_MODE_ALWAYS
+	# The scene-specific frame contains its own coherent, non-repeating floor.
+	arena_floor.hide()
 	game_over_layer.hide()
 	shop_ui.hide()
 	
 	wave_manager.wave_timer_updated.connect(_on_wave_timer_updated)
 	wave_manager.wave_finished.connect(_on_wave_finished)
+	wave_manager.wave_started.connect(_on_wave_started)
 	shop_ui.shop_closed.connect(_on_shop_closed)
 	StatsManager.player_died.connect(_on_player_died)
 	restart_button.pressed.connect(_on_restart_pressed)
@@ -49,6 +55,16 @@ func start_game():
 func _on_wave_timer_updated(time_left: float):
 	hud.update_timer(time_left, StatsManager.current_wave)
 
+func _on_wave_started(wave_number: int):
+	if StatsManager.selected_character == "lexicon_alchemist":
+		StatsManager.add_ink(10)
+	var stage_index = 0 if wave_number < 26 else (1 if wave_number < 51 else (2 if wave_number < 76 else 3))
+	arena_frame.set_stage(stage_index)
+	if audio_manager and audio_manager.has_method("set_biome"):
+		audio_manager.set_biome(stage_index, wave_number % 5 == 0)
+	if wave_number in [1, 26, 51, 76] and hud.has_method("show_arena_transition"):
+		hud.show_arena_transition(stage_index)
+
 func _on_wave_finished():
 	if is_inside_tree():
 		get_tree().paused = true
@@ -70,13 +86,14 @@ func _on_player_died():
 	else:
 		words_list = ", ".join(StatsManager.words_learned)
 		
-	var summary_text = "Öğrenilen Kelimeler (" + str(StatsManager.words_learned.size()) + "):\n"
+	var summary_text = "ÖĞRENİLEN KELİMELER  ·  " + str(StatsManager.words_learned.size()) + "\n"
 	summary_text += words_list + "\n\n"
-	summary_text += "Seçilen Karakter: " + StatsManager.characters.get(StatsManager.selected_character, {}).get("name", "Inky") + "\n"
-	summary_text += "Zorluk: " + StatsManager.difficulties.get(StatsManager.difficulty, {}).get("name", "Orta") + "\n"
-	summary_text += "Ulaşılan Dalga: " + str(StatsManager.current_wave) + "\n"
-	summary_text += "Yok Edilen Dil Hataları: " + str(StatsManager.kill_count) + "\n"
-	summary_text += "Kazanılan Mürekkep: " + str(StatsManager.ink_count)
+	summary_text += "KARAKTER  ·  " + StatsManager.characters.get(StatsManager.selected_character, {}).get("name", "Inky") + "\n"
+	var difficulty_labels = {"easy": "A1–A2", "normal": "B1", "hard": "B2–C1"}
+	summary_text += "SEVİYE  ·  " + difficulty_labels.get(StatsManager.difficulty, "B1") + "\n"
+	summary_text += "ULAŞILAN DALGA  ·  " + str(StatsManager.current_wave) + "\n"
+	summary_text += "YOK EDİLEN DÜŞMAN  ·  " + str(StatsManager.kill_count) + "\n"
+	summary_text += "KAZANILAN MÜREKKEP  ·  " + str(StatsManager.ink_count)
 	
 	game_over_summary.text = summary_text
 

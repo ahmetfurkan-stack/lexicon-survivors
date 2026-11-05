@@ -36,6 +36,8 @@ func _on_body_entered(body: Node2D):
 		hit_enemies.append(body)
 		if body.has_method("take_damage"):
 			body.take_damage(damage, direction)
+		if is_critical and StatsManager.selected_character == "shadow_lexicographer" and body.has_method("apply_slow"):
+			body.apply_slow(1.25, 0.6)
 		pierce -= 1
 		if pierce <= 0:
 			queue_free()

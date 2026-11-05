@@ -131,6 +131,7 @@ class MedievalBGM {
     this.isMuted = false;
     this.volume = 0.24;
     this.mode = "peaceful"; // "peaceful" | "battle" | "boss"
+    this.biome = -1;
     this.step = 0;
     this.timerId = null;
 
@@ -199,6 +200,36 @@ class MedievalBGM {
     }
   }
 
+  setBiomeForWave(wave) {
+    const nextBiome = wave >= 76 ? 3 : wave >= 51 ? 2 : wave >= 26 ? 1 : 0;
+    if (nextBiome === this.biome) return;
+    this.biome = nextBiome;
+    if (this.isPlaying && !this.isMuted) this.playChapterChime();
+  }
+
+  playChapterChime() {
+    const ctx = this.sm.ctx;
+    if (!ctx || this.isMuted) return;
+    const roots = [293.66, 261.63, 349.23, 233.08];
+    const root = roots[this.biome] || roots[0];
+    [1, 1.25, 1.5].forEach((ratio, index) => {
+      try {
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        const start = ctx.currentTime + index * 0.11;
+        osc.type = "sine";
+        osc.frequency.setValueAtTime(root * ratio, start);
+        gain.gain.setValueAtTime(0.0001, start);
+        gain.gain.linearRampToValueAtTime(0.035 * this.volume, start + 0.08);
+        gain.gain.exponentialRampToValueAtTime(0.0001, start + 1.15);
+        osc.connect(gain);
+        gain.connect(ctx.destination);
+        osc.start(start);
+        osc.stop(start + 1.18);
+      } catch (e) {}
+    });
+  }
+
   toggleMute() {
     this.isMuted = !this.isMuted;
     return !this.isMuted;
@@ -214,11 +245,13 @@ class MedievalBGM {
     const currentNoteName = pattern[this.step % totalSteps];
     const bpm = this.mode === "boss" ? 140 : (this.mode === "battle" ? 122 : 94);
     const stepDuration = 60 / bpm / 4;
+    const semitones = [0, -2, 5, -3][this.biome] || 0;
+    const transpose = Math.pow(2, semitones / 12);
 
     if (!this.isMuted && this.volume > 0) {
       const now = ctx.currentTime;
       if (currentNoteName && this.notes[currentNoteName]) {
-        this.playPluckedString(this.notes[currentNoteName], now, stepDuration * 2.5, 0.08 * this.volume);
+        this.playPluckedString(this.notes[currentNoteName] * transpose, now, stepDuration * 2.5, 0.08 * this.volume);
       }
 
       if (this.step % 16 === 0) {
@@ -226,7 +259,10 @@ class MedievalBGM {
         const bList = this.bassNotes[this.mode] || this.bassNotes.peaceful;
         const bNote = bList[barIdx % bList.length];
         if (bNote && this.notes[bNote]) {
-          this.playBassDrone(this.notes[bNote], now, stepDuration * 15, 0.12 * this.volume);
+          this.playBassDrone(this.notes[bNote] * transpose, now, stepDuration * 15, 0.12 * this.volume);
+        }
+        if (this.step % 64 === 0) {
+          this.playAmbientBed([110, 98, 130.81, 87.31][this.biome], now, stepDuration * 60, 0.025 * this.volume);
         }
       }
 
@@ -290,6 +326,28 @@ class MedievalBGM {
       osc.start(time);
       osc.stop(time + dur);
     } catch(e) {}
+  }
+
+  playAmbientBed(freq, time, dur, gainVal) {
+    try {
+      const ctx = this.sm.ctx;
+      const osc = ctx.createOscillator();
+      const filter = ctx.createBiquadFilter();
+      const gain = ctx.createGain();
+      osc.type = "sine";
+      osc.frequency.setValueAtTime(freq, time);
+      filter.type = "lowpass";
+      filter.frequency.setValueAtTime(420, time);
+      gain.gain.setValueAtTime(0.0001, time);
+      gain.gain.linearRampToValueAtTime(gainVal, time + 1.2);
+      gain.gain.setValueAtTime(gainVal, Math.max(time + 1.2, time + dur - 1.4));
+      gain.gain.exponentialRampToValueAtTime(0.0001, time + dur);
+      osc.connect(filter);
+      filter.connect(gain);
+      gain.connect(ctx.destination);
+      osc.start(time);
+      osc.stop(time + dur);
+    } catch (e) {}
   }
 
   playDrumKick(time, gainVal) {
@@ -356,7 +414,7 @@ const CHARACTERS = {
     starting_weapon: "quill_blaster",
     starting_gadget: "eraser_dash",
     passive: "Mürekkep Ustası: Dengeli öğrenme ve her alanda tam yetkinlik.",
-    sprite: "player.png",
+    sprite: "upgrade_v1/hero_inky.png",
     color: "#ffffff"
   },
   quillmaster: {
@@ -370,10 +428,10 @@ const CHARACTERS = {
     attack_speed_mult: 1.35,
     armor: 0.0,
     crit_chance: 0.20,
-    starting_weapon: "quote_pistols",
+    starting_weapon: "syllable_shotgun",
     starting_gadget: "chrono_comma",
     passive: "Zaman Bükücü: Chrono Comma ile başlar, yüksek seri atış.",
-    sprite: "player_quillmaster.png",
+    sprite: "upgrade_v1/hero_quillmaster.png",
     color: "#fff176"
   },
   word_knight: {
@@ -390,7 +448,7 @@ const CHARACTERS = {
     starting_weapon: "dictionary_blade",
     starting_gadget: "lexicon_aegis",
     passive: "Sözlük Kalkanı: Aegis Kalkanı ile başlar, ağır darbe soğurma.",
-    sprite: "player_knight.png",
+    sprite: "upgrade_v1/hero_word_knight.png",
     color: "#81c784"
   },
   rune_sorceress: {
@@ -407,7 +465,7 @@ const CHARACTERS = {
     starting_weapon: "rune_orb",
     starting_gadget: "ink_cataclysm",
     passive: "Rün İnfilakı: Düşmanları alt ettiğinde sıçrayan rün patlamaları.",
-    sprite: "player_sorceress.png",
+    sprite: "upgrade_v1/hero_rune_sorceress.png",
     color: "#c084fc"
   },
   lexicon_alchemist: {
@@ -424,7 +482,7 @@ const CHARACTERS = {
     starting_weapon: "ink_flamethrower",
     starting_gadget: "grammar_magnet",
     passive: "Simya Özütü: Her dalga başında +10 Mürekkep, can iksirleri +%50 etkili.",
-    sprite: "player_alchemist.png",
+    sprite: "upgrade_v1/hero_alchemist.png",
     color: "#34d399"
   },
   shadow_lexicographer: {
@@ -441,7 +499,7 @@ const CHARACTERS = {
     starting_weapon: "calligraphy_katana",
     starting_gadget: "eraser_dash",
     passive: "Kritik İnfaz: Kritik vuruşlar %250 hasar verir ve düşmanı yavaşlatır.",
-    sprite: "player_assassin.png",
+    sprite: "upgrade_v1/hero_shadow_scribe.png",
     color: "#f43f5e"
   }
 };
@@ -449,7 +507,7 @@ const CHARACTERS = {
 const DIFFICULTIES = {
   easy: {
     id: "easy",
-    name: "LGS / A1-A2 (Kolay & Akıcı)",
+    name: "A1–A2",
     desc: "Düşmanlar yavaş (%-25), canları az (%-35). Başlangıç canı +40 HP. Rahat öğrenme ortamı.",
     enemy_speed_mult: 0.75,
     enemy_hp_mult: 0.65,
@@ -459,7 +517,7 @@ const DIFFICULTIES = {
   },
   normal: {
     id: "normal",
-    name: "YKS-YDT / B1 (Orta - Dengeli Roguelite)",
+    name: "B1",
     desc: "Dengeli arcade deneyimi! Pürüzsüz dalga geçişleri, toplanabilir can parşömenleri ve ödüllendirici sorular.",
     enemy_speed_mult: 0.90,
     enemy_hp_mult: 0.85,
@@ -469,7 +527,7 @@ const DIFFICULTIES = {
   },
   hard: {
     id: "hard",
-    name: "IELTS-TOEFL / B2-C1 (Hardcore Meydan Okuma)",
+    name: "B2–C1",
     desc: "Akademik arena! Düşmanlar çevik, canları daha yüksek (%+15), yoğun düşman akını ve sınav tuzakları.",
     enemy_speed_mult: 1.08,
     enemy_hp_mult: 1.15,
@@ -665,6 +723,15 @@ const ARTIFACTS_CATALOG = {
 // =========================================
 // 5. GAME STATE
 // =========================================
+function readStoredBoolean(key, fallback) {
+  try {
+    const value = localStorage.getItem(key);
+    return value === null ? fallback : value === "true";
+  } catch (error) {
+    return fallback;
+  }
+}
+
 const state = {
   selected_char: "inky",
   difficulty: "normal",
@@ -694,8 +761,8 @@ const state = {
 
   // Game Speed, Auto New Tur (Wave) & Auto New Run
   game_speed: 1.0,
-  auto_new_tur: localStorage.getItem("lexicon_auto_new_tur") !== "false",
-  auto_new_run: localStorage.getItem("lexicon_auto_new_run") !== "false",
+  auto_new_tur: readStoredBoolean("lexicon_auto_new_tur", false),
+  auto_new_run: readStoredBoolean("lexicon_auto_new_run", false),
 
   // 100-Wave Progression
   current_wave: 1,
@@ -720,6 +787,8 @@ const state = {
     is_dashing: false,
     dash_timer: 0,
     dash_dir: { x: 1, y: 0 },
+    dash_hit_ids: new Set(),
+    attack_anim_timer: 0,
     slow_timer: 0
   },
   weapons: [],
@@ -803,6 +872,22 @@ for (let i = 0; i < 45; i++) {
 // =========================================
 const images = {};
 const spriteList = [
+  "upgrade_v1/hero_inky.png", "upgrade_v1/hero_quillmaster.png",
+  "upgrade_v1/hero_word_knight.png", "upgrade_v1/hero_rune_sorceress.png",
+  "upgrade_v1/hero_alchemist.png", "upgrade_v1/hero_shadow_scribe.png",
+  "upgrade_v1/animations/inky_idle_0.png", "upgrade_v1/animations/inky_idle_1.png", "upgrade_v1/animations/inky_idle_2.png", "upgrade_v1/animations/inky_idle_3.png", "upgrade_v1/animations/inky_run_0.png", "upgrade_v1/animations/inky_run_1.png", "upgrade_v1/animations/inky_run_2.png", "upgrade_v1/animations/inky_run_3.png", "upgrade_v1/animations/inky_attack_0.png", "upgrade_v1/animations/inky_attack_1.png", "upgrade_v1/animations/inky_attack_2.png", "upgrade_v1/animations/inky_attack_3.png",
+  "upgrade_v1/animations/word_knight_idle_0.png", "upgrade_v1/animations/word_knight_idle_1.png", "upgrade_v1/animations/word_knight_idle_2.png", "upgrade_v1/animations/word_knight_idle_3.png", "upgrade_v1/animations/word_knight_run_0.png", "upgrade_v1/animations/word_knight_run_1.png", "upgrade_v1/animations/word_knight_run_2.png", "upgrade_v1/animations/word_knight_run_3.png", "upgrade_v1/animations/word_knight_attack_0.png", "upgrade_v1/animations/word_knight_attack_1.png", "upgrade_v1/animations/word_knight_attack_2.png", "upgrade_v1/animations/word_knight_attack_3.png", "upgrade_v1/animations/shadow_scribe_idle_0.png", "upgrade_v1/animations/shadow_scribe_idle_1.png", "upgrade_v1/animations/shadow_scribe_idle_2.png", "upgrade_v1/animations/shadow_scribe_idle_3.png", "upgrade_v1/animations/shadow_scribe_run_0.png", "upgrade_v1/animations/shadow_scribe_run_1.png", "upgrade_v1/animations/shadow_scribe_run_2.png", "upgrade_v1/animations/shadow_scribe_run_3.png", "upgrade_v1/animations/shadow_scribe_attack_0.png", "upgrade_v1/animations/shadow_scribe_attack_1.png", "upgrade_v1/animations/shadow_scribe_attack_2.png", "upgrade_v1/animations/shadow_scribe_attack_3.png",
+  "upgrade_v1/animations/quillmaster_idle_0.png", "upgrade_v1/animations/quillmaster_idle_1.png", "upgrade_v1/animations/quillmaster_idle_2.png", "upgrade_v1/animations/quillmaster_idle_3.png", "upgrade_v1/animations/quillmaster_run_0.png", "upgrade_v1/animations/quillmaster_run_1.png", "upgrade_v1/animations/quillmaster_run_2.png", "upgrade_v1/animations/quillmaster_run_3.png", "upgrade_v1/animations/quillmaster_attack_0.png", "upgrade_v1/animations/quillmaster_attack_1.png", "upgrade_v1/animations/quillmaster_attack_2.png", "upgrade_v1/animations/quillmaster_attack_3.png",
+  "upgrade_v1/animations/rune_sorceress_idle_0.png", "upgrade_v1/animations/rune_sorceress_idle_1.png", "upgrade_v1/animations/rune_sorceress_idle_2.png", "upgrade_v1/animations/rune_sorceress_idle_3.png", "upgrade_v1/animations/rune_sorceress_run_0.png", "upgrade_v1/animations/rune_sorceress_run_1.png", "upgrade_v1/animations/rune_sorceress_run_2.png", "upgrade_v1/animations/rune_sorceress_run_3.png", "upgrade_v1/animations/rune_sorceress_attack_0.png", "upgrade_v1/animations/rune_sorceress_attack_1.png", "upgrade_v1/animations/rune_sorceress_attack_2.png", "upgrade_v1/animations/rune_sorceress_attack_3.png",
+  "upgrade_v1/animations/alchemist_idle_0.png", "upgrade_v1/animations/alchemist_idle_1.png", "upgrade_v1/animations/alchemist_idle_2.png", "upgrade_v1/animations/alchemist_idle_3.png", "upgrade_v1/animations/alchemist_run_0.png", "upgrade_v1/animations/alchemist_run_1.png", "upgrade_v1/animations/alchemist_run_2.png", "upgrade_v1/animations/alchemist_run_3.png", "upgrade_v1/animations/alchemist_attack_0.png", "upgrade_v1/animations/alchemist_attack_1.png", "upgrade_v1/animations/alchemist_attack_2.png", "upgrade_v1/animations/alchemist_attack_3.png",
+  "upgrade_v1/monster_grammar_goblin.png", "upgrade_v1/monster_typo_slime.png",
+  "upgrade_v1/monster_punctuation_phantom.png", "upgrade_v1/monster_spelling_spectre.png",
+  "upgrade_v1/monster_typo_splinter.png", "upgrade_v1/monster_homophone_harpy.png",
+  "upgrade_v1/monster_idiom_imp.png", "upgrade_v1/monster_tautology_twin.png",
+  "upgrade_v1/monster_dangling_modifier.png", "upgrade_v1/monster_double_negative_drake.png",
+  "upgrade_v1/monster_run_on_reaper.png",
+  "upgrade_v1/monster_lexicon_dragon_boss.png", "upgrade_v1/monster_red_pen_boss.png",
+  "upgrade_v1/threat_seal.png",
   "player.png", "player_quillmaster.png", "player_knight.png",
   "player_sorceress.png", "player_alchemist.png", "player_assassin.png",
   // 14 Weapons
@@ -826,6 +911,9 @@ const spriteList = [
   "tautology_twin.png", "run_on_reaper.png", "dangling_modifier.png",
   "double_negative_drake.png", "palindrome_phantom.png",
   // Environment & UI
+  "upgrade_v1/arena_dungeon.png", "upgrade_v1/arena_observatory.png", "upgrade_v1/arena_void.png",
+  "upgrade_v1/arena_frame_library.png", "upgrade_v1/arena_frame_dungeon.png",
+  "upgrade_v1/arena_frame_observatory.png", "upgrade_v1/arena_frame_void.png",
   "tile_floor.png", "tile_library_parquet.png", "magical_rune_circle.png",
   "tile_dungeon_stone.png", "magical_rune_cyan.png",
   "tile_astral_observatory.png", "magical_rune_astral.png",
@@ -836,12 +924,28 @@ const spriteList = [
 
 function loadAssets(callback) {
   let loaded = 0;
+  const generatedEnemyAliases = {
+    "upgrade_v1/monster_grammar_goblin.png": "grammar_goblin.png",
+    "upgrade_v1/monster_typo_slime.png": "typo_slime.png",
+    "upgrade_v1/monster_punctuation_phantom.png": "punctuation_phantom.png",
+    "upgrade_v1/monster_spelling_spectre.png": "spelling_spectre.png",
+    "upgrade_v1/monster_typo_splinter.png": "typo_splinter.png",
+    "upgrade_v1/monster_homophone_harpy.png": "homophone_harpy.png",
+    "upgrade_v1/monster_idiom_imp.png": "idiom_imp.png",
+    "upgrade_v1/monster_tautology_twin.png": "tautology_twin.png",
+    "upgrade_v1/monster_dangling_modifier.png": "dangling_modifier.png",
+    "upgrade_v1/monster_double_negative_drake.png": "double_negative_drake.png",
+    "upgrade_v1/monster_run_on_reaper.png": "run_on_reaper.png",
+    "upgrade_v1/monster_lexicon_dragon_boss.png": "lexicon_dragon_boss.png",
+    "upgrade_v1/monster_red_pen_boss.png": "red_pen_boss.png"
+  };
   spriteList.forEach(name => {
     const img = new Image();
     img.src = "assets/sprites/" + name;
     img.onload = () => {
       loaded++;
       images[name] = img;
+      if (generatedEnemyAliases[name]) images[generatedEnemyAliases[name]] = img;
       if (loaded === spriteList.length) callback();
     };
     img.onerror = () => {
@@ -916,17 +1020,22 @@ if (touchToggleBtn) {
 }
 
 const musicBtn = document.getElementById("music-btn");
+function toggleMusic() {
+  sounds.init();
+  if (!bgm.isPlaying) {
+    bgm.isMuted = false;
+    bgm.start();
+    return true;
+  }
+  return bgm.toggleMute();
+}
+
 if (musicBtn) {
   musicBtn.onclick = (e) => {
     e.stopPropagation();
-    sounds.init();
-    if (!bgm.isPlaying) {
-      bgm.start();
-      musicBtn.textContent = "🎵 MÜZİK";
-    } else {
-      const isUnmuted = bgm.toggleMute();
-      musicBtn.textContent = isUnmuted ? "🎵 MÜZİK" : "🔇 MÜZİK";
-    }
+    const isUnmuted = toggleMusic();
+    musicBtn.textContent = isUnmuted ? "MÜZİK" : "MÜZİK KAPALI";
+    updateMobileQuickMenuUI();
   };
 }
 
@@ -940,13 +1049,13 @@ function setGameSpeed(speed) {
   const speedText = speed.toFixed(1) + "x";
 
   const speedBtn = document.getElementById("speed-btn");
-  if (speedBtn) speedBtn.textContent = `⚡ ${speedText}`;
+  if (speedBtn) speedBtn.textContent = `HIZ ${speedText}`;
   const titleSpeedBtn = document.getElementById("title-speed-btn");
-  if (titleSpeedBtn) titleSpeedBtn.textContent = `⚡ Hız: ${speedText}`;
+  if (titleSpeedBtn) titleSpeedBtn.innerHTML = `<img class="ui-icon" src="assets/ui/icons/speed.svg" alt="">Hız: ${speedText}`;
 
   const toast = document.getElementById("speed-toast");
   if (toast) {
-    toast.textContent = `⚡ OYUN HIZI: ${speedText}`;
+    toast.textContent = `OYUN HIZI: ${speedText}`;
     toast.style.display = "block";
     toast.style.opacity = "1";
     clearTimeout(toast._timer);
@@ -988,19 +1097,19 @@ function updateAutoTurUI() {
   const isAuto = !!state.auto_new_tur;
   const btn = document.getElementById("auto-tur-btn");
   if (btn) {
-    btn.textContent = isAuto ? "🔄 OTO TUR: AÇIK" : "🔄 OTO TUR: KAPALI";
-    btn.style.color = isAuto ? "#00b894" : "var(--gold-bright)";
-    btn.style.borderColor = isAuto ? "#00b894" : "var(--gold-dark)";
+    btn.textContent = isAuto ? "OTO TUR: AÇIK" : "OTO TUR: KAPALI";
+    btn.style.color = isAuto ? "#587767" : "#7c7668";
+    btn.style.borderColor = isAuto ? "#718a79" : "#827965";
   }
   const titleBtn = document.getElementById("title-auto-tur-btn");
   if (titleBtn) {
-    titleBtn.textContent = isAuto ? "🔄 Otomatik Yeni Tur: AÇIK" : "🔄 Otomatik Yeni Tur: KAPALI";
-    titleBtn.style.color = isAuto ? "#00b894" : "var(--gold-bright)";
+    titleBtn.textContent = isAuto ? "Otomatik Tur: AÇIK" : "Otomatik Tur: KAPALI";
+    titleBtn.style.color = isAuto ? "#587767" : "#7c7668";
   }
   const shopBtn = document.getElementById("shop-auto-tur-btn");
   if (shopBtn) {
-    shopBtn.textContent = isAuto ? "🔄 Oto Tur: AÇIK" : "🔄 Oto Tur: KAPALI";
-    shopBtn.style.color = isAuto ? "#00b894" : "var(--gold-bright)";
+    shopBtn.textContent = isAuto ? "Oto Tur: AÇIK" : "Oto Tur: KAPALI";
+    shopBtn.style.color = isAuto ? "#587767" : "#7c7668";
   }
 }
 
@@ -1022,9 +1131,9 @@ function startShopAutoWaveCountdown(seconds) {
   shopAutoWaveTimer = setInterval(() => {
     const leftMs = shopAutoWaveEndTime - Date.now();
     const leftSec = Math.max(0, Math.ceil(leftMs / 1000));
-    label.textContent = `⏳ Otomatik Sonraki Tur: ${leftSec}s`;
+    label.textContent = `Otomatik sonraki tur: ${leftSec}s`;
     if (nextWaveText) {
-      nextWaveText.textContent = `SONRAKİ DALGAYA ATIL ⚔ (${leftSec}s)`;
+      nextWaveText.textContent = `SONRAKİ DALGA · ${leftSec}s`;
     }
     const pct = Math.max(0, Math.min(100, (leftMs / (seconds * 1000)) * 100));
     bar.style.width = pct + "%";
@@ -1045,13 +1154,15 @@ function clearShopAutoWaveTimer() {
   if (container) container.style.display = "none";
   const nextWaveText = document.getElementById("shop-next-wave-text");
   if (nextWaveText) {
-    nextWaveText.textContent = "SONRAKİ DALGAYA ATIL ⚔";
+    nextWaveText.textContent = "SONRAKİ DALGA";
   }
 }
 
 function advanceNextWave() {
+  const shopScreen = document.getElementById("shop-screen");
+  if (state.is_wave_active || !shopScreen || shopScreen.style.display === "none" || state.current_wave >= state.max_waves) return;
   clearShopAutoWaveTimer();
-  document.getElementById("shop-screen").style.display = "none";
+  shopScreen.style.display = "none";
   state.current_wave++;
   startWave();
   syncMobileControlsVisibility();
@@ -1069,19 +1180,19 @@ function updateAutoRunUI() {
   const isAuto = !!state.auto_new_run;
   const btn = document.getElementById("auto-run-btn");
   if (btn) {
-    btn.textContent = isAuto ? "⚡ OTO RUN: AÇIK" : "⚡ OTO RUN: KAPALI";
-    btn.style.color = isAuto ? "#00b894" : "var(--gold-bright)";
-    btn.style.borderColor = isAuto ? "#00b894" : "var(--gold-dark)";
+    btn.textContent = isAuto ? "OTO RUN: AÇIK" : "OTO RUN: KAPALI";
+    btn.style.color = isAuto ? "#587767" : "#7c7668";
+    btn.style.borderColor = isAuto ? "#718a79" : "#827965";
   }
   const titleBtn = document.getElementById("title-auto-run-btn");
   if (titleBtn) {
-    titleBtn.textContent = isAuto ? "⚡ Otomatik Yeni Run: AÇIK" : "⚡ Otomatik Yeni Run: KAPALI";
-    titleBtn.style.color = isAuto ? "#00b894" : "var(--gold-bright)";
+    titleBtn.textContent = isAuto ? "Otomatik Yeni Run: AÇIK" : "Otomatik Yeni Run: KAPALI";
+    titleBtn.style.color = isAuto ? "#587767" : "#7c7668";
   }
   const goBtn = document.getElementById("gameover-auto-run-toggle");
   if (goBtn) {
-    goBtn.textContent = isAuto ? "⚡ Oto Run: AÇIK" : "⚡ Oto Run: KAPALI";
-    goBtn.style.color = isAuto ? "#00b894" : "var(--gold-bright)";
+    goBtn.textContent = isAuto ? "Oto Run: AÇIK" : "Oto Run: KAPALI";
+    goBtn.style.color = isAuto ? "#587767" : "#7c7668";
   }
 }
 
@@ -1102,7 +1213,7 @@ function startAutoRunCountdown(seconds) {
   autoRunTimer = setInterval(() => {
     const leftMs = autoRunEndTime - Date.now();
     const leftSec = Math.max(0, Math.ceil(leftMs / 1000));
-    text.textContent = `🔄 Otomatik Yeni Run Başlatılıyor: ${leftSec}s`;
+    text.textContent = `Otomatik yeni run: ${leftSec}s`;
     const pct = Math.max(0, Math.min(100, (leftMs / (seconds * 1000)) * 100));
     bar.style.width = pct + "%";
 
@@ -1226,12 +1337,6 @@ if (shopCancelAutoBtn) {
   };
 }
 
-const shopNextWaveBtn = document.getElementById("shop-next-wave-btn");
-if (shopNextWaveBtn) {
-  shopNextWaveBtn.onclick = advanceNextWave;
-  shopNextWaveBtn.addEventListener("pointerup", advanceNextWave);
-}
-
 // Inventory modal toggle
 document.getElementById("inventory-btn").onclick = () => toggleInventoryModal();
 document.getElementById("close-inventory-btn").onclick = () => toggleInventoryModal(false);
@@ -1270,27 +1375,27 @@ function updateMobileQuickMenuUI() {
 
   const autoTurBtn = document.getElementById("mobile-toggle-autowave-btn");
   if (autoTurBtn) {
-    autoTurBtn.textContent = state.auto_new_tur ? "🔄 Otomatik Yeni Tur: AÇIK" : "🔄 Otomatik Yeni Tur: KAPALI";
+    autoTurBtn.textContent = state.auto_new_tur ? "Otomatik Tur: AÇIK" : "Otomatik Tur: KAPALI";
     if (state.auto_new_tur) autoTurBtn.classList.add("btn-emerald");
     else autoTurBtn.classList.remove("btn-emerald");
   }
 
   const autoRunBtn = document.getElementById("mobile-toggle-autorun-btn");
   if (autoRunBtn) {
-    autoRunBtn.textContent = state.auto_new_run ? "⚡ Otomatik Yeni Run: AÇIK" : "⚡ Otomatik Yeni Run: KAPALI";
+    autoRunBtn.textContent = state.auto_new_run ? "Otomatik Run: AÇIK" : "Otomatik Run: KAPALI";
     if (state.auto_new_run) autoRunBtn.classList.add("btn-emerald");
     else autoRunBtn.classList.remove("btn-emerald");
   }
 
   const musicBtn = document.getElementById("mobile-toggle-music-btn");
   if (musicBtn) {
-    musicBtn.textContent = bgm.enabled ? "🎵 Müzik: AÇIK" : "🎵 Müzik: KAPALI";
+    musicBtn.textContent = bgm.isMuted ? "Müzik: KAPALI" : "Müzik: AÇIK";
   }
 
   const joyBtn = document.getElementById("mobile-toggle-joy-btn");
   if (joyBtn) {
     const active = state.show_touch_controls !== false;
-    joyBtn.textContent = active ? "📱 Sanal Joystick: AÇIK" : "📱 Sanal Joystick: KAPALI";
+    joyBtn.textContent = active ? "Sanal joystick: açık" : "Sanal joystick: kapalı";
   }
 }
 
@@ -1385,11 +1490,14 @@ document.querySelectorAll(".mobile-speed-opt").forEach(btn => {
   };
 });
 
-function triggerTacticalAlert(title, desc) {
+function triggerTacticalAlert(title, desc, tone = "threat") {
   const banner = document.getElementById("tactical-alert-banner");
   const titleEl = document.getElementById("tactical-alert-title");
   const descEl = document.getElementById("tactical-alert-desc");
   if (!banner || !titleEl || !descEl) return;
+  const isBiome = tone === "biome";
+  banner.style.borderColor = isBiome ? "#7b8978" : "#a75d50";
+  titleEl.style.color = isBiome ? "#c9cfb3" : "#e2a79c";
   titleEl.textContent = title;
   descEl.textContent = desc;
   banner.style.display = "block";
@@ -1399,6 +1507,61 @@ function triggerTacticalAlert(title, desc) {
     banner.style.opacity = "0";
     setTimeout(() => { banner.style.display = "none"; }, 400);
   }, 4200);
+}
+
+const chapterTransitions = [
+  {
+    title: "KARANLIK KÜTÜPHANE",
+    kicker: "BÖLÜM I · DALGALAR 01–25",
+    narration: "Kayıp kelimeleri rafların arasından geri çağır.",
+    accent: "#c5aa72",
+    numeral: "I"
+  },
+  {
+    title: "SÖZ DEHLİZİ",
+    kicker: "BÖLÜM II · DALGALAR 26–50",
+    narration: "Taş kapı açılır; duvarlardaki yanlış kelimeler uyanır.",
+    accent: "#99a99d",
+    numeral: "II"
+  },
+  {
+    title: "ASTRAL GÖZLEMEVİ",
+    kicker: "BÖLÜM III · DALGALAR 51–75",
+    narration: "Dehlizin son kapısı açılır; yıldızlar yeni sözcükler dizer.",
+    accent: "#9baad1",
+    numeral: "III"
+  },
+  {
+    title: "SON SAYFA",
+    kicker: "BÖLÜM IV · DALGALAR 76–100",
+    narration: "Kitap kapanır; boşlukta son kelimeler uyanır.",
+    accent: "#bd91b7",
+    numeral: "IV"
+  }
+];
+
+let chapterCardTimeout = null;
+
+function showChapterCard(stageIndex) {
+  const chapter = chapterTransitions[Math.max(0, Math.min(chapterTransitions.length - 1, stageIndex))];
+  const card = document.getElementById("chapter-transition-card");
+  if (!card) return;
+  card.style.setProperty("--chapter-accent", chapter.accent);
+  document.getElementById("chapter-transition-kicker").textContent = chapter.kicker;
+  document.getElementById("chapter-transition-number").textContent = chapter.numeral;
+  document.getElementById("chapter-transition-title").textContent = chapter.title;
+  document.getElementById("chapter-transition-narration").textContent = chapter.narration;
+  card.hidden = false;
+  card.classList.remove("is-leaving");
+  if (chapterCardTimeout) clearTimeout(chapterCardTimeout);
+  chapterCardTimeout = setTimeout(() => {
+    card.classList.add("is-leaving");
+    setTimeout(() => { card.hidden = true; }, 350);
+  }, 5600);
+}
+
+function getChapterForWave(wave) {
+  return chapterTransitions[wave >= 76 ? 3 : wave >= 51 ? 2 : wave >= 26 ? 1 : 0];
 }
 
 function toggleInventoryModal(forcedState) {
@@ -1438,9 +1601,8 @@ function renderMistakesList() {
 
   if (!state.mistake_words || state.mistake_words.length === 0) {
     listEl.innerHTML = `
-      <div style="text-align: center; padding: 25px; font-family: 'Lora', serif; color: #1b4d2e;">
-        <div style="font-size: 32px; margin-bottom: 6px;">📜✨</div>
-        <strong style="font-size: 16px; font-family: 'Cinzel', serif;">KÂTİP DEFTERİ TERTEMİZ!</strong>
+      <div style="text-align: center; padding: 25px; font-family: 'IBM Plex Sans', serif; color: #1b4d2e;">
+        <strong style="font-size: 16px; font-family: 'IBM Plex Serif', serif;">Hata defteri temiz</strong>
         <p style="font-size: 13px; color: #634325; margin-top: 4px;">Henüz bilinemeyen bir kelime yok. Sınavlarda harika bir başarı gösteriyorsun!</p>
       </div>
     `;
@@ -1542,7 +1704,10 @@ function selectWeaponIndex(idx) {
 // =========================================
 // 7.5 MOBILE VIRTUAL JOYSTICK & TOUCH CONTROLS
 // =========================================
+let touchControlsInitialized = false;
 function initTouchControls() {
+  if (touchControlsInitialized) return;
+  touchControlsInitialized = true;
   const joystickZone = document.getElementById("joystick-zone");
   const joystickBase = document.getElementById("joystick-base");
   const joystickKnob = document.getElementById("joystick-knob");
@@ -1559,8 +1724,7 @@ function initTouchControls() {
       triggerHaptic("light");
       cycleActiveWeapon(1);
     };
-    touchWeaponBtn.addEventListener("pointerdown", cycleWeapon);
-    touchWeaponBtn.addEventListener("touchstart", cycleWeapon, { passive: false });
+    touchWeaponBtn.onclick = cycleWeapon;
   }
 
   if (touchGadgetBtn) {
@@ -1570,8 +1734,7 @@ function initTouchControls() {
       triggerHaptic("medium");
       activateActiveGadget();
     };
-    touchGadgetBtn.addEventListener("pointerdown", fireGadget);
-    touchGadgetBtn.addEventListener("touchstart", fireGadget, { passive: false });
+    touchGadgetBtn.onclick = fireGadget;
   }
 
   if (touchInvBtn) {
@@ -1581,8 +1744,7 @@ function initTouchControls() {
       triggerHaptic("light");
       toggleInventoryModal();
     };
-    touchInvBtn.addEventListener("pointerdown", openInv);
-    touchInvBtn.addEventListener("touchstart", openInv, { passive: false });
+    touchInvBtn.onclick = openInv;
   }
 
   if (touchMistakesBtn) {
@@ -1592,8 +1754,7 @@ function initTouchControls() {
       triggerHaptic("light");
       toggleMistakesModal();
     };
-    touchMistakesBtn.addEventListener("pointerdown", openMistakes);
-    touchMistakesBtn.addEventListener("touchstart", openMistakes, { passive: false });
+    touchMistakesBtn.onclick = openMistakes;
   }
 
   if (!joystickZone || !joystickBase || !joystickKnob) return;
@@ -1657,43 +1818,42 @@ function initTouchControls() {
     updateJoystickPosition(clientX, clientY);
   };
 
+  const supportsPointerEvents = "PointerEvent" in window;
   if (touchSurface) {
-    touchSurface.addEventListener("pointerdown", (e) => {
+    if (supportsPointerEvents) touchSurface.addEventListener("pointerdown", (e) => {
       startFloatingAt(e.clientX, e.clientY, e.pointerId);
       try { touchSurface.setPointerCapture(e.pointerId); } catch(err){}
       e.preventDefault();
     });
-
-    touchSurface.addEventListener("touchstart", (e) => {
+    else touchSurface.addEventListener("touchstart", (e) => {
       const touch = e.changedTouches[0];
       startFloatingAt(touch.clientX, touch.clientY, touch.identifier);
       e.preventDefault();
     }, { passive: false });
   }
 
-  joystickZone.addEventListener("pointerdown", (e) => {
+  const onJoystickPointerDown = (e) => {
     if (activeTouchId !== null) return;
     startFloatingAt(e.clientX, e.clientY, e.pointerId);
     try { joystickZone.setPointerCapture(e.pointerId); } catch(err){}
     e.preventDefault();
-  });
+  };
+  const onJoystickTouchStart = (e) => {
+    if (activeTouchId !== null || !e.changedTouches.length) return;
+    const touch = e.changedTouches[0];
+    startFloatingAt(touch.clientX, touch.clientY, touch.identifier);
+    e.preventDefault();
+  };
+  if (supportsPointerEvents) joystickZone.addEventListener("pointerdown", onJoystickPointerDown);
+  else joystickZone.addEventListener("touchstart", onJoystickTouchStart, { passive: false });
 
-  window.addEventListener("pointermove", (e) => {
+  const onPointerMove = (e) => {
     if (activeTouchId === e.pointerId) {
       updateJoystickPosition(e.clientX, e.clientY);
       e.preventDefault();
     }
-  });
-
-  const endPointer = (e) => {
-    if (activeTouchId === e.pointerId) {
-      resetJoystick();
-    }
   };
-  window.addEventListener("pointerup", endPointer);
-  window.addEventListener("pointercancel", endPointer);
-
-  window.addEventListener("touchmove", (e) => {
+  const onTouchMove = (e) => {
     if (activeTouchId === null) return;
     for (let i = 0; i < e.changedTouches.length; i++) {
       const touch = e.changedTouches[i];
@@ -1703,7 +1863,19 @@ function initTouchControls() {
         break;
       }
     }
-  }, { passive: false });
+  };
+  if (supportsPointerEvents) window.addEventListener("pointermove", onPointerMove);
+  else window.addEventListener("touchmove", onTouchMove, { passive: false });
+
+  const endPointer = (e) => {
+    if (activeTouchId === e.pointerId) {
+      resetJoystick();
+    }
+  };
+  if (supportsPointerEvents) {
+    window.addEventListener("pointerup", endPointer);
+    window.addEventListener("pointercancel", endPointer);
+  }
 
   const endTouch = (e) => {
     if (activeTouchId === null) return;
@@ -1714,8 +1886,10 @@ function initTouchControls() {
       }
     }
   };
-  window.addEventListener("touchend", endTouch);
-  window.addEventListener("touchcancel", endTouch);
+  if (!supportsPointerEvents) {
+    window.addEventListener("touchend", endTouch);
+    window.addEventListener("touchcancel", endTouch);
+  }
 }
 
 // =========================================
@@ -1752,6 +1926,10 @@ function initTitleScreen() {
     const c = CHARACTERS[cid];
     const card = document.createElement("div");
     card.className = "choice-card" + (cid === state.selected_char ? " selected" : "");
+    card.setAttribute("role", "button");
+    card.setAttribute("aria-pressed", String(cid === state.selected_char));
+    card.setAttribute("aria-label", `${c.name} karakterini seç`);
+    card.tabIndex = 0;
     card.innerHTML = `
       <div style="display: flex; justify-content: space-between; align-items: center; width: 100%;">
         <div style="display: flex; align-items: center; gap: 8px;">
@@ -1762,11 +1940,11 @@ function initTitleScreen() {
           </div>
         </div>
         <div class="stats-text" style="font-size: 9.5px; text-align: right; line-height: 1.25;">
-          ❤️ ${c.hp} HP | ⚔️ ${c.damage_mult}x<br>⚡ ${c.speed} HIZ ${c.armor > 0 ? '| 🛡️ +%' + Math.round(c.armor*100) : ''}
+          ${c.hp} HP | ${c.damage_mult}× hasar<br>${c.speed} hız ${c.armor > 0 ? '| %' + Math.round(c.armor*100) + ' zırh' : ''}
         </div>
       </div>
       <div class="desc" style="font-size: 10.5px; margin: 3px 0 2px 0;">${c.desc}</div>
-      <div class="passive" style="font-size: 9.5px; padding-top: 2px;">✦ ${c.passive}</div>
+      <div class="passive" style="font-size: 9.5px; padding-top: 2px;">${c.passive}</div>
     `;
 
     const pickChar = (e) => {
@@ -1777,7 +1955,12 @@ function initTitleScreen() {
       initTitleScreen();
     };
     card.onclick = pickChar;
-    card.addEventListener("pointerup", pickChar);
+    card.onkeydown = (e) => {
+      if (e.key === "Enter" || e.key === " ") {
+        e.preventDefault();
+        pickChar(e);
+      }
+    };
     charGrid.appendChild(card);
   });
 
@@ -1796,7 +1979,6 @@ function initTitleScreen() {
       initTitleScreen();
     };
     btn.onclick = pickDiff;
-    btn.addEventListener("pointerup", pickDiff);
     diffContainer.appendChild(btn);
   });
 
@@ -1808,6 +1990,7 @@ function initTitleScreen() {
 
 const onStartGame = (e) => {
   if (e) e.stopPropagation();
+  if (state.is_wave_active) return;
   sounds.init();
   bgm.start();
   bgm.setMode("battle");
@@ -1815,7 +1998,6 @@ const onStartGame = (e) => {
   startGame();
 };
 document.getElementById("start-game-btn").onclick = onStartGame;
-document.getElementById("start-game-btn").addEventListener("pointerup", onStartGame);
 
 function resetStats() {
   const c = CHARACTERS[state.selected_char];
@@ -1857,6 +2039,8 @@ function resetStats() {
   state.player.invuln_timer = 0;
   state.player.is_dashing = false;
   state.player.dash_timer = 0;
+  state.player.dash_hit_ids = new Set();
+  state.player.attack_anim_timer = 0;
   state.player.slow_timer = 0;
 
   state.enemies = [];
@@ -1888,6 +2072,10 @@ function syncWeapons() {
       tier_data: tierBonus,
       shoot_timer: 0.1 * i,
       rotation: 0,
+      recoil: 0,
+      flash_timer: 0,
+      swing_timer: 0,
+      swing_hit: false,
       is_active: (i === state.active_weapon_index),
       alt_side: false
     });
@@ -1903,32 +2091,36 @@ function startWave() {
   state.wave_duration = Math.min(42.0, 22.0 + (state.current_wave - 1) * 0.25);
   state.wave_time_left = state.wave_duration;
   state.is_wave_active = true;
+  if (state.selected_char === "lexicon_alchemist") state.ink_count += 10;
   document.getElementById("shop-screen").style.display = "none";
   updateHUD();
   syncMobileControlsVisibility();
   bgm.start();
   bgm.setMode(state.current_wave % 5 === 0 ? "boss" : "battle");
+  bgm.setBiomeForWave(state.current_wave);
 
   // Tactical Alert Announcements on Key Waves
   const w = state.current_wave;
-  if (w === 10) {
-    triggerTacticalAlert("⚔️ ELEBAŞI MUHAREBESİ: RED PEN INQUISITOR", "Elebaşının etrafında dönün ve kırmızı mermilerden sakının!");
+  if (w === 1 || w === 26 || w === 51 || w === 76) {
+    showChapterCard(w >= 76 ? 3 : w >= 51 ? 2 : w >= 26 ? 1 : 0);
+  } else if (w === 10) {
+    triggerTacticalAlert("RED PEN INQUISITOR", "Elebaşının etrafında dönün ve kırmızı mermilerden sakının!");
   } else if (w === 15) {
-    triggerTacticalAlert("🛡️ TAKTİKSEL TEHDİT: KALKANLI MUHAFIZLAR SAHADA!", "Ön zırhları %75 hasar emer! Arkadan vurun veya patlayıcı bomba kullanın!");
+    triggerTacticalAlert("KALKANLI MUHAFIZLAR", "Ön zırhları %75 hasar emer. Arkadan vurun veya bomba kullanın.");
   } else if (w === 25) {
-    triggerTacticalAlert("⚡ TEHLİKE: IŞINLANAN SUİKASTÇİLER & 3 ELEBAŞI!", "Kırmızı zemin işaretlerine dikkat edin, göründüğünde Silgi Atılımı yapın!");
+    triggerTacticalAlert("IŞINLANAN SUİKASTÇİLER", "Kırmızı zemin işaretlerine dikkat edin; belirdiklerinde Silgi Atılımı yapın.");
   } else if (w === 35) {
-    triggerTacticalAlert("🔮 ÖNCELİK HEDEF: AURA LİDERLERİ SAHADA!", "Etrafındaki canavarları %35 hızlandırır! Önce komutanları avlayın!");
+    triggerTacticalAlert("AURA LİDERLERİ", "Yakındaki canavarları %35 hızlandırırlar. Önce liderleri hedefleyin.");
   } else if (w === 50) {
-    triggerTacticalAlert("🐉 BÜYÜK MUHAREBE: BÜYÜK LEKSİKON EJDERHASI & 4 ELEBAŞI!", "Lazer çizgilerinden kaçının, mermi fırtınasında atılımı doğru zamanlayın!");
+    triggerTacticalAlert("LEKSİKON EJDERHASI", "Lazer çizgilerinden kaçının; mermi fırtınasında atılımı zamanlayın.");
   } else if (w === 65) {
-    triggerTacticalAlert("💣 TAKTİKSEL FIRSAT: PATLAYICI GOLEMLER!", "Ölüm patlamalarını düşman sürülerine karşı lehinize kullanın!");
+    triggerTacticalAlert("PATLAYICI GOLEMLER", "Ölüm patlamalarını düşman sürülerine karşı kullanın.");
   } else if (w === 75) {
-    triggerTacticalAlert("🌪️ ASTROLABE MERKEZİ: DUAL KOZMİK ELEBAŞLARI!", "Kozmik çekim ve spiral mermilere karşı hareketli kalın!");
+    triggerTacticalAlert("ASTROLABE MERKEZİ", "Kozmik çekim ve spiral mermilere karşı hareketli kalın.");
   } else if (w === 85) {
-    triggerTacticalAlert("⚠️ OMEGA TEHLİKE: ŞAMPİYONLAR ORDUSU!", "Kalkanlılar ve Aura liderleri bir arada! Taktiksel silah değişimi yapın!");
+    triggerTacticalAlert("ŞAMPİYONLAR ORDUSU", "Kalkanlılar ve Aura liderleri birlikte. Silahınızı duruma göre değiştirin.");
   } else if (w === 100) {
-    triggerTacticalAlert("✦ NİHAİ KIYAMET: OMEGA EJDERHA & 7 ELEBAŞI KUŞATMASI! ✦", "Tüm cephaneliğinizi ve gadget cihazlarınızı konuşturun!");
+    triggerTacticalAlert("OMEGA EJDERHA", "Son kuşatma başladı. Cephaneliğinizi ve gereçlerinizi kullanın.");
   }
 
   // Milestone Boss every 5 waves
@@ -1940,8 +2132,10 @@ function startWave() {
 }
 
 function endWave() {
+  if (!state.is_wave_active) return;
   state.is_wave_active = false;
-  state.enemies.forEach(e => spawnInkDrop(e.x, e.y, e.ink_reward));
+  // Enemies still alive when the timer expires were not defeated by the player.
+  // Clear them without awarding kill credit, drops, or rewards.
   state.enemies = [];
   state.enemy_projectiles = [];
   state.active_boss = null;
@@ -1986,13 +2180,15 @@ function activateActiveGadget() {
     p.is_dashing = true;
     p.dash_timer = 0.22;
     p.dash_dir = { x: dx, y: dy };
+    p.dash_hit_ids = new Set();
     p.invuln_timer = 0.28;
     triggerHaptic("medium");
     triggerScreenShake(0.12, 3.5);
 
     const eraseDmg = 65.0 * state.damage_mult;
     state.enemies.forEach(e => {
-      if (Math.hypot(e.x - p.x, e.y - p.y) < 75) {
+      if (!p.dash_hit_ids.has(e) && Math.hypot(e.x - p.x, e.y - p.y) < 75) {
+        p.dash_hit_ids.add(e);
         e.hp -= eraseDmg;
         e.vx = dx * 360; e.vy = dy * 360;
         addFloatingText(e.x, e.y - 12, `${Math.round(eraseDmg)}`, "#55efc4", 15);
@@ -2048,6 +2244,7 @@ function updatePlayer(dt) {
   if (state.chrono_timer > 0) state.chrono_timer -= dt;
   if (p.invuln_timer > 0) p.invuln_timer -= dt;
   if (p.slow_timer > 0) p.slow_timer -= dt;
+  if (p.attack_anim_timer > 0) p.attack_anim_timer = Math.max(0, p.attack_anim_timer - dt);
 
   const effectiveSpeed = p.slow_timer > 0 ? state.move_speed * 0.72 : state.move_speed;
 
@@ -2059,7 +2256,8 @@ function updatePlayer(dt) {
 
     const eraseDmg = 65.0 * state.damage_mult;
     state.enemies.forEach(e => {
-      if (Math.hypot(e.x - p.x, e.y - p.y) < 65) {
+      if (!p.dash_hit_ids.has(e) && Math.hypot(e.x - p.x, e.y - p.y) < 65) {
+        p.dash_hit_ids.add(e);
         e.hp -= eraseDmg;
         e.vx = p.dash_dir.x * 320;
         e.vy = p.dash_dir.y * 320;
@@ -2090,8 +2288,8 @@ function updatePlayer(dt) {
     if (dx !== 0) p.facing_left = dx < 0;
   }
 
-  p.x = Math.max(-1150, Math.min(1150, p.x));
-  p.y = Math.max(-850, Math.min(850, p.y));
+  p.x = Math.max(-1168, Math.min(1168, p.x));
+  p.y = Math.max(-868, Math.min(868, p.y));
 
   // Ink drops
   state.ink_drops.forEach(drop => {
@@ -2105,7 +2303,7 @@ function updatePlayer(dt) {
         sounds.pickup();
         const earned = Math.ceil(drop.value * state.ink_mult);
         state.ink_count += earned;
-        addFloatingText(p.x + (Math.random() - 0.5) * 20, p.y - 20, `+${earned} 💧`, "#38bdf8", 12);
+        addFloatingText(p.x + (Math.random() - 0.5) * 20, p.y - 20, `+${earned}`, "#a9c6b6", 12);
         updateHUD();
       }
     }
@@ -2122,8 +2320,9 @@ function updatePlayer(dt) {
       if (dist < 26) {
         drop.collected = true;
         sounds.pickup();
-        state.hp = Math.min(state.max_hp, state.hp + drop.value);
-        addFloatingText(p.x, p.y - 25, `+${drop.value} HP`, "#4ade80", 14);
+        const healing = Math.round(drop.value * (state.selected_char === "lexicon_alchemist" ? 1.5 : 1.0));
+        state.hp = Math.min(state.max_hp, state.hp + healing);
+        addFloatingText(p.x, p.y - 25, `+${healing} HP`, "#4ade80", 14);
         triggerHaptic("light");
         state.particles.push({
           x: p.x, y: p.y, radius: 10, max_radius: 50,
@@ -2163,6 +2362,16 @@ function updatePlayer(dt) {
   // ALL SLOTTED WEAPONS FIRE SIMULTANEOUSLY (Brotato Mechanic!)
   state.weapons.forEach((w, idx) => {
     w.shoot_timer -= dt;
+    w.recoil = Math.max(0, (w.recoil || 0) - dt * 8.5);
+    w.flash_timer = Math.max(0, (w.flash_timer || 0) - dt);
+    if (w.swing_timer > 0) {
+      const previousSwing = w.swing_timer;
+      w.swing_timer = Math.max(0, w.swing_timer - dt);
+      if (!w.swing_hit && previousSwing > 0.11 && w.swing_timer <= 0.11) {
+        w.swing_hit = true;
+        resolveMeleeWeaponHit(w);
+      }
+    }
 
     let nearest = null;
     let minDist = 650;
@@ -2174,9 +2383,7 @@ function updatePlayer(dt) {
       }
     });
 
-    if (w.id === "dictionary_blade" || w.id === "calligraphy_katana") {
-      w.rotation += dt * 4.5;
-    } else if (nearest) {
+    if (nearest) {
       w.rotation = Math.atan2(nearest.y - p.y, nearest.x - p.x);
     }
 
@@ -2192,24 +2399,15 @@ function updatePlayer(dt) {
 
       if (w.id === "dictionary_blade") {
         sounds.shoot("dictionary_blade");
-        const bladeDmg = w.data.damage * (w.tier_data.damage || 1.0) * state.damage_mult;
-        state.enemies.forEach(e => {
-          if (Math.hypot(e.x - p.x, e.y - p.y) < 155) {
-            e.hp -= bladeDmg;
-            const ang = Math.atan2(e.y - p.y, e.x - p.x);
-            e.vx = Math.cos(ang) * 260; e.vy = Math.sin(ang) * 260;
-          }
-        });
+        w.swing_timer = 0.24;
+        w.swing_hit = false;
+        p.attack_anim_timer = 0.28;
       } else if (w.id === "calligraphy_katana") {
         sounds.shoot("calligraphy_katana");
         const slashDmg = w.data.damage * (w.tier_data.damage || 1.0) * state.damage_mult;
-        state.enemies.forEach(e => {
-          if (Math.hypot(e.x - p.x, e.y - p.y) < 170) {
-            e.hp -= slashDmg;
-            const ang = Math.atan2(e.y - p.y, e.x - p.x);
-            e.vx = Math.cos(ang) * 300; e.vy = Math.sin(ang) * 300;
-          }
-        });
+        w.swing_timer = 0.28;
+        w.swing_hit = false;
+        p.attack_anim_timer = 0.28;
         // Crescent ink wave projectile forward
         if (nearest) {
           const dirX = Math.cos(w.rotation); const dirY = Math.sin(w.rotation);
@@ -2265,6 +2463,9 @@ function updatePlayer(dt) {
 
 function dropPunctuationMine(w, target) {
   sounds.shoot("punctuation_bomb");
+  w.recoil = 0.75;
+  w.flash_timer = 0.05;
+  state.player.attack_anim_timer = 0.28;
   const p = state.player;
   let offX = (Math.random() - 0.5) * 60;
   let offY = (Math.random() - 0.5) * 60;
@@ -2316,6 +2517,9 @@ function updatePunctuationMines(dt) {
 // 11. PROJECTILES (14 WEAPONS)
 // =========================================
 function shootWeapon(w, target) {
+  w.recoil = 1.0;
+  w.flash_timer = 0.065;
+  state.player.attack_anim_timer = 0.28;
   const p = state.player;
   const isCrit = Math.random() < (state.crit_chance + (w.tier_data.crit || 0));
   const critMult = isCrit ? 2.0 : 1.0;
@@ -2436,6 +2640,24 @@ function shootWeapon(w, target) {
   }
 }
 
+function resolveMeleeWeaponHit(w) {
+  const p = state.player;
+  const range = w.id === "calligraphy_katana" ? 170 : 150;
+  const force = w.id === "calligraphy_katana" ? 300 : 260;
+  const damage = w.data.damage * (w.tier_data.damage || 1.0) * state.damage_mult;
+  const forwardX = Math.cos(w.rotation);
+  const forwardY = Math.sin(w.rotation);
+  state.enemies.forEach(e => {
+    const dx = e.x - p.x;
+    const dy = e.y - p.y;
+    const distance = Math.hypot(dx, dy);
+    if (distance > range || distance < 0.001 || (dx / distance) * forwardX + (dy / distance) * forwardY < -0.1) return;
+    e.hp -= damage;
+    e.vx = (dx / distance) * force;
+    e.vy = (dy / distance) * force;
+  });
+}
+
 function spawnProjectile(proj) {
   state.projectiles.push(Object.assign({
     lifetime: 2.2, hitEnemies: new Set()
@@ -2489,8 +2711,12 @@ function updateProjectiles(dt) {
           e.hp -= effectiveDmg;
           e.vx = pr.dx * 180;
           e.vy = pr.dy * 180;
-          addFloatingText(e.x + (Math.random() - 0.5) * 16, e.y - 14, pr.crit ? `✦ ${Math.round(effectiveDmg)}!` : `${Math.round(effectiveDmg)}`, pr.crit ? "#ffd700" : "#ffffff", pr.crit ? 16 : 13);
+          addFloatingText(e.x + (Math.random() - 0.5) * 16, e.y - 14, pr.crit ? `CRIT ${Math.round(effectiveDmg)}!` : `${Math.round(effectiveDmg)}`, pr.crit ? "#ffd700" : "#ffffff", pr.crit ? 16 : 13);
           if (pr.crit) triggerHaptic("light");
+          if (pr.crit && state.selected_char === "shadow_lexicographer") {
+            e.slow_timer = 1.2;
+            e.slow_factor = 0.58;
+          }
           pr.pierce--;
 
           if (pr.type === "crossword_bolt") {
@@ -2528,6 +2754,59 @@ function updateProjectiles(dt) {
 // =========================================
 // 12. HARDCORE 100-WAVE HORDE SYSTEM
 // =========================================
+const MAX_ALIVE_ENEMIES = 220;
+
+function getWaveEnemyCap(wave = state.current_wave) {
+  return Math.min(MAX_ALIVE_ENEMIES, 48 + Math.max(0, wave - 1) * 2);
+}
+
+function addAliveEnemy(enemy) {
+  if (!enemy || enemy.dead) return false;
+  // Keep radial spawns and boss formations inside the playable bounds.
+  enemy.x = Math.max(-1150, Math.min(1150, enemy.x));
+  enemy.y = Math.max(-850, Math.min(850, enemy.y));
+  const aliveCount = state.enemies.reduce((count, current) => count + (current.dead ? 0 : 1), 0);
+  if (aliveCount < getWaveEnemyCap()) {
+    state.enemies.push(enemy);
+    return true;
+  }
+
+  const isBoss = enemy.is_boss || enemy.type === "Red Pen Boss" || enemy.type === "Lexicon Dragon Boss";
+  if (!isBoss) return false;
+
+  // Keep a milestone boss visible even if the regular horde reached its cap.
+  for (let i = state.enemies.length - 1; i >= 0; i--) {
+    const current = state.enemies[i];
+    const currentIsBoss = current.is_boss || current.type === "Red Pen Boss" || current.type === "Lexicon Dragon Boss";
+    if (!current.dead && !currentIsBoss) {
+      state.enemies.splice(i, 1);
+      state.enemies.push(enemy);
+      return true;
+    }
+  }
+  return false;
+}
+
+function getArenaSpawnPosition(origin, minDistance = 560, preferredAngle = null) {
+  const clampPoint = (x, y) => ({
+    x: Math.max(-1150, Math.min(1150, x)),
+    y: Math.max(-850, Math.min(850, y))
+  });
+  const firstAngle = preferredAngle ?? Math.random() * Math.PI * 2;
+  for (let attempt = 0; attempt < 16; attempt++) {
+    const angle = firstAngle + attempt * (Math.PI * 2 / 16);
+    const point = clampPoint(origin.x + Math.cos(angle) * 700, origin.y + Math.sin(angle) * 700);
+    if (Math.hypot(point.x - origin.x, point.y - origin.y) >= minDistance) return point;
+  }
+
+  const perimeter = [];
+  for (let x = -1050; x <= 1050; x += 175) perimeter.push({x, y:-820}, {x, y:820});
+  for (let y = -750; y <= 750; y += 150) perimeter.push({x:-1120, y}, {x:1120, y});
+  const safePoints = perimeter.filter(point => Math.hypot(point.x - origin.x, point.y - origin.y) >= minDistance);
+  if (safePoints.length) return safePoints[Math.floor(Math.random() * safePoints.length)];
+  return clampPoint(0, 0);
+}
+
 let spawnTimer = 0.3;
 const typoWords = ["Teh", "Woudl", "Recieve", "Becaue", "Definately", "Seperate", "Tomorow", "Untill", "Beautifull", "Acommodate"];
 const grammarPairs = ["is/are", "have/has", "their/there", "your/you're", "its/it's", "to/too", "affect/effect"];
@@ -2596,9 +2875,10 @@ function updateBossHealthBar() {
   const title = document.getElementById("boss-hp-title");
   if (title) {
     if (aliveBosses.length === 1) {
-      title.textContent = `⚔️ ${aliveBosses[0].label} (${Math.ceil(pct)}%) ⚔️`;
+      const bossName = aliveBosses[0].type === "Lexicon Dragon Boss" ? "LEKSİKON EJDERHASI" : "KIRMIZI KALEM";
+      title.textContent = `${bossName} · %${Math.ceil(pct)}`;
     } else {
-      title.textContent = `⚔️ ELEBAŞLARI ORDUSU (${aliveBosses.length} ELEBAŞI • %${Math.ceil(pct)}) ⚔️`;
+      title.textContent = `ELEBAŞLARI ORDUSU · ${aliveBosses.length} · %${Math.ceil(pct)}`;
     }
   }
 }
@@ -2627,16 +2907,15 @@ function updateEnemies(dt) {
   // Hardcore Massive Horde Swarm Spawn Curve: rapid spawn rate & batch spawns
   spawnTimer -= dt;
   const diffFactor = state.difficulty === "easy" ? 1.15 : (state.difficulty === "hard" ? 0.75 : 1.0);
-  const waveProg = Math.min(1.0, (state.current_wave - 1) / 35.0);
-  const baseInterval = 0.45 - waveProg * 0.38; // 0.45s down to 0.07s
-  const interval = Math.max(0.06, baseInterval * diffFactor);
+  const interval = Math.max(0.12, (0.60 - state.current_wave * 0.04) * diffFactor);
 
   if (spawnTimer <= 0) {
     spawnTimer = interval;
-    // Batch scaling for colossal horde feel (up to 6 per tick):
-    const batchCount = state.current_wave >= 50 ? 6 : (state.current_wave >= 30 ? 5 : (state.current_wave >= 16 ? 4 : (state.current_wave >= 6 ? 3 : 2)));
+    // Match the readable early-wave cadence in the Godot build, then grow it.
+    const batchCount = state.current_wave >= 25 ? 3 : (state.current_wave >= 8 ? 2 : 1);
     for (let s = 0; s < batchCount; s++) {
-      if (state.enemies.length < 280) {
+      const livingCount = state.enemies.reduce((count, enemy) => count + (enemy.dead ? 0 : 1), 0);
+      if (livingCount < getWaveEnemyCap()) {
         spawnEnemy();
       }
     }
@@ -2660,13 +2939,14 @@ function updateEnemies(dt) {
   state.enemies.forEach(e => {
     e.vx *= Math.pow(0.06, dt);
     e.vy *= Math.pow(0.06, dt);
+    e.slow_timer = Math.max(0, (e.slow_timer || 0) - dt);
 
     const dist = Math.hypot(p.x - e.x, p.y - e.y);
     const dirX = dist > 0.1 ? (p.x - e.x) / dist : 0;
     const dirY = dist > 0.1 ? (p.y - e.y) / dist : 0;
     e.facing_left = dirX < 0;
 
-    let spd = e.speed * chronoMult;
+    let spd = e.speed * chronoMult * (e.slow_timer > 0 ? (e.slow_factor || 0.58) : 1.0);
     if (e.is_buffed) spd *= 1.35; // Commander aura buff!
 
     // Tactical Blinker Teleport
@@ -2830,14 +3110,14 @@ function updateEnemies(dt) {
           // Summon 2 elite guards
           for (let g = 0; g < 2; g++) {
             const ga = (g / 2) * Math.PI * 2;
-            state.enemies.push({
+            addAliveEnemy({
               type: "Oxymoron Ogre",
               x: e.x + Math.cos(ga) * 80, y: e.y + Math.sin(ga) * 80,
               vx: 0, vy: 0,
               hp: 450 * getWaveHpMult(state.current_wave),
               max_hp: 450 * getWaveHpMult(state.current_wave),
               speed: 95, damage: 45, ink_reward: 10,
-              label: "🛡️ ENRAGE GUARD", sprite: "oxymoron_ogre.png",
+              label: "ENRAGE GUARD", sprite: "oxymoron_ogre.png",
               size: 54, affix: "shielded", is_elite: true, facing_left: false
             });
           }
@@ -2939,6 +3219,19 @@ function updateEnemies(dt) {
       state.kill_count++;
       spawnInkDrop(e.x, e.y, e.ink_reward);
 
+      if (state.selected_char === "rune_sorceress") {
+        state.particles.push({x:e.x,y:e.y,radius:12,max_radius:128,alpha:0.95,color:"rgba(166, 119, 255, "});
+        state.enemies.forEach(other => {
+          const burstDist = Math.hypot(other.x - e.x, other.y - e.y);
+          if (other !== e && !other.dead && burstDist < 118) {
+            other.hp -= 34 * state.damage_mult;
+            const knock = burstDist > 0.001 ? 220 / burstDist : 0;
+            other.vx += (other.x - e.x) * knock;
+            other.vy += (other.y - e.y) * knock;
+          }
+        });
+      }
+
       // Tactical Volatile Death Bomb
       if (e.affix === "volatile") {
         const exX = e.x; const exY = e.y;
@@ -2997,15 +3290,15 @@ function updateEnemies(dt) {
     }
   });
 
-  state.enemies = state.enemies.filter(e => !e.dead).concat(newEnemies);
+  state.enemies = state.enemies.filter(e => !e.dead);
+  newEnemies.forEach(addAliveEnemy);
 }
 
 function spawnEnemy() {
   const p = state.player;
-  const ang = Math.random() * Math.PI * 2;
-  const dist = 700;
-  const x = p.x + Math.cos(ang) * dist;
-  const y = p.y + Math.sin(ang) * dist;
+  const spawnPoint = getArenaSpawnPosition(p, 560);
+  const x = spawnPoint.x;
+  const y = spawnPoint.y;
 
   const d = DIFFICULTIES[state.difficulty];
   const wave = state.current_wave;
@@ -3017,7 +3310,7 @@ function spawnEnemy() {
 
   // Rare Wave 20+ Mini-Boss Encounter (2% chance if no boss is active)
   if (wave >= 20 && roll < 0.02 && !state.enemies.some(e => (e.is_boss || e.type === "Red Pen Boss") && !e.dead)) {
-    state.enemies.push({
+    addAliveEnemy({
       type: "Red Pen Boss", x, y, vx: 0, vy: 0,
       hp: (1600 + wave * 90) * hpM, max_hp: (1600 + wave * 90) * hpM,
       speed: 52 * d.enemy_speed_mult, damage: (75 + wave * 1.4) * d.enemy_damage_mult,
@@ -3030,90 +3323,90 @@ function spawnEnemy() {
 
   // 13 Diverse Linguistic Enemies
   if (wave >= 30 && roll < 0.10) {
-    state.enemies.push({
+    addAliveEnemy({
       type: "Oxymoron Ogre", x, y, vx: 0, vy: 0,
       hp: 640 * hpM, max_hp: 640 * hpM, speed: 92 * spdM, damage: 58 * dmgM,
       ink_reward: 12, label: "OXYMORON OGRE", sprite: "oxymoron_ogre.png", size: 58,
       is_elite: wave > 40, facing_left: false
     });
   } else if (wave >= 25 && roll < 0.18) {
-    state.enemies.push({
+    addAliveEnemy({
       type: "Double Negative Drake", x, y, vx: 0, vy: 0,
       hp: 340 * hpM, max_hp: 340 * hpM, speed: 110 * spdM, damage: 42 * dmgM,
       ink_reward: 10, label: doubleNegPhrases[Math.floor(Math.random() * doubleNegPhrases.length)],
       sprite: "double_negative_drake.png", size: 52, is_elite: wave > 45, facing_left: false
     });
   } else if (wave >= 25 && roll < 0.26) {
-    state.enemies.push({
+    addAliveEnemy({
       type: "Vocabulary Void", x, y, vx: 0, vy: 0,
       hp: 360 * hpM, max_hp: 360 * hpM, speed: 82 * spdM, damage: 44 * dmgM,
       ink_reward: 10, label: "VOCAB VOID", sprite: "vocabulary_void.png", size: 50,
       is_elite: wave > 50, facing_left: false
     });
   } else if (wave >= 20 && roll < 0.35) {
-    state.enemies.push({
+    addAliveEnemy({
       type: "Palindrome Phantom", x, y, vx: 0, vy: 0,
       hp: 145 * hpM, max_hp: 145 * hpM, speed: 170 * spdM, damage: 30 * dmgM,
       ink_reward: 8, label: palindromeWords[Math.floor(Math.random() * palindromeWords.length)],
       sprite: "palindrome_phantom.png", size: 44, facing_left: false
     });
   } else if (wave >= 20 && roll < 0.44) {
-    state.enemies.push({
+    addAliveEnemy({
       type: "Homophone Harpy", x, y, vx: 0, vy: 0,
       hp: 150 * hpM, max_hp: 150 * hpM, speed: 180 * spdM, damage: 34 * dmgM,
       ink_reward: 7, label: "HARPY", sprite: "homophone_harpy.png", size: 46, facing_left: false
     });
   } else if (wave >= 15 && roll < 0.52) {
-    state.enemies.push({
+    addAliveEnemy({
       type: "Dangling Modifier", x, y, vx: 0, vy: 0,
       hp: 130 * hpM, max_hp: 130 * hpM, speed: 165 * spdM, damage: 26 * dmgM,
       ink_reward: 6, label: danglingPhrases[Math.floor(Math.random() * danglingPhrases.length)],
       sprite: "dangling_modifier.png", size: 44, facing_left: false
     });
   } else if (wave >= 15 && roll < 0.60) {
-    state.enemies.push({
+    addAliveEnemy({
       type: "Malapropism Mimic", x, y, vx: 0, vy: 0,
       hp: 210 * hpM, max_hp: 210 * hpM, speed: 160 * spdM, damage: 38 * dmgM,
       ink_reward: 7, label: "MIMIC", sprite: "malapropism_mimic.png", size: 42, facing_left: false
     });
   } else if (wave >= 10 && roll < 0.68) {
-    state.enemies.push({
+    addAliveEnemy({
       type: "Run-on Reaper", x, y, vx: 0, vy: 0,
       hp: 180 * hpM, max_hp: 180 * hpM, speed: 195 * spdM, damage: 36 * dmgM,
       ink_reward: 7, label: "RUN-ON REAPER", sprite: "run_on_reaper.png", size: 46,
       facing_left: false
     });
   } else if (wave >= 10 && roll < 0.76) {
-    state.enemies.push({
+    addAliveEnemy({
       type: "Idiom Imp", x, y, vx: 0, vy: 0,
       hp: 110 * hpM, max_hp: 110 * hpM, speed: 185 * spdM, damage: 30 * dmgM,
       ink_reward: 5, label: "IDIOM IMP", sprite: "idiom_imp.png", size: 36, facing_left: false
     });
   } else if (wave >= 5 && roll < 0.83) {
-    state.enemies.push({
+    addAliveEnemy({
       type: "Tautology Twin", x, y, vx: 0, vy: 0,
       hp: 160 * hpM, max_hp: 160 * hpM, speed: 140 * spdM, damage: 32 * dmgM,
       ink_reward: 6, label: tautologyWords[Math.floor(Math.random() * tautologyWords.length)],
       sprite: "tautology_twin.png", size: 44, facing_left: false
     });
   } else if (wave >= 5 && roll < 0.90) {
-    state.enemies.push({
+    addAliveEnemy({
       type: "Punctuation Phantom", x, y, vx: 0, vy: 0,
       hp: 120 * hpM, max_hp: 120 * hpM, speed: 135 * spdM, damage: 28 * dmgM,
       ink_reward: 5, label: phantomPunct[Math.floor(Math.random() * phantomPunct.length)],
       sprite: "punctuation_phantom.png", size: 42, shoot_cooldown: 2.0 + Math.random() * 0.8, facing_left: false
     });
   } else if (roll < 0.95) {
-    state.enemies.push({
+    addAliveEnemy({
       type: "Grammar Goblin", x, y, vx: 0, vy: 0,
-      hp: 76 * hpM, max_hp: 76 * hpM, speed: 155 * spdM, damage: 26 * dmgM,
+      hp: 76 * hpM, max_hp: 76 * hpM, speed: 155 * spdM, damage: 14 * dmgM,
       ink_reward: 4, label: grammarPairs[Math.floor(Math.random() * grammarPairs.length)],
       sprite: "grammar_goblin.png", size: 34, dash_cooldown: 2.5 + Math.random() * 1.0, facing_left: false
     });
   } else {
-    state.enemies.push({
+    addAliveEnemy({
       type: "Typo Slime", x, y, vx: 0, vy: 0,
-      hp: 96 * hpM, max_hp: 96 * hpM, speed: 98 * spdM, damage: 24 * dmgM,
+      hp: 96 * hpM, max_hp: 96 * hpM, speed: 98 * spdM, damage: 18 * dmgM,
       ink_reward: 4, label: typoWords[Math.floor(Math.random() * typoWords.length)],
       sprite: "typo_slime.png", size: 36, facing_left: false
     });
@@ -3130,14 +3423,14 @@ function spawnEnemy() {
       newEnemy.max_hp *= 1.30;
       newEnemy.hp = newEnemy.max_hp;
       if (newEnemy.affix === "shielded") {
-        newEnemy.label = "🛡️ " + newEnemy.label;
+        newEnemy.label = "KALKANLI " + newEnemy.label;
       } else if (newEnemy.affix === "blinker") {
-        newEnemy.label = "⚡ " + newEnemy.label;
+        newEnemy.label = "HIZLI " + newEnemy.label;
         newEnemy.blink_timer = 3.0 + Math.random() * 1.5;
       } else if (newEnemy.affix === "commander") {
-        newEnemy.label = "🔮 " + newEnemy.label;
+        newEnemy.label = "AURA " + newEnemy.label;
       } else if (newEnemy.affix === "volatile") {
-        newEnemy.label = "💣 " + newEnemy.label;
+        newEnemy.label = "PATLAYICI " + newEnemy.label;
       }
     }
   }
@@ -3216,13 +3509,13 @@ function spawnMilestoneBoss(wave) {
   // Ring Encirclement: Encircle the player symmetrically!
   bossList.forEach((boss, idx) => {
     const ang = (idx / bossList.length) * Math.PI * 2 + (Math.random() * 0.2);
-    const dist = 600 + (idx % 2) * 80;
-    boss.x = p.x + Math.cos(ang) * dist;
-    boss.y = p.y + Math.sin(ang) * dist;
+    const spawnPoint = getArenaSpawnPosition(p, 540, ang);
+    boss.x = spawnPoint.x;
+    boss.y = spawnPoint.y;
     boss.vx = 0;
     boss.vy = 0;
     boss.facing_left = Math.cos(ang) > 0;
-    state.enemies.push(boss);
+    addAliveEnemy(boss);
   });
 
   updateBossHealthBar();
@@ -3271,18 +3564,20 @@ function gameOver() {
   syncMobileControlsVisibility();
   const modal = document.getElementById("game-over-screen");
   const title = document.getElementById("game-over-title");
+  const kicker = document.getElementById("game-over-kicker");
   const summary = document.getElementById("game-over-summary");
   const wordsList = state.words_learned.length ? state.words_learned.join(", ") : "Henüz kelime mühürlenemedi.";
 
-  title.textContent = "OYUN BİTTİ - KİTAP KAPANDI";
-  title.style.color = "#8b0000";
+  modal.dataset.result = "defeat";
+  kicker.textContent = "RUN SONUCU  ·  KAYIT KAPANDI";
+  title.textContent = "KİTAP KAPANDI";
 
-  summary.textContent = `✦ Mühürlenen Kelimeler (${state.words_learned.length}):\n${wordsList}\n\n` +
-    `👤 Seçilen Kâtip: ${CHARACTERS[state.selected_char].name}\n` +
-    `🎯 Zorluk Mertebesi: ${DIFFICULTIES[state.difficulty].name}\n` +
-    `⏳ Ulaşılan Dalga: ${state.current_wave} / 100\n` +
-    `💀 Biçilen Hatalar: ${state.kill_count}\n` +
-    `💧 Toplanan Mürekkep: ${state.ink_count}`;
+  summary.textContent = `Mühürlenen kelimeler (${state.words_learned.length})\n${wordsList}\n\n` +
+    `Kâtip: ${CHARACTERS[state.selected_char].name}\n` +
+    `Seviye: ${DIFFICULTIES[state.difficulty].name}\n` +
+    `Ulaşılan dalga: ${state.current_wave} / 100\n` +
+    `Yok edilen düşman: ${state.kill_count}\n` +
+    `Toplanan mürekkep: ${state.ink_count}`;
 
   updateAutoRunUI();
   modal.style.display = "flex";
@@ -3300,18 +3595,20 @@ function victoryScreen() {
   syncMobileControlsVisibility();
   const modal = document.getElementById("game-over-screen");
   const title = document.getElementById("game-over-title");
+  const kicker = document.getElementById("game-over-kicker");
   const summary = document.getElementById("game-over-summary");
   const wordsList = state.words_learned.length ? state.words_learned.join(", ") : "Tüm sözlükler kurtarıldı!";
 
-  title.textContent = "✦ EFSANEVİ ZAFER: 100 DALGA TAMAMLANDI! ✦";
-  title.style.color = "#1b4d2e";
+  modal.dataset.result = "victory";
+  kicker.textContent = "RUN SONUCU  ·  KAYIT TAMAMLANDI";
+  title.textContent = "SÖZLÜK KURTARILDI";
 
-  summary.textContent = `İNANILMAZ BAŞARI! 100 Dalganın tamamını aşarak The Omega Lexicon Dragon'ı yendiniz!\n` +
-    `Tüm dillerin ve sözlüklerin mutlak Koruyucusu (Grand Lexicon Guardian) unvanını kazandınız!\n\n` +
-    `✦ Hazinenize Eklenen Kelimeler (${state.words_learned.length}):\n${wordsList}\n\n` +
-    `👤 Kahraman: ${CHARACTERS[state.selected_char].name}\n` +
-    `💀 Toplam Temizlenen Hata: ${state.kill_count}\n` +
-    `💧 Geri Kazanılan Mürekkep: ${state.ink_count}`;
+  summary.textContent = `Yüz dalga tamamlandı. Son kayıt alındı.\n\n` +
+    `Kurtarılan kelimeler (${state.words_learned.length})\n${wordsList}\n\n` +
+    `Kâtip: ${CHARACTERS[state.selected_char].name}\n` +
+    `Seviye: ${DIFFICULTIES[state.difficulty].name}\n` +
+    `Yok edilen düşman: ${state.kill_count}\n` +
+    `Toplanan mürekkep: ${state.ink_count}`;
 
   modal.style.display = "flex";
 }
@@ -3324,7 +3621,6 @@ const onRestart = () => {
   syncMobileControlsVisibility();
 };
 document.getElementById("restart-game-btn").onclick = onRestart;
-document.getElementById("restart-game-btn").addEventListener("pointerup", onRestart);
 
 // =========================================
 // 13. SCRIPTORIUM BAZAAR, GADGETS & INVENTORY
@@ -3340,6 +3636,7 @@ function openShop() {
   refreshShopCards();
   renderShopView();
   updateShopTopBar();
+  updateShopChapterHeader();
   updateAutoTurUI();
 
   if (state.auto_new_tur) {
@@ -3350,13 +3647,26 @@ function openShop() {
 }
 
 function updateShopTopBar() {
-  document.getElementById("shop-ink-display").textContent = "💧 Mürekkep: " + state.ink_count;
+  document.getElementById("shop-ink-display").textContent = "MÜREKKEP  " + state.ink_count;
   const synKeys = Object.keys(state.active_synergies);
   if (synKeys.length === 0) {
     document.getElementById("shop-synergy-text").textContent = "Aktif Sinerji: Yok (Aynı türden 3 kelime tomârı toplayarak antik sinerji kilidini aç!)";
   } else {
-    document.getElementById("shop-synergy-text").textContent = "Aktif Kadim Sinerjiler: " + synKeys.map(k => `✦ [${k}]`).join(" ");
+    document.getElementById("shop-synergy-text").textContent = "Aktif sinerjiler: " + synKeys.map(k => `[${k}]`).join(" ");
   }
+}
+
+function updateShopChapterHeader() {
+  const chapter = getChapterForWave(state.current_wave);
+  const title = document.getElementById("shop-chapter-title");
+  const narration = document.getElementById("shop-chapter-narration");
+  const kicker = document.getElementById("shop-chapter-kicker");
+  const strip = document.getElementById("shop-chapter-strip");
+  if (!title || !narration || !kicker || !strip) return;
+  title.textContent = chapter.title;
+  narration.textContent = chapter.narration;
+  kicker.textContent = `DALGA ARASI  ·  ${String(state.current_wave).padStart(2, "0")} TAMAMLANDI`;
+  strip.style.setProperty("--chapter-accent", chapter.accent);
 }
 
 function refreshShopCards() {
@@ -3413,10 +3723,13 @@ function refreshShopCards() {
 }
 
 function highlightShopTabs() {
-  document.getElementById("tab-cards-btn").className = "tab-btn" + (currentShopTab === "cards" ? " active" : "");
-  document.getElementById("tab-weapons-btn").className = "tab-btn" + (currentShopTab === "weapons" ? " active" : "");
-  document.getElementById("tab-gadgets-btn").className = "tab-btn" + (currentShopTab === "gadgets" ? " active" : "");
-  document.getElementById("tab-artifacts-btn").className = "tab-btn" + (currentShopTab === "artifacts" ? " active" : "");
+  ["cards", "weapons", "gadgets", "artifacts"].forEach((tab) => {
+    const button = document.getElementById(`tab-${tab}-btn`);
+    const selected = currentShopTab === tab;
+    button.className = "tab-btn" + (selected ? " active" : "");
+    button.setAttribute("aria-selected", String(selected));
+    button.tabIndex = selected ? 0 : -1;
+  });
   document.getElementById("shop-reroll-btn").style.display = currentShopTab === "cards" ? "inline-flex" : "none";
 }
 
@@ -3424,6 +3737,18 @@ document.getElementById("tab-cards-btn").onclick = () => { clearShopAutoWaveTime
 document.getElementById("tab-weapons-btn").onclick = () => { clearShopAutoWaveTimer(); currentShopTab = "weapons"; highlightShopTabs(); renderShopView(); };
 document.getElementById("tab-gadgets-btn").onclick = () => { clearShopAutoWaveTimer(); currentShopTab = "gadgets"; highlightShopTabs(); renderShopView(); };
 document.getElementById("tab-artifacts-btn").onclick = () => { clearShopAutoWaveTimer(); currentShopTab = "artifacts"; highlightShopTabs(); renderShopView(); };
+const shopTabIds = ["cards", "weapons", "gadgets", "artifacts"];
+shopTabIds.forEach((tab, index) => {
+  document.getElementById(`tab-${tab}-btn`).onkeydown = (event) => {
+    if (!["ArrowLeft", "ArrowRight", "Home", "End"].includes(event.key)) return;
+    event.preventDefault();
+    const target = event.key === "Home" ? 0 : event.key === "End" ? shopTabIds.length - 1
+      : (index + (event.key === "ArrowRight" ? 1 : -1) + shopTabIds.length) % shopTabIds.length;
+    const nextButton = document.getElementById(`tab-${shopTabIds[target]}-btn`);
+    nextButton.focus();
+    nextButton.click();
+  };
+});
 
 document.getElementById("shop-reroll-btn").onclick = () => {
   clearShopAutoWaveTimer();
@@ -3437,7 +3762,6 @@ document.getElementById("shop-reroll-btn").onclick = () => {
 };
 
 document.getElementById("shop-next-wave-btn").onclick = advanceNextWave;
-document.getElementById("shop-next-wave-btn").addEventListener("pointerup", advanceNextWave);
 
 function renderShopView() {
   const grid = document.getElementById("shop-items-grid");
@@ -3447,23 +3771,22 @@ function renderShopView() {
     shopCards.forEach((c, idx) => {
       const isRedemption = !!c.is_review_redemption;
       const card = document.createElement("div");
-      card.className = "choice-card";
+      card.className = "choice-card shop-card";
       if (isRedemption) {
-        card.style.border = "2px solid #8b0000";
-        card.style.background = "#fff8f5";
-        card.style.boxShadow = "0 0 12px rgba(139, 0, 0, 0.25)";
+        card.classList.add("shop-redemption");
       }
       card.innerHTML = `
-        <div style="display: flex; justify-content: space-between; align-items: center;">
-          <span style="font-size: 10px; color: #8c5d2b; font-family: 'Cinzel', serif;">[${c.type} • ${c.level}]</span>
-          ${isRedemption ? '<span style="font-size: 9px; font-weight: bold; background: #8b0000; color: #fff; padding: 1px 4px; border-radius: 2px;">✦ HATA PEKİŞTİRME</span>' : ''}
+        <div class="shop-meta">
+          <span>${c.type} · ${c.level}</span>
+          ${isRedemption ? '<span class="shop-review-mark">Pekiştirme</span>' : '<span>Kelime kartı</span>'}
         </div>
-        <h3 style="font-size: 16px; color: #2b170c; margin: 2px 0;">${c.word}</h3>
-        <div style="font-size: 11.5px; color: #1b4d2e; font-weight: bold; margin-bottom: 3px;">${c.description}</div>
-        <div style="font-size: 11px; color: #5c3e21; font-style: italic; margin-bottom: 6px; flex-grow: 1;">"${c.example || ''}"</div>
-        <button class="btn btn-seal" id="card-buy-${idx}" ${state.ink_count < Math.ceil(c.cost * 0.5) ? "disabled" : ""}>
-          💧 ${c.cost} Sınava Gir & Al
-        </button>
+        <h3 class="shop-title">${c.word}</h3>
+        <div class="shop-description">${c.description}</div>
+        <div class="shop-example">“${c.example || ''}”</div>
+        <div class="shop-buy-row">
+          <span class="shop-price">${c.cost} <img class="ui-icon" src="assets/ui/icons/ink.svg" alt=""> mürekkep</span>
+          <button class="btn shop-buy" id="card-buy-${idx}" ${state.ink_count < c.cost ? "disabled" : ""}>${state.ink_count < c.cost ? "Mürekkep yetersiz" : "Sınavı başlat"}</button>
+        </div>
       `;
       const buyBtn = card.querySelector(`#card-buy-${idx}`);
       const handleBuy = (e) => {
@@ -3476,10 +3799,9 @@ function renderShopView() {
       };
       if (buyBtn) {
         buyBtn.onclick = handleBuy;
-        buyBtn.addEventListener("pointerup", handleBuy);
       }
       card.onclick = (e) => {
-        if (e.target !== buyBtn && state.ink_count >= Math.ceil(c.cost * 0.5)) {
+        if (e.target !== buyBtn && state.ink_count >= c.cost) {
           handleBuy(e);
         }
       };
@@ -3489,20 +3811,18 @@ function renderShopView() {
     Object.keys(WEAPONS_CATALOG).forEach(wId => {
       const w = WEAPONS_CATALOG[wId];
       const card = document.createElement("div");
-      card.className = "choice-card";
+      card.className = "choice-card shop-card";
       card.innerHTML = `
-        <div style="font-size: 10px; color: #b85c18; font-family: 'Cinzel', serif;">[SİLAH]</div>
-        <div style="display: flex; align-items: center; justify-content: center; gap: 6px; margin: 2px 0;">
-          <img src="assets/sprites/${w.sprite}" style="width: 24px; height: 24px;" alt="${w.name}">
-          <h3 style="font-size: 14.5px; color: #2b170c;">${w.name.split(" ")[0]}</h3>
+        <div class="shop-meta"><span>Silah</span><span>Teçhizat</span></div>
+        <div style="display: flex; align-items: center; gap: 8px; margin: 2px 0;">
+          <img src="assets/sprites/${w.sprite}" style="width: 32px; height: 32px; object-fit: contain;" alt="${w.name}">
+          <h3 class="shop-title">${w.name.split(" ")[0]}</h3>
         </div>
-        <div style="font-size: 11px; color: #442a18; margin-bottom: 3px;">${w.desc}</div>
-        <div style="font-size: 10.5px; color: #8b0000; font-family: 'Cinzel', serif; font-weight: bold; margin-bottom: 6px; flex-grow: 1;">
+        <div class="shop-description">${w.desc}</div>
+        <div class="shop-data">
           Hasar: ${w.damage} | Atış: ${w.cooldown}s
         </div>
-        <button class="btn btn-seal" id="weap-buy-${wId}" ${state.ink_count < w.cost ? "disabled" : ""}>
-          💧 ${w.cost} Satın Al
-        </button>
+        <div class="shop-buy-row"><span class="shop-price">${w.cost} <img class="ui-icon" src="assets/ui/icons/ink.svg" alt=""></span><button class="btn shop-buy" id="weap-buy-${wId}" ${state.ink_count < w.cost ? "disabled" : ""}>${state.ink_count < w.cost ? "Mürekkep yetersiz" : "Satın al"}</button></div>
       `;
       card.querySelector(`#weap-buy-${wId}`).onclick = () => {
         if (state.ink_count >= w.cost) {
@@ -3525,20 +3845,18 @@ function renderShopView() {
       const g = GADGETS_CATALOG[gId];
       const isAct = state.active_gadget_id === gId;
       const card = document.createElement("div");
-      card.className = "choice-card";
+      card.className = "choice-card shop-card";
       card.innerHTML = `
-        <div style="font-size: 10px; color: #0284c7; font-family: 'Cinzel', serif;">[AKTİF GADGET CİHAZI]</div>
-        <div style="display: flex; align-items: center; justify-content: center; gap: 6px; margin: 3px 0;">
-          <img src="assets/sprites/${g.sprite}" style="width: 28px; height: 28px;" alt="${g.name}">
-          <h3 style="font-size: 15px; color: #2b170c;">${g.name.split(" ")[0]}</h3>
+        <div class="shop-meta"><span>Gereç</span><span>Aktif donanım</span></div>
+        <div style="display: flex; align-items: center; gap: 8px; margin: 2px 0;">
+          <img src="assets/sprites/${g.sprite}" style="width: 32px; height: 32px; object-fit: contain;" alt="${g.name}">
+          <h3 class="shop-title">${g.name.split(" ")[0]}</h3>
         </div>
-        <div style="font-size: 11.5px; color: #442a18; margin-bottom: 4px; flex-grow: 1;">${g.desc}</div>
-        <div style="font-size: 10.5px; color: #55efc4; font-family: 'Cinzel', serif; font-weight: bold; margin-bottom: 6px;">
+        <div class="shop-description">${g.desc}</div>
+        <div class="shop-data">
           Bekleme Süresi: ${g.cooldown}s
         </div>
-        <button class="btn ${isAct ? '' : 'btn-emerald'}" id="gad-buy-${gId}" ${isAct || state.ink_count < g.cost ? 'disabled' : ''}>
-          ${isAct ? '✦ Kuşanıldı' : (g.cost > 0 ? '💧 ' + g.cost + ' Kuşan' : 'Kuşan')}
-        </button>
+        <div class="shop-buy-row"><span class="shop-price">${isAct ? 'Kuşanıldı' : (g.cost > 0 ? `${g.cost} mürekkep` : 'Ücretsiz')}</span><button class="btn shop-buy" id="gad-buy-${gId}" ${isAct || state.ink_count < g.cost ? 'disabled' : ''}>${isAct ? 'Kuşanıldı' : (state.ink_count < g.cost ? 'Mürekkep yetersiz' : 'Kuşan')}</button></div>
       `;
       if (!isAct) {
         card.querySelector(`#gad-buy-${gId}`).onclick = () => {
@@ -3558,14 +3876,12 @@ function renderShopView() {
       const a = ARTIFACTS_CATALOG[aId];
       const isOwned = state.artifacts_owned.includes(aId) && aId !== "slot_expansion";
       const card = document.createElement("div");
-      card.className = "choice-card";
+      card.className = "choice-card shop-card";
       card.innerHTML = `
-        <div style="font-size: 10px; color: #6d28d9; font-family: 'Cinzel', serif;">[KÜTÜPHANE YADİGÂRI]</div>
-        <h3 style="font-size: 15px; color: #2b170c; margin: 2px 0;">${a.name}</h3>
-        <div style="font-size: 11.5px; color: #1b4d2e; font-weight: 600; margin-bottom: 6px; flex-grow: 1;">${a.desc}</div>
-        <button class="btn ${isOwned ? '' : 'btn-emerald'}" id="art-buy-${aId}" ${isOwned || state.ink_count < a.cost ? "disabled" : ""}>
-          ${isOwned ? '✓ Alındı' : '💧 ' + a.cost + ' Mühürle'}
-        </button>
+        <div class="shop-meta"><span>Yadigâr</span><span>Pasif eser</span></div>
+        <h3 class="shop-title">${a.name}</h3>
+        <div class="shop-description">${a.desc}</div>
+        <div class="shop-buy-row"><span class="shop-price">${isOwned ? 'Sahip' : `${a.cost} mürekkep <img class="ui-icon" src="assets/ui/icons/ink.svg" alt="">`}</span><button class="btn shop-buy" id="art-buy-${aId}" ${isOwned || state.ink_count < a.cost ? "disabled" : ""}>${isOwned ? 'Alındı' : (state.ink_count < a.cost ? 'Mürekkep yetersiz' : 'Satın al')}</button></div>
       `;
       if (!isOwned) {
         card.querySelector(`#art-buy-${aId}`).onclick = () => {
@@ -3624,12 +3940,17 @@ function openQuiz(card, cardIndex) {
   optsContainer.innerHTML = "";
 
   let answered = false;
+  const shuffledOptions = card.options.map((text, originalIndex) => ({ text, originalIndex }));
+  for (let i = shuffledOptions.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [shuffledOptions[i], shuffledOptions[j]] = [shuffledOptions[j], shuffledOptions[i]];
+  }
 
-  card.options.forEach((opt, idx) => {
+  shuffledOptions.forEach((item, idx) => {
     const btn = document.createElement("button");
     btn.className = "quiz-opt-btn";
     btn.setAttribute("type", "button");
-    btn.textContent = `${['A', 'B', 'C', 'D'][idx] || (idx+1)}) ${opt}`;
+    btn.textContent = `${['A', 'B', 'C', 'D'][idx] || (idx + 1)}) ${item.text}`;
 
     const handleAnswer = (e) => {
       if (answered) return;
@@ -3645,7 +3966,7 @@ function openQuiz(card, cardIndex) {
         b.style.pointerEvents = "none";
       });
 
-      const isCorrect = idx === card.correct_index;
+      const isCorrect = item.originalIndex === card.correct_index;
 
       if (card.id && !state.asked_question_ids.includes(card.id)) {
         state.asked_question_ids.push(card.id);
@@ -3657,7 +3978,7 @@ function openQuiz(card, cardIndex) {
         btn.style.setProperty("color", "#1b4d2e", "important");
         sounds.quizSuccess();
         triggerHaptic("success");
-        addFloatingText(state.player.x, state.player.y - 30, "✦ KÂTİP MÜHRÜ! +%50 BONUS!", "#2e7d32", 15);
+        addFloatingText(state.player.x, state.player.y - 30, "KÂTİP MÜHRÜ · +%50", "#587767", 15);
 
         const discCost = Math.ceil(card.cost * 0.5);
         state.ink_count -= discCost;
@@ -3668,13 +3989,13 @@ function openQuiz(card, cardIndex) {
           state.mistake_words.splice(mIdx, 1);
           try { localStorage.setItem("lexicon_mistakes", JSON.stringify(state.mistake_words)); } catch(e){}
           state.hp = Math.min(state.max_hp, state.hp + 35);
-          resText.textContent = `✦ PEKİŞTİRME ZAFERİ! HATA DEFTERİNDEN SİLİNDİ! ✦\n%50 İndirim, +%75 Nitelik Bonusu ve +35 HP Can Yenilendi!\nÖdenen: ${discCost} Mürekkep`;
+          resText.textContent = `PEKİŞTİRME TAMAMLANDI · HATA DEFTERİNDEN SİLİNDİ\n%50 indirim, +%75 nitelik ve +35 HP yenilendi.\nÖdenen: ${discCost} mürekkep`;
           resText.style.color = "#1b4d2e";
           resText.style.background = "rgba(46, 125, 50, 0.22)";
           applyCardUpgrade(card, true, 1.75);
         } else {
           state.hp = Math.min(state.max_hp, state.hp + 25);
-          resText.textContent = `✦ DOĞRU CEVAP! KÂTİP MÜHRÜ KAZANILDI! ✦\n%50 İndirim, +%50 Nitelik Bonusu ve +25 HP Can Yenilendi!\nÖdenen: ${discCost} Mürekkep`;
+          resText.textContent = `DOĞRU CEVAP · KÂTİP MÜHRÜ KAZANILDI\n%50 indirim, +%50 nitelik ve +25 HP yenilendi.\nÖdenen: ${discCost} mürekkep`;
           resText.style.color = "#1b4d2e";
           resText.style.background = "rgba(46, 125, 50, 0.15)";
           applyCardUpgrade(card, true, 1.5);
@@ -3686,18 +4007,19 @@ function openQuiz(card, cardIndex) {
 
         // Highlight correct option in green
         const allBtns = optsContainer.querySelectorAll(".quiz-opt-btn");
-        if (allBtns[card.correct_index]) {
-          allBtns[card.correct_index].style.setProperty("background", "#e6f4ea", "important");
-          allBtns[card.correct_index].style.setProperty("border-color", "#2e7d32", "important");
-          allBtns[card.correct_index].style.setProperty("color", "#1b4d2e", "important");
+        const correctDisplayIndex = shuffledOptions.findIndex(option => option.originalIndex === card.correct_index);
+        if (allBtns[correctDisplayIndex]) {
+          allBtns[correctDisplayIndex].style.setProperty("background", "#e6f4ea", "important");
+          allBtns[correctDisplayIndex].style.setProperty("border-color", "#2e7d32", "important");
+          allBtns[correctDisplayIndex].style.setProperty("color", "#1b4d2e", "important");
         }
 
         sounds.quizFail();
         triggerHaptic("fail");
-        addFloatingText(state.player.x, state.player.y - 30, "✗ YANLIŞ CEVAP", "#c5221f", 15);
+        addFloatingText(state.player.x, state.player.y - 30, "YANLIŞ CEVAP", "#c5221f", 15);
 
         state.ink_count -= card.cost;
-        resText.textContent = `✗ YANLIŞ CEVAP! Doğru Seçenek: "${card.options[card.correct_index]}"\nKelime Kâtip Hata Defterine eklendi (sonraki turlarda pekiştirilecek)!\nÖdenen: ${card.cost} Mürekkep`;
+        resText.textContent = `YANLIŞ CEVAP! Doğru Seçenek: "${card.options[card.correct_index]}"\nKelime Kâtip Hata Defterine eklendi (sonraki turlarda pekiştirilecek)!\nÖdenen: ${card.cost} Mürekkep`;
         resText.style.color = "#8b0000";
         resText.style.background = "rgba(139, 0, 0, 0.12)";
         applyCardUpgrade(card, false, 1.0);
@@ -3729,8 +4051,6 @@ function openQuiz(card, cardIndex) {
     };
 
     btn.onclick = handleAnswer;
-    btn.addEventListener("pointerup", handleAnswer);
-    btn.addEventListener("touchend", handleAnswer);
     optsContainer.appendChild(btn);
   });
 
@@ -3749,8 +4069,6 @@ function openQuiz(card, cardIndex) {
   };
 
   continueBtn.onclick = handleContinue;
-  continueBtn.addEventListener("pointerup", handleContinue);
-  continueBtn.addEventListener("touchend", handleContinue);
 }
 
 function applyCardUpgrade(card, quizBonus, customMultiplier) {
@@ -3804,7 +4122,7 @@ function checkSynergies() {
 
 function triggerSynergyBanner(name, desc) {
   const banner = document.getElementById("synergy-banner");
-  document.getElementById("syn-title").textContent = `✦ YENİ SİNERJİ AÇILDI: ${name} ✦`;
+  document.getElementById("syn-title").textContent = `YENİ SİNERJİ · ${name}`;
   document.getElementById("syn-desc").textContent = desc;
   banner.style.display = "block";
   setTimeout(() => { banner.style.display = "none"; }, 4500);
@@ -3894,7 +4212,7 @@ function renderInventoryView() {
   const combineBtn = document.getElementById("inv-combine-btn");
   if (canCombine) {
     combineBtn.style.display = "inline-flex";
-    combineBtn.textContent = `✦ [${WEAPONS_CATALOG[canCombine.id].name.split(" ")[0]}] BİRLEŞTİR ➔ ${TIER_MULTIPLIERS[canCombine.tier + 1].name}`;
+    combineBtn.textContent = `[${WEAPONS_CATALOG[canCombine.id].name.split(" ")[0]}] BİRLEŞTİR → ${TIER_MULTIPLIERS[canCombine.tier + 1].name}`;
     combineBtn.onclick = () => {
       // Find and merge
       let foundFirst = false;
@@ -3954,13 +4272,14 @@ function renderInventoryView() {
 function updateHUD() {
   document.getElementById("hp-fill").style.width = `${Math.max(0, (state.hp / state.max_hp) * 100)}%`;
   document.getElementById("hp-text").textContent = `${Math.round(state.hp)} / ${Math.round(state.max_hp)} HP`;
-  document.getElementById("timer-badge").textContent = `⏳ DALGA ${state.current_wave} / 100 • ${Math.ceil(state.wave_time_left)}s`;
-  document.getElementById("ink-count").textContent = `💧 ${state.ink_count}`;
-  document.getElementById("kill-count").textContent = `💀 ${state.kill_count}`;
+  const biomeName = state.current_wave < 26 ? "KÜTÜPHANE" : state.current_wave < 51 ? "DEHLİZ" : state.current_wave < 76 ? "GÖZLEMEVİ" : "SON SAYFA";
+  document.getElementById("timer-badge").textContent = `${biomeName} · ${state.current_wave} / 100 · ${Math.ceil(state.wave_time_left)}s`;
+  document.getElementById("ink-value").textContent = state.ink_count;
+  document.getElementById("kill-value").textContent = state.kill_count;
 
   const c = CHARACTERS[state.selected_char];
   const d = DIFFICULTIES[state.difficulty];
-  document.getElementById("char-diff-info").textContent = `👤 ${c.name} • 🎯 ${d.name}`;
+  document.getElementById("char-diff-info").textContent = `${c.name} · ${d.name}`;
 
   // Slotted weapons preview
   const weaponsEl = document.getElementById("weapons-info");
@@ -3978,20 +4297,20 @@ function updateHUD() {
     badge.style.alignItems = "center";
     badge.style.gap = "3px";
     badge.style.pointerEvents = "auto";
-    badge.style.fontFamily = "'Cinzel', serif";
+    badge.style.fontFamily = "'IBM Plex Sans', sans-serif";
     badge.style.fontSize = "11px";
 
     if (isAct) {
-      badge.style.background = "linear-gradient(180deg, #9b1c1c, #630c0c)";
-      badge.style.border = "1.5px solid #ffd700";
-      badge.style.color = "#fff8e7";
+      badge.style.background = "#263d39";
+      badge.style.border = "1px solid #70988d";
+      badge.style.color = "#f1ead7";
       badge.style.fontWeight = "bold";
-      badge.textContent = `★[${idx + 1}: ${w.name.split(" ")[0]} ${t.stars}]`;
+      badge.textContent = `${idx + 1} · ${w.name.split(" ")[0]} ${t.stars}`;
     } else {
-      badge.style.background = "rgba(34, 20, 13, 0.75)";
-      badge.style.border = "1px solid rgba(212, 175, 55, 0.4)";
-      badge.style.color = "#d4af37";
-      badge.textContent = `${idx + 1}:${w.name.split(" ")[0]}`;
+      badge.style.background = "rgba(25, 31, 29, 0.82)";
+      badge.style.border = "1px solid rgba(213, 204, 183, 0.25)";
+      badge.style.color = "#d7cfbc";
+      badge.textContent = `${idx + 1} · ${w.name.split(" ")[0]}`;
     }
     badge.onclick = (ev) => {
       ev.stopPropagation();
@@ -4007,10 +4326,10 @@ function updateHUD() {
   const gStatus = document.getElementById("gadget-status");
   if (state.gadget_timer <= 0.05) {
     gStatus.textContent = "HAZIR";
-    gStatus.style.color = "#55efc4";
+    gStatus.style.color = "#a9bda9";
   } else {
     gStatus.textContent = state.gadget_timer.toFixed(1) + "s";
-    gStatus.style.color = "#ff7675";
+    gStatus.style.color = "#c89a87";
   }
 }
 
@@ -4019,6 +4338,7 @@ function updateHUD() {
 // =========================================
 function render() {
   ctx.clearRect(0, 0, canvas.width, canvas.height);
+  ctx.imageSmoothingEnabled = false;
 
   const cx = canvas.width / 2;
   const cy = canvas.height / 2;
@@ -4043,51 +4363,48 @@ function render() {
   ctx.translate(-p.x, -p.y);
 
   // 4 Dynamic Biomes based on progression across 100 Waves
-  let floorSprite = "tile_library_parquet.png";
+  let frameSprite = "upgrade_v1/arena_frame_library.png";
   let runeSprite = "magical_rune_circle.png";
-  let borderOuter = "#8c6d23";
-  let borderInner = "#d4af37";
   let propSprite = "illuminated_lectern.png";
   let brazierFlameColor = "rgba(255, 180, 50, ";
   let ambientMoteColor = "rgba(255, 215, 0, ";
 
   if (state.current_wave >= 76) {
     // Biome 4: The Omega Void Sanctum (Waves 76-100)
-    floorSprite = "tile_void_sanctum.png";
+    frameSprite = "upgrade_v1/arena_frame_void.png";
     runeSprite = "magical_rune_void.png";
-    borderOuter = "#7f1d1d";
-    borderInner = "#fbbf24";
     propSprite = "brazier_pedestal.png";
     brazierFlameColor = "rgba(239, 68, 68, ";
     ambientMoteColor = "rgba(248, 113, 113, ";
   } else if (state.current_wave >= 51) {
     // Biome 3: Astral Observatory of Cosmic Etymology (Waves 51-75)
-    floorSprite = "tile_astral_observatory.png";
+    frameSprite = "upgrade_v1/arena_frame_observatory.png";
     runeSprite = "magical_rune_astral.png";
-    borderOuter = "#4c1d95";
-    borderInner = "#f59e0b";
     propSprite = "brazier_pedestal.png";
     brazierFlameColor = "rgba(168, 85, 247, ";
     ambientMoteColor = "rgba(192, 132, 252, ";
   } else if (state.current_wave >= 26) {
     // Biome 2: Forbidden Catacombs of Forgotten Words (Waves 26-50)
-    floorSprite = "tile_dungeon_stone.png";
+    frameSprite = "upgrade_v1/arena_frame_dungeon.png";
     runeSprite = "magical_rune_cyan.png";
-    borderOuter = "#0891b2";
-    borderInner = "#22d3ee";
     propSprite = "brazier_pedestal.png";
     brazierFlameColor = "rgba(34, 211, 238, ";
     ambientMoteColor = "rgba(103, 232, 249, ";
   }
 
-  const floorImg = images[floorSprite] || images["tile_library_parquet.png"] || images["tile_floor.png"];
-  if (floorImg) {
-    const pattern = ctx.createPattern(floorImg, "repeat");
-    ctx.fillStyle = pattern;
-    ctx.fillRect(-1200, -900, 2400, 1800);
-  } else {
-    ctx.fillStyle = "#1e140d";
-    ctx.fillRect(-1200, -900, 2400, 1800);
+  // One full arena illustration keeps the playable surface coherent and avoids
+  // a high-contrast repeating tile beneath the characters.
+  ctx.fillStyle = "#0a0e0c";
+  ctx.fillRect(-2250, -1800, 4500, 3600);
+  const frameImg = images[frameSprite];
+  if (frameImg) {
+    // Fit the illustrated room to the visible viewport so its unique frame
+    // stays around the play area instead of disappearing beyond world bounds.
+    const viewW = canvas.width / zoom;
+    const viewH = canvas.height / zoom;
+    const sceneW = Math.max(viewW, viewH * (4 / 3));
+    const sceneH = sceneW * (3 / 4);
+    ctx.drawImage(frameImg, p.x - sceneW / 2, p.y - sceneH / 2, sceneW, sceneH);
   }
 
   // Central Double-Rotating Magical Rune Circle
@@ -4097,7 +4414,7 @@ function render() {
     ctx.save();
     ctx.translate(0, 0);
     ctx.rotate(state.rune_rotation);
-    ctx.globalAlpha = 0.55 + Math.sin(state.rune_rotation * 4) * 0.15;
+    ctx.globalAlpha = 0.30 + Math.sin(state.rune_rotation * 4) * 0.05;
     ctx.drawImage(runeImg, -210, -210, 420, 420);
     ctx.restore();
 
@@ -4105,7 +4422,7 @@ function render() {
     ctx.save();
     ctx.translate(0, 0);
     ctx.rotate(-state.rune_rotation * 1.5);
-    ctx.globalAlpha = 0.40;
+    ctx.globalAlpha = 0.18;
     ctx.drawImage(runeImg, -110, -110, 220, 220);
     ctx.restore();
   }
@@ -4115,12 +4432,12 @@ function render() {
   const cornerProps = [[-900, -650], [900, -650], [-900, 650], [900, 650]];
   cornerProps.forEach(([bx, by], idx) => {
     // Floor ambient radial glow
-    const bGlow = ctx.createRadialGradient(bx, by - 12, 10, bx, by - 12, 120);
-    bGlow.addColorStop(0, brazierFlameColor + "0.45)");
+    const bGlow = ctx.createRadialGradient(bx, by - 12, 10, bx, by - 12, 96);
+    bGlow.addColorStop(0, brazierFlameColor + "0.20)");
     bGlow.addColorStop(1, brazierFlameColor + "0)");
     ctx.fillStyle = bGlow;
     ctx.beginPath();
-    ctx.arc(bx, by - 12, 120, 0, Math.PI * 2);
+    ctx.arc(bx, by - 12, 96, 0, Math.PI * 2);
     ctx.fill();
 
     // Prop Sprite (Lectern or Brazier Pedestal)
@@ -4130,7 +4447,7 @@ function render() {
     }
 
     // Dancing flame particles
-    for (let f = 0; f < 3; f++) {
+    for (let f = 0; f < 2; f++) {
       const fAngle = now * 0.005 + idx * 1.5 + f * 2.1;
       const fOffset = Math.sin(fAngle) * 4;
       const fRadius = 4.5 + Math.sin(fAngle * 2) * 2;
@@ -4140,23 +4457,6 @@ function render() {
       ctx.fill();
     }
   });
-
-  // Bookshelf Borders
-  const shelfImg = images["bookshelf_wall.png"];
-  if (shelfImg) {
-    const shelfPattern = ctx.createPattern(shelfImg, "repeat");
-    ctx.fillStyle = shelfPattern;
-    ctx.fillRect(-1220, -920, 2440, 40);
-    ctx.fillRect(-1220, 880, 2440, 40);
-    ctx.fillRect(-1220, -920, 40, 1840);
-    ctx.fillRect(1180, -920, 40, 1840);
-  }
-
-  // Gold Borders
-  ctx.strokeStyle = borderOuter; ctx.lineWidth = 4;
-  ctx.strokeRect(-1180, -880, 2360, 1760);
-  ctx.strokeStyle = borderInner; ctx.lineWidth = 1.5;
-  ctx.strokeRect(-1174, -874, 2348, 1748);
 
   // Active Tactical Telegraphs (Warning Circles & Red Line Laser Guides)
   if (state.telegraphs) {
@@ -4176,6 +4476,13 @@ function render() {
         ctx.save();
         ctx.translate(tg.x, tg.y);
         const pProg = Math.max(0, tg.timer / (tg.max_timer || 1.0));
+        const seal = images["upgrade_v1/threat_seal.png"];
+        if (seal) {
+          const sealSize = Math.min(88, Math.max(36, (tg.radius || 42) * 1.05));
+          ctx.globalAlpha = 0.16 + (1 - pProg) * 0.36;
+          ctx.drawImage(seal, -sealSize / 2, -sealSize / 2, sealSize, sealSize);
+        }
+        ctx.globalAlpha = 1;
         ctx.strokeStyle = tg.is_bomb ? "rgba(249, 115, 22, 0.9)" : "rgba(239, 68, 68, 0.9)";
         ctx.lineWidth = 2.5;
         ctx.beginPath();
@@ -4305,6 +4612,9 @@ function render() {
     ctx.restore();
   });
 
+  // Labels are reserved for nearby elites and bosses to keep crowds readable.
+  const enemyLabelBoxes = [];
+
   // Enemies
   state.enemies.forEach(e => {
     // Commander Aura Ring
@@ -4337,7 +4647,8 @@ function render() {
 
     const spr = images[e.sprite];
     const sz = e.size || 36;
-    if (spr) ctx.drawImage(spr, -sz / 2, -sz / 2, sz, sz);
+    const spriteSize = sz * 1.55;
+    if (spr) ctx.drawImage(spr, -spriteSize / 2, -spriteSize / 2, spriteSize, spriteSize);
 
     if (e.is_elite && images["elite_crown.png"]) {
       ctx.drawImage(images["elite_crown.png"], -10, -sz / 2 - 16, 20, 20);
@@ -4367,10 +4678,26 @@ function render() {
       ctx.fillRect(e.x - barW / 2, e.y - (e.size / 2) - 10, barW * pct, 4);
     }
 
-    ctx.fillStyle = e.affix ? "#fef08a" : "#f6eedb";
-    ctx.font = "bold 11px 'Cinzel', serif";
-    ctx.textAlign = "center";
-    ctx.fillText(e.label, e.x, e.y - (e.size / 2) - 13);
+    if ((e.is_boss || e.is_elite) && Math.hypot(e.x - state.player.x, e.y - state.player.y) < 520 && enemyLabelBoxes.length < 5) {
+      const label = e.is_boss
+        ? (e.type === "Lexicon Dragon Boss" ? "LEKSİKON EJDERHASI" : "KIRMIZI KALEM")
+        : (e.label || "ELİT DÜŞMAN");
+      ctx.font = "500 9px 'IBM Plex Mono', monospace";
+      ctx.textAlign = "center";
+      const labelWidth = Math.min(156, ctx.measureText(label).width);
+      const labelY = e.y - (e.size / 2) - 14;
+      const box = { left: e.x - labelWidth / 2 - 5, right: e.x + labelWidth / 2 + 5, top: labelY - 10, bottom: labelY + 4 };
+      const overlapsLabel = enemyLabelBoxes.some(other => box.left < other.right && box.right > other.left && box.top < other.bottom && box.bottom > other.top);
+      if (!overlapsLabel) {
+        ctx.lineJoin = "round";
+        ctx.lineWidth = 3;
+        ctx.strokeStyle = "rgba(15, 21, 18, 0.92)";
+        ctx.strokeText(label, e.x, labelY, 156);
+        ctx.fillStyle = e.is_boss ? "#e7dfcd" : "#d6ddd2";
+        ctx.fillText(label, e.x, labelY, 156);
+        enemyLabelBoxes.push(box);
+      }
+    }
   });
 
   // Projectiles
@@ -4408,8 +4735,22 @@ function render() {
   if (p.facing_left) ctx.scale(-1, 1);
 
   const cData = CHARACTERS[state.selected_char];
-  const pSpr = images[cData.sprite] || images["player.png"];
-  if (pSpr) ctx.drawImage(pSpr, -26, -26, 52, 52);
+  const isMoving = Math.hypot(p.vx, p.vy) > 20;
+  const action = p.attack_anim_timer > 0 ? "attack" : isMoving ? "run" : "idle";
+  const frame = action === "attack"
+    ? Math.min(3, Math.floor((0.28 - p.attack_anim_timer) / 0.07))
+    : Math.floor(performance.now() / (action === "run" ? 90 : 240)) % 4;
+  const animationKey = state.selected_char === "inky" ? "inky"
+    : state.selected_char === "quillmaster" ? "quillmaster"
+    : state.selected_char === "word_knight" ? "word_knight"
+    : state.selected_char === "rune_sorceress" ? "rune_sorceress"
+    : state.selected_char === "lexicon_alchemist" ? "alchemist"
+    : state.selected_char === "shadow_lexicographer" ? "shadow_scribe" : null;
+  const actionSprite = animationKey
+    ? images[`upgrade_v1/animations/${animationKey}_${action}_${frame}.png`]
+    : null;
+  const pSpr = actionSprite || images[cData.sprite] || images["player.png"];
+  if (pSpr) ctx.drawImage(pSpr, -44, -44, 88, 88);
   ctx.restore();
 
   // Floating Slotted Weapons Arsenal
@@ -4417,23 +4758,45 @@ function render() {
     ctx.save();
     let wx = p.x; let wy = p.y;
     const isAct = (idx === state.active_weapon_index);
-    if (state.weapons.length > 1) {
-      const ang = (idx / state.weapons.length) * Math.PI * 2;
-      const dist = isAct ? 30 : 23;
-      wx += Math.cos(ang) * dist;
-      wy += Math.sin(ang) * dist;
+    const facing = p.facing_left ? -1 : 1;
+    if (isAct) {
+      wx += 10 * facing - Math.cos(w.rotation) * (w.recoil || 0) * 5;
+      wy += 2 - Math.sin(w.rotation) * (w.recoil || 0) * 5;
+    } else {
+      const holsterRow = idx < state.active_weapon_index ? idx : idx - 1;
+      wx += 6 * facing;
+      wy += 11 + Math.max(0, holsterRow) * 5;
     }
     ctx.translate(wx, wy);
     ctx.rotate(w.rotation);
 
     if (isAct) {
-      ctx.shadowColor = "#ffd700";
-      ctx.shadowBlur = 14;
-      ctx.scale(1.24, 1.24);
+      ctx.shadowColor = "rgba(190, 156, 99, 0.55)";
+      ctx.shadowBlur = 7;
+      ctx.scale(1.12, 1.12);
     }
 
     const wSpr = images[w.data.sprite];
-    if (wSpr) ctx.drawImage(wSpr, 4, -16, 32, 32);
+    const weaponInHeroFrame = (state.selected_char === "inky" && w.id === "quill_blaster")
+      || (state.selected_char === "quillmaster" && w.id === "syllable_shotgun")
+      || (state.selected_char === "word_knight" && w.id === "dictionary_blade")
+      || (state.selected_char === "rune_sorceress" && w.id === "rune_orb")
+      || (state.selected_char === "shadow_lexicographer" && w.id === "calligraphy_katana");
+    if (wSpr && !weaponInHeroFrame) ctx.drawImage(wSpr, 4, -16, 32, 32);
+    if (w.flash_timer > 0 && isAct) {
+      ctx.fillStyle = `rgba(232, 205, 148, ${Math.min(0.9, w.flash_timer * 12)})`;
+      ctx.beginPath();
+      ctx.arc(36, 0, 4 + w.flash_timer * 48, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    if (w.swing_timer > 0 && (w.id === "dictionary_blade" || w.id === "calligraphy_katana")) {
+      const progress = 1 - w.swing_timer / (w.id === "calligraphy_katana" ? 0.28 : 0.24);
+      ctx.strokeStyle = `rgba(226, 215, 185, ${Math.max(0, 0.82 - progress * 0.72)})`;
+      ctx.lineWidth = w.id === "calligraphy_katana" ? 4 : 3;
+      ctx.beginPath();
+      ctx.arc(5, 0, w.id === "calligraphy_katana" ? 54 : 44, -0.96 + progress * 0.32, 0.96 + progress * 0.32);
+      ctx.stroke();
+    }
     ctx.restore();
   });
 
@@ -4442,7 +4805,7 @@ function render() {
     state.floating_texts.forEach(ft => {
       const prog = Math.max(0, ft.lifetime / ft.max_lifetime);
       ctx.save();
-      ctx.font = `bold ${ft.size || 13}px 'Cinzel', serif`;
+      ctx.font = `bold ${ft.size || 13}px 'IBM Plex Serif', serif`;
       ctx.fillStyle = ft.color;
       ctx.globalAlpha = Math.min(1.0, prog * 1.6);
       ctx.shadowColor = "rgba(0, 0, 0, 0.85)";
@@ -4472,15 +4835,47 @@ function gameLoop(now) {
   lastTime = now;
   const dt = rawDt * (state.game_speed || 1.0);
 
+  updateGame(dt);
+  render();
+  requestAnimationFrame(gameLoop);
+}
+
+function updateGame(dt) {
   if (state.is_wave_active) {
     updatePlayer(dt);
     updateEnemies(dt);
     updateHUD();
   }
-
-  render();
-  requestAnimationFrame(gameLoop);
 }
+
+window.render_game_to_text = () => JSON.stringify({
+  coordinate_system: "arena origin at center; +x right, +y down",
+  mode: state.hp <= 0 ? "gameover" : state.is_wave_active ? "wave" : (getComputedStyle(document.getElementById("shop-screen")).display !== "none" ? "shop" : "title"),
+  wave: state.current_wave,
+  wave_time_left: Number(state.wave_time_left.toFixed(1)),
+  character: state.selected_char,
+  player: {
+    x: Math.round(state.player.x), y: Math.round(state.player.y),
+    vx: Math.round(state.player.vx), vy: Math.round(state.player.vy),
+    hp: Math.round(state.hp), max_hp: Math.round(state.max_hp),
+    animation: state.player.attack_anim_timer > 0 ? "attack" : Math.hypot(state.player.vx, state.player.vy) > 20 ? "run" : "idle",
+    dashing: state.player.is_dashing, gadget_cooldown: Number(state.gadget_timer.toFixed(1))
+  },
+  enemies: state.enemies.filter(e => !e.dead).slice(0, 24).map(e => ({
+    type: e.type, x: Math.round(e.x), y: Math.round(e.y), hp: Math.round(e.hp),
+    boss: !!e.is_boss
+  })),
+  alive_count: state.enemies.reduce((n, e) => n + (e.dead ? 0 : 1), 0),
+  alive_cap: getWaveEnemyCap(),
+  ink: state.ink_count, kills: state.kill_count
+});
+
+window.advanceTime = (ms) => {
+  const stepCount = Math.max(1, Math.round(ms / (1000 / 60)));
+  const dt = 1 / 60 * (state.game_speed || 1.0);
+  for (let i = 0; i < stepCount; i++) updateGame(dt);
+  render();
+};
 
 // Immediate initial sync for instant interactivity on mobile & iPad
 initTitleScreen();

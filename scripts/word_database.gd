@@ -848,4 +848,18 @@ func load_from_json():
 			f.close()
 			var json = JSON.parse_string(text)
 			if json and json is Array and json.size() > 0:
-				words = json
+				# Keep the authored Godot fallback cards available when the exported web
+				# question file is older or has been curated independently.
+				var fallback_words := words.duplicate(true)
+				var merged_words: Array = json.duplicate(true)
+				var seen_words := {}
+				for card in merged_words:
+					var key := str(card.get("word", "")).strip_edges().to_lower()
+					if not key.is_empty():
+						seen_words[key] = true
+				for card in fallback_words:
+					var key := str(card.get("word", "")).strip_edges().to_lower()
+					if not key.is_empty() and not seen_words.has(key):
+						merged_words.append(card)
+						seen_words[key] = true
+				words = merged_words

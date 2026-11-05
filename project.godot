@@ -17,6 +17,11 @@ config/features=PackedStringArray("4.7", "Forward Plus")
 StatsManager="*res://scripts/stats_manager.gd"
 WordDatabase="*res://scripts/word_database.gd"
 
+[gui]
+
+theme/custom="res://assets/themes/lexicon_theme.tres"
+theme/custom_font="res://assets/fonts/ibm-plex/IBMPlexSans-Variable.ttf"
+
 [display]
 
 window/size/viewport_width=1280

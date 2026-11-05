@@ -59,6 +59,7 @@ var characters: Dictionary = {
 		"armor": 0.10,
 		"crit_chance": 0.10,
 		"starting_weapon": "quill_blaster",
+		"starting_gadget": "dash",
 		"passive": "Mürekkep Ustası: Mürekkep toplama menzili ve öğrenme dengesi tam.",
 		"color": Color(0.9, 0.95, 1.0)
 	},
@@ -74,6 +75,7 @@ var characters: Dictionary = {
 		"armor": 0.0,
 		"crit_chance": 0.20,
 		"starting_weapon": "syllable_shotgun",
+		"starting_gadget": "time_stop",
 		"passive": "Seri Kalem: Başlangıçtan itibaren Hece Pompalısı ve yüksek atış hızı.",
 		"color": Color(1.0, 0.88, 0.4)
 	},
@@ -89,6 +91,7 @@ var characters: Dictionary = {
 		"armor": 0.30,
 		"crit_chance": 0.08,
 		"starting_weapon": "dictionary_blade",
+		"starting_gadget": "shield",
 		"passive": "Sözlük Zırhı: Düşman darbelerine karşı dayanıklı ve yakın dövüş kalkanı.",
 		"color": Color(0.45, 0.9, 0.65)
 	},
@@ -104,6 +107,7 @@ var characters: Dictionary = {
 		"armor": 0.05,
 		"crit_chance": 0.15,
 		"starting_weapon": "rune_orb",
+		"starting_gadget": "ink_bomb",
 		"passive": "Rün İnfilakı: Düşmanları alt ettiğinde sıçrayan rün patlamaları.",
 		"color": Color(0.75, 0.5, 0.98)
 	},
@@ -119,6 +123,7 @@ var characters: Dictionary = {
 		"armor": 0.12,
 		"crit_chance": 0.12,
 		"starting_weapon": "ink_flamethrower",
+		"starting_gadget": "magnet",
 		"passive": "Simya Özütü: Her dalga başında +10 Mürekkep, iksirler +%50 etkili.",
 		"color": Color(0.2, 0.83, 0.6)
 	},
@@ -134,6 +139,7 @@ var characters: Dictionary = {
 		"armor": 0.0,
 		"crit_chance": 0.35,
 		"starting_weapon": "calligraphy_katana",
+		"starting_gadget": "dash",
 		"passive": "Kritik İnfaz: Kritik vuruşlar %250 hasar verir ve düşmanı yavaşlatır.",
 		"color": Color(0.96, 0.25, 0.37)
 	}
@@ -143,7 +149,7 @@ var characters: Dictionary = {
 var difficulties: Dictionary = {
 	"easy": {
 		"id": "easy",
-		"name": "Kolay (LGS / A1-A2)",
+		"name": "A1–A2",
 		"desc": "Düşmanlar yavaş (%-25), canları az (%-35). Başlangıç canı +40 HP. Rahat öğrenme ortamı.",
 		"enemy_speed_mult": 0.75,
 		"enemy_hp_mult": 0.65,
@@ -153,7 +159,7 @@ var difficulties: Dictionary = {
 	},
 	"normal": {
 		"id": "normal",
-		"name": "Orta (YKS-YDT / B1)",
+		"name": "B1",
 		"desc": "Dengeli arcade roguelite. Akıcı dalga temposu, toplanabilir can parşömenleri.",
 		"enemy_speed_mult": 0.90,
 		"enemy_hp_mult": 0.85,
@@ -163,7 +169,7 @@ var difficulties: Dictionary = {
 	},
 	"hard": {
 		"id": "hard",
-		"name": "Zor (IELTS-TOEFL / B2-C1)",
+		"name": "B2–C1",
 		"desc": "Akademik arena! Çevik düşmanlar, yüksek canlar (%+15), sınav tuzakları.",
 		"enemy_speed_mult": 1.08,
 		"enemy_hp_mult": 1.15,
@@ -361,14 +367,14 @@ var gadgets_catalog: Dictionary = {
 	"shield": {
 		"id": "shield",
 		"name": "Leksikon Kalkanı (Lexicon Aegis)",
-		"desc": "5 saniye boyunca 100 hasar emen ve çarpan mermileri yansıtan koruma alanı.",
+		"desc": "5 saniye boyunca toplam 100 hasarı emen koruma alanı.",
 		"cooldown": 10.0,
 		"cost": 22
 	},
 	"magnet": {
 		"id": "magnet",
 		"name": "Gramer Mıknatısı (Grammar Magnet)",
-		"desc": "Tüm harita üzerindeki tüm mürekkep damlalarını ve rünleri anında kendine çeker.",
+		"desc": "Haritadaki mürekkep damlalarını ve toplanabilir rünleri kendine çeker.",
 		"cooldown": 8.0,
 		"cost": 18
 	}
@@ -436,8 +442,12 @@ func reset():
 	equipped_weapons.append(char_data["starting_weapon"])
 	active_weapon_index = 0
 	artifacts_owned.clear()
+	var starting_gadget = char_data.get("starting_gadget", "dash")
 	owned_gadgets = ["dash"]
-	active_gadget = "dash"
+	if starting_gadget != "dash":
+		owned_gadgets.append(starting_gadget)
+	active_gadget = starting_gadget
+	emit_signal("gadget_switched", active_gadget)
 	
 	emit_signal("hp_changed", hp, max_hp)
 	emit_signal("ink_changed", ink_count)
@@ -461,6 +471,8 @@ func register_kill():
 	emit_signal("kill_count_changed", kill_count)
 
 func heal(amount: float):
+	if selected_character == "lexicon_alchemist":
+		amount *= 1.5
 	hp = min(max_hp, hp + amount)
 	emit_signal("hp_changed", hp, max_hp)
 

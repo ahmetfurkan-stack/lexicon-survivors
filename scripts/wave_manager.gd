@@ -6,6 +6,7 @@ signal wave_started(wave_number: int)
 
 @export var enemy_scene: PackedScene = preload("res://scenes/enemy.tscn")
 @export var wave_duration: float = 25.0
+@export var max_active_enemies: int = 220
 
 var time_left: float = 25.0
 var spawn_timer: float = 0.0
@@ -30,14 +31,34 @@ func _process(delta: float):
 		end_wave()
 		return
 		
+	var wave_enemy_cap := _get_wave_enemy_cap()
+	var active_count = _active_enemy_count()
+	if active_count >= wave_enemy_cap:
+		# Hold the spawn clock at the cap so clearing space resumes the cadence cleanly.
+		spawn_timer = max(spawn_timer, 0.0)
+		return
+
 	spawn_timer -= delta
 	var diff_factor = 1.15 if StatsManager.difficulty == "easy" else (0.80 if StatsManager.difficulty == "hard" else 1.0)
 	var spawn_interval = max(0.12, (0.60 - (StatsManager.current_wave * 0.04)) * diff_factor)
 	if spawn_timer <= 0:
 		spawn_timer = spawn_interval
 		var batch_count = 3 if StatsManager.current_wave >= 25 else (2 if StatsManager.current_wave >= 8 else 1)
-		for i in range(batch_count):
+		var available_slots = wave_enemy_cap - _active_enemy_count()
+		for i in range(min(batch_count, available_slots)):
 			spawn_enemy()
+
+func _active_enemy_count() -> int:
+	var count = 0
+	for enemy in get_tree().get_nodes_in_group("enemies"):
+		if is_instance_valid(enemy) and not enemy.is_queued_for_deletion():
+			count += 1
+	return count
+
+func _get_wave_enemy_cap() -> int:
+	# Early waves keep readable space around the player; later waves build into
+	# the larger horde the pacing promises, with a performance ceiling at 220.
+	return mini(max_active_enemies, 48 + maxi(0, StatsManager.current_wave - 1) * 2)
 
 func find_player():
 	if not is_inside_tree():
@@ -49,6 +70,8 @@ func find_player():
 
 func spawn_enemy():
 	if not is_inside_tree():
+		return
+	if _active_enemy_count() >= _get_wave_enemy_cap():
 		return
 	find_player()
 	if not player_ref:
@@ -97,9 +120,15 @@ func spawn_enemy():
 
 func end_wave():
 	is_wave_active = false
-	# Clear remaining enemies in arena
+	# Remove survivors without treating a timed wave transition as player kills.
 	var enemies = get_tree().get_nodes_in_group("enemies")
 	for e in enemies:
 		if is_instance_valid(e):
-			e.die()
+			if e.has_method("despawn_without_rewards"):
+				e.despawn_without_rewards()
+			else:
+				e.queue_free()
+	for projectile in get_tree().get_nodes_in_group("enemy_projectiles"):
+		if is_instance_valid(projectile):
+			projectile.queue_free()
 	emit_signal("wave_finished")

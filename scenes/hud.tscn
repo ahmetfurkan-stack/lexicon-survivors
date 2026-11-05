@@ -1,6 +1,62 @@
-[gd_scene load_steps=2 format=3 uid="uid://g9v4x2m1q7k8b"]
+[gd_scene load_steps=11 format=3 uid="uid://g9v4x2m1q7k8b"]
 
 [ext_resource type="Script" path="res://scripts/hud.gd" id="1_script"]
+[ext_resource type="Texture2D" path="res://assets/ui/icons/ink.svg" id="2_ink"]
+[ext_resource type="Texture2D" path="res://assets/ui/icons/kills.svg" id="3_kills"]
+[ext_resource type="Texture2D" path="res://assets/ui/icons/dash.svg" id="4_dash"]
+[ext_resource type="Texture2D" path="res://assets/ui/icons/book.svg" id="5_book"]
+[ext_resource type="Texture2D" path="res://assets/ui/icons/corrections.svg" id="6_corrections"]
+
+[sub_resource type="StyleBoxFlat" id="ChapterCardStyle"]
+bg_color = Color(0.075, 0.095, 0.085, 0.97)
+border_width_left = 1
+border_width_top = 1
+border_width_right = 1
+border_width_bottom = 1
+border_color = Color(0.58, 0.62, 0.53, 1)
+corner_radius_top_left = 3
+corner_radius_top_right = 3
+corner_radius_bottom_right = 3
+corner_radius_bottom_left = 3
+content_margin_left = 18.0
+content_margin_top = 12.0
+content_margin_right = 18.0
+content_margin_bottom = 12.0
+
+[sub_resource type="StyleBoxFlat" id="HUDPanelStyle"]
+bg_color = Color(0.075, 0.095, 0.085, 0.96)
+border_color = Color(0.38, 0.42, 0.37, 1)
+border_width_left = 1
+border_width_top = 1
+border_width_right = 1
+border_width_bottom = 1
+corner_radius_top_left = 4
+corner_radius_top_right = 4
+corner_radius_bottom_right = 4
+corner_radius_bottom_left = 4
+content_margin_left = 10.0
+content_margin_top = 6.0
+content_margin_right = 10.0
+content_margin_bottom = 6.0
+
+[sub_resource type="StyleBoxFlat" id="HealthBarBackground"]
+bg_color = Color(0.10, 0.13, 0.11, 1)
+border_color = Color(0.40, 0.42, 0.36, 1)
+border_width_left = 1
+border_width_top = 1
+border_width_right = 1
+border_width_bottom = 1
+corner_radius_top_left = 3
+corner_radius_top_right = 3
+corner_radius_bottom_right = 3
+corner_radius_bottom_left = 3
+
+[sub_resource type="StyleBoxFlat" id="HealthBarFill"]
+bg_color = Color(0.53, 0.23, 0.27, 1)
+corner_radius_top_left = 3
+corner_radius_top_right = 3
+corner_radius_bottom_right = 3
+corner_radius_bottom_left = 3
 
 [node name="HUD" type="CanvasLayer"]
 script = ExtResource("1_script")
@@ -25,6 +81,8 @@ theme_override_constants/separation = 20
 [node name="HealthBar" type="ProgressBar" parent="MarginContainer/VBox/TopRow"]
 custom_minimum_size = Vector2(250, 28)
 layout_mode = 2
+theme_override_styles/background = SubResource("HealthBarBackground")
+theme_override_styles/fill = SubResource("HealthBarFill")
 value = 100.0
 show_percentage = false
 
@@ -39,30 +97,56 @@ theme_override_font_sizes/font_size = 14
 text = "100 / 100 HP"
 horizontal_alignment = 1
 vertical_alignment = 1
+theme_type_variation = "Metric"
 
 [node name="TimerLabel" type="Label" parent="MarginContainer/VBox/TopRow"]
 layout_mode = 2
 size_flags_horizontal = 3
-theme_override_colors/font_color = Color(1, 0.9, 0.4, 1)
-theme_override_font_sizes/font_size = 20
-text = "⏳ Dalga 1 • 25s"
+theme_override_colors/font_color = Color(0.88, 0.84, 0.74, 1)
+theme_override_font_sizes/font_size = 16
+text = "DALGA 1 · 25s"
 horizontal_alignment = 1
+theme_type_variation = "Metric"
 
-[node name="InkLabel" type="Label" parent="MarginContainer/VBox/TopRow"]
-custom_minimum_size = Vector2(110, 0)
+[node name="InkStat" type="HBoxContainer" parent="MarginContainer/VBox/TopRow"]
 layout_mode = 2
-theme_override_colors/font_color = Color(0.2, 0.9, 1, 1)
-theme_override_font_sizes/font_size = 20
-text = "💧 0"
-horizontal_alignment = 2
+theme_override_constants/separation = 6
 
-[node name="KillLabel" type="Label" parent="MarginContainer/VBox/TopRow"]
-custom_minimum_size = Vector2(90, 0)
+[node name="InkIcon" type="TextureRect" parent="MarginContainer/VBox/TopRow/InkStat"]
+custom_minimum_size = Vector2(18, 18)
 layout_mode = 2
-theme_override_colors/font_color = Color(1, 0.4, 0.4, 1)
-theme_override_font_sizes/font_size = 20
-text = "💀 0"
+texture = ExtResource("2_ink")
+expand_mode = 1
+stretch_mode = 5
+
+[node name="InkLabel" type="Label" parent="MarginContainer/VBox/TopRow/InkStat"]
+custom_minimum_size = Vector2(44, 0)
+layout_mode = 2
+theme_override_colors/font_color = Color(0.88, 0.84, 0.74, 1)
+theme_override_font_sizes/font_size = 14
+text = "0"
 horizontal_alignment = 2
+theme_type_variation = "Metric"
+
+[node name="KillStat" type="HBoxContainer" parent="MarginContainer/VBox/TopRow"]
+layout_mode = 2
+theme_override_constants/separation = 6
+
+[node name="KillIcon" type="TextureRect" parent="MarginContainer/VBox/TopRow/KillStat"]
+custom_minimum_size = Vector2(18, 18)
+layout_mode = 2
+texture = ExtResource("3_kills")
+expand_mode = 1
+stretch_mode = 5
+
+[node name="KillLabel" type="Label" parent="MarginContainer/VBox/TopRow/KillStat"]
+custom_minimum_size = Vector2(36, 0)
+layout_mode = 2
+theme_override_colors/font_color = Color(0.88, 0.84, 0.74, 1)
+theme_override_font_sizes/font_size = 14
+text = "0"
+horizontal_alignment = 2
+theme_type_variation = "Metric"
 
 [node name="InfoRow" type="HBoxContainer" parent="MarginContainer/VBox"]
 layout_mode = 2
@@ -70,15 +154,15 @@ layout_mode = 2
 [node name="CharDiffLabel" type="Label" parent="MarginContainer/VBox/InfoRow"]
 layout_mode = 2
 size_flags_horizontal = 3
-theme_override_colors/font_color = Color(0.8, 0.85, 0.9, 1)
+theme_override_colors/font_color = Color(0.79, 0.82, 0.76, 1)
 theme_override_font_sizes/font_size = 13
-text = "👤 Inky • 🎯 Normal"
+text = "Inky · Normal"
 
 [node name="WeaponsLabel" type="Label" parent="MarginContainer/VBox/InfoRow"]
 layout_mode = 2
-theme_override_colors/font_color = Color(0.9, 0.75, 0.4, 1)
+theme_override_colors/font_color = Color(0.77, 0.68, 0.49, 1)
 theme_override_font_sizes/font_size = 13
-text = "⚔️ Tüy Kalem"
+text = "Tüy Kalem"
 horizontal_alignment = 2
 
 [node name="GadgetPanel" type="Panel" parent="."]
@@ -90,6 +174,7 @@ offset_top = -68.0
 offset_right = 280.0
 offset_bottom = -18.0
 grow_vertical = 0
+theme_override_styles/panel = SubResource("HUDPanelStyle")
 
 [node name="HBox" type="HBoxContainer" parent="GadgetPanel"]
 layout_mode = 1
@@ -108,11 +193,18 @@ theme_override_constants/separation = 10
 layout_mode = 2
 size_flags_horizontal = 3
 theme_override_font_sizes/font_size = 13
-text = "🧽 Silgi (Space):"
+text = "SİLGİ · SPACE"
+
+[node name="GadgetGlyph" type="TextureRect" parent="GadgetPanel/HBox"]
+custom_minimum_size = Vector2(18, 18)
+layout_mode = 2
+texture = ExtResource("4_dash")
+expand_mode = 1
+stretch_mode = 5
 
 [node name="GadgetStatus" type="Label" parent="GadgetPanel/HBox"]
 layout_mode = 2
-theme_override_colors/font_color = Color(0.3, 1, 0.4, 1)
+theme_override_colors/font_color = Color(0.77, 0.68, 0.49, 1)
 theme_override_font_sizes/font_size = 14
 text = "HAZIR"
 
@@ -126,6 +218,7 @@ offset_top = 95.0
 offset_right = 260.0
 offset_bottom = 165.0
 grow_horizontal = 2
+theme_override_styles/panel = SubResource("HUDPanelStyle")
 
 [node name="Title" type="Label" parent="SynergyBanner"]
 layout_mode = 1
@@ -134,10 +227,120 @@ anchor_right = 1.0
 offset_top = 8.0
 offset_bottom = 32.0
 grow_horizontal = 2
-theme_override_colors/font_color = Color(1, 0.85, 0.2, 1)
+theme_override_colors/font_color = Color(0.81, 0.72, 0.53, 1)
 theme_override_font_sizes/font_size = 16
-text = "★ YENİ SİNERJİ AÇILDI ★"
+text = "YENİ SİNERJİ AÇILDI"
 horizontal_alignment = 1
+
+[node name="SynergyGlyph" type="TextureRect" parent="SynergyBanner"]
+layout_mode = 1
+anchors_preset = 0
+offset_left = 14.0
+offset_top = 9.0
+offset_right = 36.0
+offset_bottom = 31.0
+texture = ExtResource("6_corrections")
+expand_mode = 1
+stretch_mode = 5
+mouse_filter = 2
+
+[node name="ChapterCard" type="Panel" parent="."]
+visible = false
+mouse_filter = 2
+anchors_preset = 5
+anchor_left = 0.5
+anchor_right = 0.5
+offset_left = -290.0
+offset_top = 102.0
+offset_right = 290.0
+offset_bottom = 258.0
+grow_horizontal = 2
+theme_override_styles/panel = SubResource("ChapterCardStyle")
+
+[node name="Accent" type="ColorRect" parent="ChapterCard"]
+layout_mode = 1
+anchors_preset = 10
+anchor_right = 1.0
+offset_left = 18.0
+offset_top = 48.0
+offset_right = -18.0
+offset_bottom = 50.0
+grow_horizontal = 2
+color = Color(0.77, 0.66, 0.44, 1)
+mouse_filter = 2
+
+[node name="Kicker" type="Label" parent="ChapterCard"]
+mouse_filter = 2
+layout_mode = 1
+anchors_preset = 10
+anchor_right = 1.0
+offset_left = 1.0
+offset_top = 13.0
+offset_right = -50.0
+offset_bottom = 34.0
+grow_horizontal = 2
+theme_override_colors/font_color = Color(0.77, 0.72, 0.59, 1)
+theme_override_font_sizes/font_size = 11
+text = "BÖLÜM I  ·  DALGALAR 01–25"
+
+[node name="ChapterNumber" type="Label" parent="ChapterCard"]
+mouse_filter = 2
+layout_mode = 1
+anchors_preset = 1
+anchor_left = 1.0
+anchor_right = 1.0
+offset_left = -46.0
+offset_top = 8.0
+offset_right = -1.0
+offset_bottom = 43.0
+grow_horizontal = 0
+theme_override_colors/font_color = Color(0.77, 0.72, 0.59, 0.65)
+theme_override_font_sizes/font_size = 24
+text = "I"
+horizontal_alignment = 2
+
+[node name="ChapterTitle" type="Label" parent="ChapterCard"]
+mouse_filter = 2
+layout_mode = 1
+anchors_preset = 10
+anchor_right = 1.0
+offset_left = 52.0
+offset_top = 57.0
+offset_right = -1.0
+offset_bottom = 91.0
+grow_horizontal = 2
+theme_override_colors/font_color = Color(0.94, 0.92, 0.85, 1)
+theme_override_font_sizes/font_size = 23
+text = "KARANLIK KÜTÜPHANE"
+horizontal_alignment = 1
+
+[node name="ChapterDesc" type="Label" parent="ChapterCard"]
+mouse_filter = 2
+layout_mode = 1
+anchors_preset = 10
+anchor_right = 1.0
+offset_left = 8.0
+offset_top = 105.0
+offset_right = -8.0
+offset_bottom = 134.0
+grow_horizontal = 2
+theme_override_colors/font_color = Color(0.78, 0.8, 0.75, 1)
+theme_override_font_sizes/font_size = 14
+text = "Kayıp kelimeleri rafların arasından geri çağır."
+horizontal_alignment = 0
+autowrap_mode = 2
+
+[node name="BookGlyph" type="TextureRect" parent="ChapterCard"]
+layout_mode = 1
+anchors_preset = 0
+offset_left = 18.0
+offset_top = 59.0
+offset_right = 42.0
+offset_bottom = 83.0
+texture = ExtResource("5_book")
+expand_mode = 1
+stretch_mode = 5
+mouse_filter = 2
 
 [node name="Desc" type="Label" parent="SynergyBanner"]
 layout_mode = 1
