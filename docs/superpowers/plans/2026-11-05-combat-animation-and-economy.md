@@ -20,6 +20,7 @@
 ## Review Focus
 
 - Fast attack speed with multiple equipped weapons: attack feedback cannot suppress the run animation continuously. Pin with an automatic-fire locomotion regression.
+- Locomotion should carry a little momentum through direction changes, settle smoothly after input release, and pace the existing foot cycle from actual travel speed. Preserve average move speed and all shelf collision limits.
 - No enemies in range: facing and movement continue without a forced attack pose. Pin in both runtime tests.
 - Melee weapon starts/stops mid-swing: resolve damage only once at the attack's hit frame, with recovery before the next swing. Pin existing weapon hit regression.
 - Price just below/above available ink: purchase succeeds/fails atomically and leaves the correct balance. Pin shop affordability tests.
@@ -38,10 +39,11 @@
 **Interfaces:**
 - Produces: `request_attack_pose(weapon_id: String, action_kind: String, aim: Vector2)` in Godot; web equivalent `requestAttackPose(weaponId, actionKind, aim)`
 - `action_kind` is one of `ranged`, `melee`, `cast`, `heavy`; locomotion state remains independently selected from velocity
+- Locomotion response keeps current top speed, but uses deliberate acceleration, gentle braking, and velocity-scaled run cadence. Attacks do not reset foot-cycle phase; facing follows the last meaningful aim or movement direction.
 
 - [ ] **Step 1: Add tests proving idle/run state is not replaced by every ranged projectile**
 
-Assert continuous movement remains `run` across several ranged shots; assert melee/cast events request their action pose; assert movement resumes after the action recovery window.
+Assert continuous movement remains `run` across several ranged shots; assert the run phase advances during fire; assert velocity eases from rest and settles on release without changing top speed; assert melee/cast events request their action pose; assert movement resumes after the action recovery window.
 
 - [ ] **Step 2: Run the focused regression and observe the per-shot interruption**
 
