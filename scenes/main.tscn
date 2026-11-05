@@ -13,7 +13,7 @@
 [ext_resource type="Texture2D" path="res://assets/sprites/wax_seal.png" id="11_seal"]
 
 [sub_resource type="RectangleShape2D" id="WallShape_Horiz"]
-size = Vector2(2400, 60)
+size = Vector2(2550, 60)
 
 [sub_resource type="RectangleShape2D" id="WallShape_Vert"]
 size = Vector2(60, 1800)
@@ -98,11 +98,11 @@ position = Vector2(0, 900)
 shape = SubResource("WallShape_Horiz")
 
 [node name="LeftWall" type="CollisionShape2D" parent="ArenaWalls"]
-position = Vector2(-1200, 0)
+position = Vector2(-1275, 0)
 shape = SubResource("WallShape_Vert")
 
 [node name="RightWall" type="CollisionShape2D" parent="ArenaWalls"]
-position = Vector2(1200, 0)
+position = Vector2(1275, 0)
 shape = SubResource("WallShape_Vert")
 
 [node name="Player" parent="." instance=ExtResource("3_player")]

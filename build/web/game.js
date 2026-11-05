@@ -1,6 +1,23 @@
 // Lexicon Survivors: The Word Guardian - Web Engine v4.0
 // Hardcore Roguelite, 100 Waves, Weapon Slots & Multi-Gadget System
 
+const ARENA_LAYOUT = Object.freeze({
+  width: 2800,
+  height: 2100,
+  innerShelfX: 1245,
+  innerShelfY: 870,
+  playerColliderRadius: 15,
+  playerColliderOffsetY: 3,
+});
+const PLAYER_CENTER_LIMIT_X = ARENA_LAYOUT.innerShelfX - ARENA_LAYOUT.playerColliderRadius;
+const PLAYER_CENTER_MIN_Y = -ARENA_LAYOUT.innerShelfY + ARENA_LAYOUT.playerColliderRadius - ARENA_LAYOUT.playerColliderOffsetY;
+const PLAYER_CENTER_MAX_Y = ARENA_LAYOUT.innerShelfY - ARENA_LAYOUT.playerColliderRadius - ARENA_LAYOUT.playerColliderOffsetY;
+
+function clampPlayerToArena(player) {
+  player.x = Math.max(-PLAYER_CENTER_LIMIT_X, Math.min(PLAYER_CENTER_LIMIT_X, player.x));
+  player.y = Math.max(PLAYER_CENTER_MIN_Y, Math.min(PLAYER_CENTER_MAX_Y, player.y));
+}
+
 // =========================================
 // 1. WEB AUDIO SYNTHESIZER
 // =========================================
@@ -2288,8 +2305,7 @@ function updatePlayer(dt) {
     if (dx !== 0) p.facing_left = dx < 0;
   }
 
-  p.x = Math.max(-1168, Math.min(1168, p.x));
-  p.y = Math.max(-868, Math.min(868, p.y));
+  clampPlayerToArena(p);
 
   // Ink drops
   state.ink_drops.forEach(drop => {
@@ -4395,16 +4411,12 @@ function render() {
   // One full arena illustration keeps the playable surface coherent and avoids
   // a high-contrast repeating tile beneath the characters.
   ctx.fillStyle = "#0a0e0c";
-  ctx.fillRect(-2250, -1800, 4500, 3600);
+  ctx.fillRect(-ARENA_LAYOUT.width / 2, -ARENA_LAYOUT.height / 2, ARENA_LAYOUT.width, ARENA_LAYOUT.height);
   const frameImg = images[frameSprite];
   if (frameImg) {
-    // Fit the illustrated room to the visible viewport so its unique frame
-    // stays around the play area instead of disappearing beyond world bounds.
-    const viewW = canvas.width / zoom;
-    const viewH = canvas.height / zoom;
-    const sceneW = Math.max(viewW, viewH * (4 / 3));
-    const sceneH = sceneW * (3 / 4);
-    ctx.drawImage(frameImg, p.x - sceneW / 2, p.y - sceneH / 2, sceneW, sceneH);
+    // The library is one fixed room in world space; its frame no longer follows
+    // the camera, and the same measurements drive player collision bounds.
+    ctx.drawImage(frameImg, -ARENA_LAYOUT.width / 2, -ARENA_LAYOUT.height / 2, ARENA_LAYOUT.width, ARENA_LAYOUT.height);
   }
 
   // Central Double-Rotating Magical Rune Circle

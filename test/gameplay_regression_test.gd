@@ -221,7 +221,24 @@ func _run() -> void:
 	assert(phantom.telegraph_timer > 0.0, "Punctuation Phantom must wind up before its blink strike")
 	assert(phantom_velocity == Vector2.ZERO, "Punctuation Phantom should pause during its strike telegraph")
 
-	# Verify the player can physically enter the arena's lower-right corner.
+	# Shelf art defines the room contact rectangle; wall thickness and player
+	# radius keep the character body just inside the visible inner edge.
+	var right_wall: CollisionShape2D = main.get_node("ArenaWalls/RightWall")
+	var left_wall: CollisionShape2D = main.get_node("ArenaWalls/LeftWall")
+	var top_wall: CollisionShape2D = main.get_node("ArenaWalls/TopWall")
+	var bottom_wall: CollisionShape2D = main.get_node("ArenaWalls/BottomWall")
+	var shelf_edge: Vector2 = load("res://scripts/arena_frame.gd").INNER_SHELF_EDGE
+	assert(is_equal_approx(right_wall.position.x - right_wall.shape.size.x / 2.0, shelf_edge.x), "Right collision face must align to the visible shelf's inner edge")
+	assert(is_equal_approx(left_wall.position.x + left_wall.shape.size.x / 2.0, -shelf_edge.x), "Left collision face must align to the visible shelf's inner edge")
+	assert(is_equal_approx(bottom_wall.position.y - bottom_wall.shape.size.y / 2.0, shelf_edge.y), "Bottom collision face must align to the visible shelf's inner edge")
+	assert(is_equal_approx(top_wall.position.y + top_wall.shape.size.y / 2.0, -shelf_edge.y), "Top collision face must align to the visible shelf's inner edge")
+	var player_radius: float = player.get_node("CollisionShape2D").shape.radius
+	var player_shape_offset: Vector2 = player.get_node("CollisionShape2D").position
+	var max_center_x: float = shelf_edge.x - player_radius - player_shape_offset.x
+	var min_center_x: float = -shelf_edge.x + player_radius - player_shape_offset.x
+	var max_center_y: float = shelf_edge.y - player_radius - player_shape_offset.y
+	var min_center_y: float = -shelf_edge.y + player_radius - player_shape_offset.y
+	# Verify contact from each cardinal direction, then verify the diagonal corner.
 	for enemy in [harpy, reaper, phantom]:
 		enemy.queue_free()
 	await process_frame
@@ -232,13 +249,38 @@ func _run() -> void:
 		enemy.queue_free()
 	await process_frame
 	player.set_physics_process(false)
+	for direction in [Vector2.RIGHT, Vector2.LEFT, Vector2.DOWN, Vector2.UP]:
+		player.global_position = Vector2.ZERO
+		player.velocity = direction * 600.0
+		for _i in range(140):
+			await physics_frame
+			player.move_and_slide()
+		if direction == Vector2.RIGHT:
+			assert(player.global_position.x > max_center_x - 35.0, "Player must approach the visible right shelf face")
+			assert(player.global_position.x <= max_center_x + 0.5, "Player collider must not cross the right shelf face")
+		elif direction == Vector2.LEFT:
+			assert(player.global_position.x < -max_center_x + 35.0, "Player must approach the visible left shelf face")
+			assert(player.global_position.x >= -max_center_x - 0.5, "Player collider must not cross the left shelf face")
+		elif direction == Vector2.DOWN:
+			assert(player.global_position.y > max_center_y - 35.0, "Player must approach the visible bottom shelf face")
+			assert(player.global_position.y <= max_center_y + 0.5, "Player collider must not cross the bottom shelf face")
+		else:
+			assert(player.global_position.y < min_center_y + 35.0, "Player must approach the visible top shelf face")
+			assert(player.global_position.y >= min_center_y - 0.5, "Player collider must not cross the top shelf face")
 	player.global_position = Vector2(1090.0, 790.0)
-	for _i in range(14):
+	for _i in range(60):
 		await physics_frame
 		player.velocity = Vector2(600.0, 600.0)
 		player.move_and_slide()
 	print("Corner movement test stopped at ", player.global_position)
-	assert(player.global_position.x > 1135.0 and player.global_position.y > 835.0, "Overlapping wall corners must leave the arena corner reachable")
+	assert(player.global_position.x > max_center_x - 35.0 and player.global_position.y > max_center_y - 35.0, "Overlapping wall corners must leave the visible arena corner reachable")
+	assert(player.global_position.x <= max_center_x + 0.5 and player.global_position.y <= max_center_y + 0.5, "Player collider must not cross either shelf face at the corner")
+	player.global_position = Vector2(max_center_x - 55.0, 0.0)
+	player.start_eraser_dash(Vector2.RIGHT)
+	for _i in range(20):
+		await physics_frame
+		player._physics_process(0.016)
+	assert(player.global_position.x <= max_center_x + 0.5, "Dash must stop at the shelf face instead of crossing the right boundary")
 
 	print("Gameplay regression checks passed: wave-scaled cap, cleanup rewards, gadget shop, dash damage, corner access, enemy telegraphs")
 	main.queue_free()
