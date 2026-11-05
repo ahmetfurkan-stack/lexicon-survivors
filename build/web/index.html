@@ -843,8 +843,8 @@
     }
     #joystick-zone {
       position: absolute;
-      bottom: 24px;
-      left: 24px;
+      bottom: calc(24px + env(safe-area-inset-bottom, 0px));
+      left: calc(24px + env(safe-area-inset-left, 0px));
       width: 120px;
       height: 120px;
       pointer-events: auto;
@@ -878,8 +878,8 @@
     }
     #touch-action-buttons {
       position: absolute;
-      bottom: 20px;
-      right: 20px;
+      bottom: calc(20px + env(safe-area-inset-bottom, 0px));
+      right: calc(20px + env(safe-area-inset-right, 0px));
       display: grid;
       grid-template-columns: repeat(2, auto);
       gap: 10px;
@@ -892,6 +892,8 @@
     .touch-circle-btn {
       width: 52px;
       height: 52px;
+      min-width: 48px;
+      min-height: 48px;
       border-radius: 50%;
       background: radial-gradient(circle, #faf2df 0%, #d8be8d 100%);
       border: 2.5px solid var(--gold-dark);
@@ -1278,14 +1280,16 @@
       #joystick-zone {
         width: 110px !important;
         height: 110px !important;
+        left: calc(24px + env(safe-area-inset-left, 0px));
+        bottom: calc(24px + env(safe-area-inset-bottom, 0px));
       }
       #joystick-knob {
         width: 44px !important;
         height: 44px !important;
       }
       #touch-action-buttons {
-        bottom: 16px !important;
-        right: 16px !important;
+        bottom: calc(16px + env(safe-area-inset-bottom, 0px)) !important;
+        right: calc(16px + env(safe-area-inset-right, 0px)) !important;
         gap: 8px !important;
       }
       .touch-circle-btn {
