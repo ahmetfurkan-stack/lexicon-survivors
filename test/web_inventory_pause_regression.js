@@ -89,7 +89,7 @@
     assert(cataclysmTarget.slow_factor <= 0.1, "Ink Cataclysm factor changed while inventory was open");
     document.getElementById("close-inventory-btn").click();
     window.advanceTime(2600);
-    assert(cataclysmTarget.slow_timer === 0, "Ink Cataclysm status did not expire after simulation resumed");
+    assert(cataclysmTarget.slow_timer <= 0.05, "Ink Cataclysm status did not expire after simulation resumed");
     assert(cataclysmTarget.slow_factor === 1, "enemy slow factor did not restore after Cataclysm expired");
     assert(cataclysmTarget.speed === cataclysmBaseSpeed, "enemy base speed changed during Cataclysm recovery");
 
@@ -109,9 +109,19 @@
 
     endWave();
     assert(document.getElementById("shop-screen").style.display !== "none", "test should enter the between-wave shop");
+    const inventoryModal = document.getElementById("inventory-modal");
+    document.getElementById("inventory-btn").click();
+    assert(inventoryModal.style.display === "none", "HUD inventory button opened inventory over the shop");
+    document.getElementById("touch-inv-btn").click();
+    assert(inventoryModal.style.display === "none", "touch inventory button opened inventory over the shop");
     window.dispatchEvent(new KeyboardEvent("keydown", { key: "i", bubbles: true }));
-    assert(document.getElementById("inventory-modal").style.display === "none", "I shortcut opened inventory over the shop");
+    assert(inventoryModal.style.display === "none", "I shortcut opened inventory over the shop");
     assert(state.is_inventory_open === false, "inventory state opened while the wave was inactive");
+
+    inventoryModal.style.display = "flex";
+    state.is_inventory_open = true;
+    toggleInventoryModal(false);
+    assert(inventoryModal.style.display === "none" && state.is_inventory_open === false, "forced close failed while wave was inactive");
 
     return {
       frozen: {

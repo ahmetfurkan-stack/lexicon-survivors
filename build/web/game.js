@@ -1588,6 +1588,7 @@ function getChapterForWave(wave) {
 function toggleInventoryModal(forcedState) {
   const modal = document.getElementById("inventory-modal");
   const shouldOpen = forcedState !== undefined ? forcedState : modal.style.display !== "flex";
+  if (shouldOpen && !state.is_wave_active) return;
   state.is_inventory_open = shouldOpen;
   modal.style.display = shouldOpen ? "flex" : "none";
   if (shouldOpen) {
