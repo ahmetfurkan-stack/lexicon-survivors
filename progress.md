@@ -87,12 +87,19 @@ Original prompt: https://github.com/yasinkaya701/lexicon-survivors — bunu ince
 - Godot gameplay regression testi altı karakterin animasyon texture'ının yüklendiğini assert ediyor; gameplay regression ve full runtime yeniden geçti. `node --check` ve `git diff --check` temiz.
 - Generated asset önizlemeleri ve Playwright ekran görüntüleri `output/` altında; `output/.gdignore` Godot'un test/görsel çıktıları oyun kaynakları gibi import etmesini ve `all_resources` export'una katmasını engelliyor.
 - Godot web export'u `output/godot-web/` konumunda denendi, ancak makinede Godot 4.7.2 export template'leri kurulu değil. Resmî `.tpz` paketi yaklaşık 1.28 GB; bu yüzden yalnızca bu build için indirilmedi. Godot kaynak projesi ve headless testleri hazır; statik web sürümü `build/web` olarak ayrıdır.
-- Vercel hesabında `lexicon-survivors` projesi bulunmuyor, CLI kurulu değil. Vercel deploy skill'inin claim edilebilir preview fallback'i kullanılacak; hedef yalnızca `build/web` olacak. Deploy henüz tetiklenmedi.
+- Vercel hesabında `lexicon-survivors` projesi bulunmuyor, CLI kurulu değil ve GitHub namespace bağlantısı yok. Bu nedenle Vercel preview açılamadı; mevcut GitHub Pages yayını kullanıldı.
 - Başarılı kontroller: Godot editor parse/import; `game_simulation_test.gd`, `features_simulation_test.gd`, `v2_features_test.gd`, `gameplay_regression_test.gd`, `scene_instantiation_test.tscn`, `headless_runtime_test.tscn`; `node --check build/web/game.js`; `git diff --check`. Godot test çıkışlarında önceden görülen ObjectDB/resource leak uyarıları sürüyor.
-- Deploy henüz yapılmadı. Repo statik web deploy hedefi seçmiyor; mevcut özel web build `build/web`, Godot export preset aynı klasöre yazarak üzerine basabilir. Güvenli dağıtım için Godot export ayrı klasöre, web deploy root'u `build/web` olacak.
+- Web sürümü `https://yasinkaya701.github.io/lexicon-survivors/` adresinde yayınlandı. `gh-pages` deploy commit: `c0871a0`; GitHub Pages build durumu `built`. Yayın, `build/web` içeriğiyle güncellendi; Godot export template eksikliği web deployunu engellemedi.
 
 ### Sonraki işler
 
-- Tarayıcıda 5. dalga lideri, 6. dalga mağaza zinciri ve altı karakter animasyonları doğrulandı; ardından normal süre/oyuncu rotasıyla uzun oyun dengesi incelemesi yapılabilir.
-- Godot Web export template'lerini bu makineye kurmadan export üretilemez; statik web preview deploy'u bundan bağımsız olarak `build/web` üzerinden yapılabilir.
-- Static preview deploy'u tamamla ve URL'yi bildir. Production/domain bağlantısı ayrıca proje hesabı gerektirir.
+- Yayında normal modla ilk dalga başlatıldı; dalga sayacı ve 48 düşman sınırı görüldü, sol-üst köşeye yürüyüşte oyuncu (-1163, -868) noktasında durabildi. Yayınlanan menü ve karakter görsellerinde eksik asset veya JavaScript konsol hatası görülmedi.
+- Godot Web export template'leri bu makinede bulunmadığından native Godot export ayrıca üretilemedi; yayınlanan web sürümü Godot dışa aktarımı değil, mevcut statik web istemcisidir.
+- Sonraki tur: Godot Web export template kurulumu ve Godot native/web parity incelemesi; uzun oturumlarda oyun dengesi ve gelir modelini ölçmek için metrik tasarımı.
+
+
+## Yayın doğrulaması — 2026-11-05
+
+- GitHub Pages `gh-pages` build #1342292905 `built` durumuna ulaştı. Uzak tarayıcı testi HTTP 200, 0 JavaScript hatası, 0 başarısız istek ve 31/31 DOM görsel yüklemesi verdi.
+- İlk dalga normal web süresinde oynatıldı; 7 saniye çapraz hareket sonunda oyuncu (-1163, -868) köşesinde kaldı, dalga 1 devam etti ve düşman sayısı 48 sınırının altındaydı.
+- Yayın önizlemesi: https://yasinkaya701.github.io/lexicon-survivors/
