@@ -789,6 +789,7 @@ const state = {
   wave_duration: 25.0,
   wave_time_left: 25.0,
   is_wave_active: false,
+  is_inventory_open: false,
   ink_count: 15,
   kill_count: 0,
   words_learned: [],
@@ -1585,9 +1586,10 @@ function getChapterForWave(wave) {
 
 function toggleInventoryModal(forcedState) {
   const modal = document.getElementById("inventory-modal");
-  const isVisible = forcedState !== undefined ? !forcedState : (modal.style.display === "flex");
-  modal.style.display = isVisible ? "none" : "flex";
-  if (!isVisible) {
+  const shouldOpen = forcedState !== undefined ? forcedState : modal.style.display !== "flex";
+  state.is_inventory_open = shouldOpen;
+  modal.style.display = shouldOpen ? "flex" : "none";
+  if (shouldOpen) {
     renderInventoryView();
   }
   syncMobileControlsVisibility();
@@ -4856,8 +4858,10 @@ function gameLoop(now) {
 
 function updateGame(dt) {
   if (state.is_wave_active) {
-    updatePlayer(dt);
-    updateEnemies(dt);
+    if (!state.is_inventory_open) {
+      updatePlayer(dt);
+      updateEnemies(dt);
+    }
     updateHUD();
   }
 }
