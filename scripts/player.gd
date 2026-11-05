@@ -9,6 +9,7 @@ signal gadget_cooldown_updated(time_left: float, total_time: float)
 var weapon_scene: PackedScene = preload("res://scenes/weapon.tscn")
 
 var is_invulnerable: bool = false
+var inventory_input_blocked: bool = false
 var blink_timer: float = 0.0
 var character_base_color: Color = Color.WHITE
 
@@ -215,6 +216,19 @@ func update_weapon_mounts():
 func _unhandled_input(event: InputEvent):
 	if event is InputEventKey and event.is_pressed() and not event.is_echo():
 		match event.keycode:
+			KEY_I, KEY_TAB:
+				var hud := get_tree().get_first_node_in_group("hud")
+				if hud and hud.has_method("toggle_inventory"):
+					hud.toggle_inventory()
+					get_viewport().set_input_as_handled()
+				return
+			KEY_ESCAPE:
+				if inventory_input_blocked:
+					var hud := get_tree().get_first_node_in_group("hud")
+					if hud and hud.has_method("set_inventory_open"):
+						hud.set_inventory_open(false)
+					get_viewport().set_input_as_handled()
+				return
 			KEY_Q:
 				StatsManager.switch_prev_weapon()
 			KEY_E:
@@ -257,6 +271,12 @@ func _physics_process(delta: float):
 		if shield_timer == 0.0:
 			shield_health = 0.0
 			queue_redraw()
+	if inventory_input_blocked:
+		is_dashing = false
+		velocity = Vector2.ZERO
+		move_and_slide()
+		_update_hero_animation()
+		return
 	
 	# Dash execution
 	if is_dashing:
@@ -302,6 +322,17 @@ func _physics_process(delta: float):
 
 func play_attack_animation() -> void:
 	attack_anim_timer = 0.28
+
+func set_inventory_input_blocked(blocked: bool) -> void:
+	inventory_input_blocked = blocked
+	if blocked:
+		velocity = Vector2.ZERO
+
+func get_gadget_direction() -> Vector2:
+	var direction := Input.get_vector("move_left", "move_right", "move_up", "move_down")
+	if direction == Vector2.ZERO:
+		direction = Vector2.LEFT if sprite.flip_h else Vector2.RIGHT
+	return direction.normalized()
 
 func _update_hero_animation() -> void:
 	var animation_set: Dictionary = HERO_ANIMATIONS.get(StatsManager.selected_character, {})

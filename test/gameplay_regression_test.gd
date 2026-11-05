@@ -13,6 +13,61 @@ func _run() -> void:
 	paused = false
 	main.start_game()
 
+	# Native mobile HUD exposes a touch override for deterministic headless checks.
+	var hud = main.get_node("HUD")
+	assert(hud.has_method("set_touch_ui_enabled_override"), "HUD must expose deterministic touch UI visibility for device and test use")
+	assert(hud.has_method("set_inventory_open"), "HUD must expose an inventory open/close action")
+	assert(hud.has_method("refresh_inventory"), "HUD must rebuild inventory from currently owned equipment")
+	assert(hud.has_method("select_inventory_item"), "HUD must route gear selection through validated inventory actions")
+	assert(hud.has_method("activate_gadget_touch"), "HUD must expose a touch action for the active gadget")
+	hud.set_touch_ui_enabled_override(true)
+	assert(hud.get_node("TouchControls").visible, "Touch actions must be visible when touchscreen input is enabled")
+	hud.set_inventory_open(true)
+	assert(hud.inventory_open and hud.get_node("InventoryOverlay").visible, "Inventory must open from the touch action")
+	assert(paused, "Inventory must pause wave and enemy simulation while open")
+	assert(main.player.inventory_input_blocked, "Opening inventory must block movement input")
+	assert(hud.select_inventory_item("gadget", "not_owned") == false, "An unowned gadget cannot be selected")
+	hud.inventory_gadgets_tab.pressed.emit()
+	assert(hud.inventory_category == "gadgets", "Gadget inventory tab switches to owned gadgets")
+	hud.inventory_items.get_child(0).pressed.emit()
+	assert(stats_manager.active_gadget == "dash", "The gadget inventory row selects owned equipment")
+	assert(not hud.inventory_open and not main.player.inventory_input_blocked, "Selecting owned gear must close inventory and restore play input")
+	assert(not paused, "Closing inventory resumes the current wave")
+	var first_weapon: String = stats_manager.get_active_weapon_id()
+	var second_weapon: String = ""
+	for weapon_id in stats_manager.weapons_catalog:
+		if weapon_id != first_weapon:
+			second_weapon = weapon_id
+			break
+	assert(second_weapon != "", "At least two catalog weapons are available for loadout selection coverage")
+	stats_manager.equip_weapon(second_weapon)
+	hud.inventory_weapons_tab.pressed.emit()
+	hud.set_inventory_open(true)
+	var second_weapon_button: Button = null
+	var expected_weapon_name: String = stats_manager.weapons_catalog[second_weapon]["name"].to_upper()
+	for inventory_button in hud.inventory_items.get_children():
+		if inventory_button is Button and inventory_button.text.ends_with(expected_weapon_name):
+			second_weapon_button = inventory_button
+	assert(second_weapon_button != null, "Owned weapons must appear as inventory touch targets")
+	second_weapon_button.pressed.emit()
+	assert(stats_manager.get_active_weapon_id() == second_weapon, "Loadout selection must update the active weapon")
+	stats_manager.equipped_weapons = [first_weapon]
+	stats_manager.active_weapon_index = 0
+	main.player.sync_weapons()
+	var gadget_activation_count := [0]
+	stats_manager.gadget_activated.connect(func(_gadget_id: String): gadget_activation_count[0] += 1)
+	main.player.gadget_timer = 0.0
+	assert(hud.activate_gadget_touch(), "Touch action activates a ready gadget")
+	assert(not hud.activate_gadget_touch(), "Touch action cannot activate the gadget while cooling down")
+	assert(main.player.gadget_timer > 0.0 and gadget_activation_count[0] == 1, "Touch activation starts exactly one gadget cooldown")
+	var inventory_key := InputEventKey.new()
+	inventory_key.keycode = KEY_I
+	inventory_key.pressed = true
+	main.player._unhandled_input(inventory_key)
+	assert(hud.inventory_open, "I key opens native inventory for keyboard users")
+	main.player._unhandled_input(inventory_key)
+	assert(not hud.inventory_open and not paused, "I key closes inventory and resumes the run")
+
 	var wave_manager = main.get_node("WaveManager")
 	wave_manager.max_active_enemies = 220
 	for _i in range(90):
