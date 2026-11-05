@@ -972,31 +972,58 @@ const canvas = document.getElementById("game-canvas");
 const ctx = canvas.getContext("2d");
 let lastTime = performance.now();
 
-// Adaptive Responsive Canvas Viewport for Zero-Void Mobile Experience
+// Keep the game surface aligned with the visible viewport on iPad Safari,
+// including browser chrome changes, split view, rotation, and fullscreen.
+let resizeFrame = 0;
 function resizeGameCanvas() {
   const container = document.getElementById("game-container");
   if (!container || !canvas) return;
-  const isMobile = window.innerWidth <= 1080 || ('ontouchstart' in window);
+  const viewport = window.visualViewport;
+  const viewportWidth = Math.max(1, viewport?.width || document.documentElement.clientWidth || window.innerWidth);
+  const viewportHeight = Math.max(1, viewport?.height || document.documentElement.clientHeight || window.innerHeight);
+  const root = document.documentElement;
+  root.style.setProperty("--app-width", `${Math.round(viewportWidth)}px`);
+  root.style.setProperty("--app-height", `${Math.round(viewportHeight)}px`);
+  const isMobile = window.innerWidth <= 1080 || navigator.maxTouchPoints > 0 || ('ontouchstart' in window);
 
   if (isMobile) {
-    const w = container.clientWidth || window.innerWidth;
-    const h = container.clientHeight || window.innerHeight;
+    const bounds = container.getBoundingClientRect();
+    const w = Math.max(1, bounds.width || viewportWidth);
+    const h = Math.max(1, bounds.height || viewportHeight);
     const isPortrait = h > w;
 
     if (isPortrait) {
-      canvas.width = 720;
-      canvas.height = Math.round(720 * (h / Math.max(1, w)));
+      const width = 720;
+      const height = Math.round(width * (h / w));
+      if (canvas.width !== width) canvas.width = width;
+      if (canvas.height !== height) canvas.height = height;
     } else {
-      canvas.height = 720;
-      canvas.width = Math.round(720 * (w / Math.max(1, h)));
+      const height = 720;
+      const width = Math.round(height * (w / h));
+      if (canvas.height !== height) canvas.height = height;
+      if (canvas.width !== width) canvas.width = width;
     }
   } else {
-    canvas.width = 1280;
-    canvas.height = 720;
+    if (canvas.width !== 1280) canvas.width = 1280;
+    if (canvas.height !== 720) canvas.height = 720;
   }
 }
-window.addEventListener("resize", resizeGameCanvas);
-window.addEventListener("orientationchange", () => setTimeout(resizeGameCanvas, 150));
+function scheduleGameCanvasResize() {
+  if (resizeFrame) cancelAnimationFrame(resizeFrame);
+  resizeFrame = requestAnimationFrame(() => {
+    resizeFrame = 0;
+    resizeGameCanvas();
+  });
+}
+window.addEventListener("resize", scheduleGameCanvasResize, { passive: true });
+window.addEventListener("orientationchange", () => setTimeout(scheduleGameCanvasResize, 250), { passive: true });
+window.addEventListener("fullscreenchange", scheduleGameCanvasResize);
+if (window.visualViewport) {
+  window.visualViewport.addEventListener("resize", scheduleGameCanvasResize, { passive: true });
+}
+if ("ResizeObserver" in window) {
+  new ResizeObserver(scheduleGameCanvasResize).observe(document.getElementById("game-container"));
+}
 resizeGameCanvas();
 
 // Fullscreen
@@ -1808,13 +1835,26 @@ function initTouchControls() {
     const relX = clientX - cRect.left;
     const relY = clientY - cRect.top;
 
-    joystickZone.style.left = (relX - 60) + "px";
-    joystickZone.style.top = (relY - 60) + "px";
+    const joystickWidth = joystickZone.offsetWidth || 120;
+    const joystickHeight = joystickZone.offsetHeight || 120;
+    const rootStyle = getComputedStyle(document.documentElement);
+    const safeTop = Number.parseFloat(rootStyle.getPropertyValue("--safe-inset-top")) || 0;
+    const safeRight = Number.parseFloat(rootStyle.getPropertyValue("--safe-inset-right")) || 0;
+    const safeBottom = Number.parseFloat(rootStyle.getPropertyValue("--safe-inset-bottom")) || 0;
+    const safeLeft = Number.parseFloat(rootStyle.getPropertyValue("--safe-inset-left")) || 0;
+    const minLeft = safeLeft + 8;
+    const minTop = safeTop + 8;
+    const maxLeft = Math.max(minLeft, cRect.width - joystickWidth - safeRight - 8);
+    const maxTop = Math.max(minTop, cRect.height - joystickHeight - safeBottom - 8);
+    const left = Math.min(maxLeft, Math.max(minLeft, relX - joystickWidth / 2));
+    const top = Math.min(maxTop, Math.max(minTop, relY - joystickHeight / 2));
+    joystickZone.style.left = left + "px";
+    joystickZone.style.top = top + "px";
     joystickZone.style.bottom = "auto";
     joystickZone.style.opacity = "1";
 
-    centerX = clientX;
-    centerY = clientY;
+    centerX = cRect.left + left + joystickWidth / 2;
+    centerY = cRect.top + top + joystickHeight / 2;
     updateJoystickPosition(clientX, clientY);
   };
 

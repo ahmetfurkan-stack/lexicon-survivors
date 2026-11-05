@@ -103,3 +103,20 @@ Original prompt: https://github.com/yasinkaya701/lexicon-survivors — bunu ince
 - GitHub Pages `gh-pages` build #1342292905 `built` durumuna ulaştı. Uzak tarayıcı testi HTTP 200, 0 JavaScript hatası, 0 başarısız istek ve 31/31 DOM görsel yüklemesi verdi.
 - İlk dalga normal web süresinde oynatıldı; 7 saniye çapraz hareket sonunda oyuncu (-1163, -868) köşesinde kaldı, dalga 1 devam etti ve düşman sayısı 48 sınırının altındaydı.
 - Yayın önizlemesi: https://yasinkaya701.github.io/lexicon-survivors/
+
+## iPad ve mobil erişilebilirlik düzeltmesi — 2026-11-05
+
+- Kullanıcı mobilde bazı alanların basılmadığını ve ekranın sabit/ekrana sığar davranmasını istedi; özellikle iPad hedeflendi.
+- Web canvas artık `visualViewport` boyut değişimlerini, yön değişimini, fullscreen'i ve container ölçüsünü izliyor. iPad Safari adres/alt çubukları, split view ve ekran döndürme sonrası iç çözünürlük viewport'la yeniden eşleşiyor.
+- Mobil oyun yüzeyi görünür viewport'a sabitleniyor; sayfa overscroll'u kapatıldı. Başlık/mağaza modal boşlukları safe-area inset'lerini kullanıyor.
+- Joystick ve eylem butonları home-indicator/çentik alanlarından uzağa alındı. Eylem butonlarının dokunma hedefi 58px'e çıkarıldı; parmağın bastığı joystick ekran kenarında görünür alanda kalıyor.
+- `node --check build/web/game.js` ve `git diff --check` temiz. Oyun testi çalıştırılmadı; fiziksel iPad üzerinde dokunma kontrolü ayrıca yapılmalı.
+
+### Tarayıcı doğrulaması ve ek mobil düzeltmeler — 2026-11-05
+
+- Yerel web sürümü responsive browser viewport'larında açılarak ölçüldü: telefon 390×844, iPad portre 820×1180 ve iPad yatay 1024×768. Her ölçüde oyun yüzeyi ekranı doldurdu; sayfa yatay/dikey taşma yapmadı.
+- 390px genişlikte HUD'ın MENÜ düğmesi 28px dışarı taşıyordu. HUD gerektiğinde ikinci satıra sarılıyor; MENÜ düğmesi tam 44×44 alana sığıyor.
+- Mobilde 38px zorluk, oyun sonu ve modal düğmeleri saptandı. Dokunma etkileşimleri için mobil düğme/rol alanları en az 44px yüksekliğe alındı; eylem butonları 58px oldu.
+- Dar ekranda başlık ve hızlı ayarlar, ayrıca iPad portre/yatay oyun içi envanter ve hata defteri panelleri ölçüldü; görünür paneller viewport içinde kalıyor. Başlatma, zorluk seçimi, envanter, hata defteri, hızlı menü, silah ve gereç kontrolleri tarayıcıda çalıştırıldı.
+- Kenara yakın joystick sürüklemesi 390×844'te de denendi; joystick çerçeve içinde kaldı. Eylem butonlarının merkezleri üstteki hit-test'te kendi düğmelerine denk geldi.
+- Oyun ekranı 390×844 portrede ve başlık ekranı iPad boyutlarında görsel olarak incelendi. `node --check` ve `git diff --check` temiz. Gerçek fiziksel iPad/Safari cihazı bu ortamda bulunmadığından safe-area değerleri cihaz donanımında ayrıca kontrol edilmedi.
