@@ -790,6 +790,7 @@ const state = {
   wave_time_left: 25.0,
   is_wave_active: false,
   is_inventory_open: false,
+  milestone_boss_delay: 0,
   ink_count: 15,
   kill_count: 0,
   words_learned: [],
@@ -1666,7 +1667,7 @@ window.addEventListener("keydown", e => {
     e.preventDefault();
   }
   if (e.key.toLowerCase() === "i") {
-    toggleInventoryModal();
+    if (state.is_wave_active || state.is_inventory_open) toggleInventoryModal();
   }
   if (e.key.toLowerCase() === "m") {
     toggleMistakesModal();
@@ -2021,6 +2022,8 @@ const onStartGame = (e) => {
 document.getElementById("start-game-btn").onclick = onStartGame;
 
 function resetStats() {
+  state.is_inventory_open = false;
+  state.milestone_boss_delay = 0;
   const c = CHARACTERS[state.selected_char];
   const d = DIFFICULTIES[state.difficulty];
 
@@ -2112,6 +2115,7 @@ function startWave() {
   state.wave_duration = Math.min(42.0, 22.0 + (state.current_wave - 1) * 0.25);
   state.wave_time_left = state.wave_duration;
   state.is_wave_active = true;
+  state.milestone_boss_delay = state.current_wave % 5 === 0 ? 1.8 : 0;
   if (state.selected_char === "lexicon_alchemist") state.ink_count += 10;
   document.getElementById("shop-screen").style.display = "none";
   updateHUD();
@@ -2144,17 +2148,12 @@ function startWave() {
     triggerTacticalAlert("OMEGA EJDERHA", "Son kuşatma başladı. Cephaneliğinizi ve gereçlerinizi kullanın.");
   }
 
-  // Milestone Boss every 5 waves
-  if (state.current_wave % 5 === 0) {
-    setTimeout(() => {
-      if (state.is_wave_active) spawnMilestoneBoss(state.current_wave);
-    }, 1800);
-  }
 }
 
 function endWave() {
   if (!state.is_wave_active) return;
   state.is_wave_active = false;
+  state.milestone_boss_delay = 0;
   // Enemies still alive when the timer expires were not defeated by the player.
   // Clear them without awarding kill credit, drops, or rewards.
   state.enemies = [];
@@ -2227,8 +2226,8 @@ function activateActiveGadget() {
       if (dist < 340) {
         e.hp -= 85.0 * state.damage_mult;
         e.vx = 0; e.vy = 0;
-        e.speed *= 0.1; // Stunned for 2.5s
-        setTimeout(() => { e.speed /= 0.1; }, 2500);
+        e.slow_timer = 2.5;
+        e.slow_factor = 0.1;
       }
     });
   } else if (gid === "chrono_comma") {
@@ -2924,6 +2923,12 @@ function updateEnemies(dt) {
     state.telegraphs = state.telegraphs.filter(tg => tg.timer > 0);
   }
 
+  // Milestone bosses use the same simulation clock as waves so inventory pauses hold the reveal.
+  if (state.milestone_boss_delay > 0) {
+    state.milestone_boss_delay = Math.max(0, state.milestone_boss_delay - dt);
+    if (state.milestone_boss_delay === 0) spawnMilestoneBoss(state.current_wave);
+  }
+
   // Hardcore Massive Horde Swarm Spawn Curve: rapid spawn rate & batch spawns
   spawnTimer -= dt;
   const diffFactor = state.difficulty === "easy" ? 1.15 : (state.difficulty === "hard" ? 0.75 : 1.0);
@@ -2959,7 +2964,10 @@ function updateEnemies(dt) {
   state.enemies.forEach(e => {
     e.vx *= Math.pow(0.06, dt);
     e.vy *= Math.pow(0.06, dt);
-    e.slow_timer = Math.max(0, (e.slow_timer || 0) - dt);
+    if ((e.slow_timer || 0) > 0) {
+      e.slow_timer = Math.max(0, e.slow_timer - dt);
+      if (e.slow_timer === 0) e.slow_factor = 1;
+    }
 
     const dist = Math.hypot(p.x - e.x, p.y - e.y);
     const dirX = dist > 0.1 ? (p.x - e.x) / dist : 0;
@@ -4871,6 +4879,8 @@ window.render_game_to_text = () => JSON.stringify({
   mode: state.hp <= 0 ? "gameover" : state.is_wave_active ? "wave" : (getComputedStyle(document.getElementById("shop-screen")).display !== "none" ? "shop" : "title"),
   wave: state.current_wave,
   wave_time_left: Number(state.wave_time_left.toFixed(1)),
+  milestone_boss_delay: Number(state.milestone_boss_delay.toFixed(1)),
+  inventory_open: state.is_inventory_open,
   character: state.selected_char,
   player: {
     x: Math.round(state.player.x), y: Math.round(state.player.y),
@@ -4881,7 +4891,8 @@ window.render_game_to_text = () => JSON.stringify({
   },
   enemies: state.enemies.filter(e => !e.dead).slice(0, 24).map(e => ({
     type: e.type, x: Math.round(e.x), y: Math.round(e.y), hp: Math.round(e.hp),
-    boss: !!e.is_boss
+    speed: Number(e.speed.toFixed(1)), slow_timer: Number((e.slow_timer || 0).toFixed(1)),
+    slow_factor: Number((e.slow_factor || 1).toFixed(2)), boss: !!e.is_boss
   })),
   alive_count: state.enemies.reduce((n, e) => n + (e.dead ? 0 : 1), 0),
   alive_cap: getWaveEnemyCap(),

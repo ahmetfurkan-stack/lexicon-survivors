@@ -63,6 +63,56 @@
     const gadgetResumed = readGame();
     assert(gadgetResumed.player.gadget_cooldown > 0, "gadget could not be activated after cooldown resumed");
 
+    state.active_gadget_id = "ink_cataclysm";
+    state.gadget_timer = 0;
+    let cataclysmTarget = state.enemies.find((enemy) => !enemy.dead);
+    if (!cataclysmTarget) {
+      spawnEnemy();
+      cataclysmTarget = state.enemies.find((enemy) => !enemy.dead);
+    }
+    assert(cataclysmTarget, "test needs a living enemy for Ink Cataclysm");
+    cataclysmTarget.x = state.player.x + 100;
+    cataclysmTarget.y = state.player.y;
+    cataclysmTarget.hp = 5000;
+    cataclysmTarget.max_hp = 5000;
+    cataclysmTarget.vx = 0;
+    cataclysmTarget.vy = 0;
+    const cataclysmBaseSpeed = cataclysmTarget.speed;
+    document.getElementById("touch-gadget-btn").click();
+    assert(cataclysmTarget.slow_timer > 2.4, "Ink Cataclysm should apply a timed enemy slow");
+    assert(cataclysmTarget.slow_factor <= 0.1, "Ink Cataclysm should apply its stun factor");
+    assert(cataclysmTarget.speed === cataclysmBaseSpeed, "Ink Cataclysm should not mutate base enemy speed");
+    document.getElementById("touch-inv-btn").click();
+    const cataclysmPausedTimer = cataclysmTarget.slow_timer;
+    await wait(1800);
+    assert(cataclysmTarget.slow_timer === cataclysmPausedTimer, "Ink Cataclysm status expired while inventory was open");
+    assert(cataclysmTarget.slow_factor <= 0.1, "Ink Cataclysm factor changed while inventory was open");
+    document.getElementById("close-inventory-btn").click();
+    window.advanceTime(2600);
+    assert(cataclysmTarget.slow_timer === 0, "Ink Cataclysm status did not expire after simulation resumed");
+    assert(cataclysmTarget.slow_factor === 1, "enemy slow factor did not restore after Cataclysm expired");
+    assert(cataclysmTarget.speed === cataclysmBaseSpeed, "enemy base speed changed during Cataclysm recovery");
+
+    state.current_wave = 5;
+    state.enemies = [];
+    startWave();
+    assert(state.milestone_boss_delay > 1.7, "wave 5 should schedule its milestone boss");
+    document.getElementById("touch-inv-btn").click();
+    const bossDelayAtPause = state.milestone_boss_delay;
+    await wait(1900);
+    assert(state.milestone_boss_delay === bossDelayAtPause, "milestone boss countdown advanced while inventory was open");
+    assert(!state.enemies.some((enemy) => enemy.is_boss), "milestone boss spawned while inventory was open");
+    document.getElementById("close-inventory-btn").click();
+    window.advanceTime(2000);
+    assert(state.enemies.some((enemy) => enemy.is_boss), "milestone boss did not spawn when its simulation countdown resumed");
+    const milestoneBossSpawnedAfterResume = state.enemies.some((enemy) => enemy.is_boss);
+
+    endWave();
+    assert(document.getElementById("shop-screen").style.display !== "none", "test should enter the between-wave shop");
+    window.dispatchEvent(new KeyboardEvent("keydown", { key: "i", bubbles: true }));
+    assert(document.getElementById("inventory-modal").style.display === "none", "I shortcut opened inventory over the shop");
+    assert(state.is_inventory_open === false, "inventory state opened while the wave was inactive");
+
     return {
       frozen: {
         waveTime: paused.wave_time_left,
@@ -74,7 +124,10 @@
       resumed: {
         player: { x: moved.player.x, y: moved.player.y },
         gadgetCooldown: gadgetResumed.player.gadget_cooldown
-      }
+      },
+      cataclysm: { pausedTimer: cataclysmPausedTimer, restoredSpeed: cataclysmTarget.speed },
+      milestoneBoss: { frozenDelay: bossDelayAtPause, spawnedAfterResume: milestoneBossSpawnedAfterResume },
+      shopInventoryBlocked: document.getElementById("inventory-modal").style.display === "none"
     };
   };
 })();
