@@ -1674,6 +1674,18 @@
     #title-screen .title-header { border-bottom-color: #c3b9a5; }
     #title-screen .title-header h1 { letter-spacing: .015em; }
     #title-screen .title-header p { text-align: left; }
+    .character-select-heading {
+      color: #5c3b1e;
+      font: 800 14px 'IBM Plex Serif', serif;
+      text-align: center;
+    }
+    #character-scroll-hint {
+      display: none;
+      align-items: center;
+      color: #66776c;
+      font: 500 9px 'IBM Plex Mono', monospace;
+      letter-spacing: .06em;
+    }
     #diff-selection-container .btn { min-height: 38px; font: 500 13px 'IBM Plex Mono', monospace; letter-spacing: .04em; }
     #diff-selection-container .btn-seal { background: #33463d; border-color: #687c6d; color: #f1ede2; }
     #start-game-btn { background: #394e43; border-color: #788b75; color: #f0ebdc; }
@@ -1882,6 +1894,8 @@
       font: 500 9.5px/1.28 'IBM Plex Sans', sans-serif !important;
     }
     @media (max-width: 700px), (pointer: coarse) {
+      .character-select-heading { display: flex; align-items: baseline; justify-content: space-between; text-align: left; }
+      #character-scroll-hint { display: inline-flex; }
       #title-screen #char-selection-grid { max-height: min(38vh, 320px) !important; }
       #title-screen #char-selection-grid .choice-card { min-height: 96px !important; padding: 7px 9px !important; }
       #title-screen #char-selection-grid .choice-card img { width: 42px !important; height: 42px !important; }
@@ -2007,8 +2021,9 @@
         <label class="music-choice-row" for="title-music-select">MÜZİK
           <select id="title-music-select" aria-label="Müzik seçimi"><option value="auto">Otomatik · dalgaya göre</option><option value="library">Karanlık Kütüphane</option><option value="last_stand">Son Nöbet</option></select>
         </label>
-        <div style="font-family: 'IBM Plex Serif', serif; font-size: 14px; font-weight: 800; color: #5c3b1e; text-align: center;">
-          KARAKTERİNİ SEÇ
+        <div class="character-select-heading">
+          <span>KARAKTERİNİ SEÇ</span>
+          <span id="character-scroll-hint">KAYDIR ↓</span>
         </div>
         <div class="card-grid" id="char-selection-grid"></div>
 
