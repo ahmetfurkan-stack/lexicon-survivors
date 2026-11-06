@@ -247,3 +247,9 @@ Original prompt: https://github.com/yasinkaya701/lexicon-survivors — bunu ince
 
 - Web arena parity regresyonu, sınırı aşıp dışarı doğru ilerleyen hızın hâlâ korunduğunu gösterdi; oyuncu görsel olarak sabit kalırken koşu animasyonu ve ayak döngüsü devam ediyordu. Web clamp artık yalnızca çarpılan eksenin dışa dönük hızını sıfırlıyor, kenara paralel hareketi ve içeri dönük hızı koruyor. Godot davranışıyla aynı kenar duruşunu veriyor.
 - Regresyon önce `vx=180` değerinin sınırda kaldığını yakalayarak kırmızıya düştü; düzeltme sonrası arena parity ve JS sözdizimi testleri geçti. Canlı Chromium oyun simülasyonunda sağ sınıra dayanan oyuncunun `vx` değeri 0'a indi, animasyonu `idle` oldu; konsol hatası yok. Oyun scripti cache anahtarı yenilendi.
+
+## Arşiv menüsü mührü ve ilk ekonomi simülasyonu — 2026-11-06
+
+- Başlangıç/yeniden başlat düğmelerinde kullanılan eski `wax_seal.png` dosyası 64×64 saati andıran bir `L` işaretiydi. Yerine kitap kabartmalı özgün `open_archive.svg` eklendi; Godot ve web kopyaları birebir aynı ve başlatma, quiz, yeniden başlatma ile Godot başlık ekranı bunu kullanıyor. Mobil başlatma ekranı gözle incelendi; varlık yükleniyor ve metinle çakışmıyor.
+- Gerçek web simülasyonunda altı kahraman için ilk dalga ve Inky ile dört dalgalık hareket senaryosu çalıştırıldı. Hareket etmeyen örnek Inky dalga 1'i bitirmedi; aynı silahlarla dairesel hareket verilen örnek dalga 4'e ulaştı. Bir ayrı örnek ilk iki dükkânda altı yadigâr satın alabildi; bu başlangıç ekonomisinin cömert olduğuna dair sinyal, fakat tek sentetik hareket paterni gerçek oyuncu dengesi için yeterli değil. Fiyatları değiştirmeden önce farklı build ve rota senaryoları ölçülecek.
+- `ui_archive_seal_test.js`, Godot asset importu, arena kenar testi ve Chromium asset yükleme kontrolü geçti.

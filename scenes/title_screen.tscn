@@ -3,7 +3,7 @@
 [ext_resource type="Script" path="res://scripts/title_screen.gd" id="1_script"]
 [ext_resource type="Texture2D" path="res://assets/sprites/upgrade_v1/arena_frame_library.png" id="2_backdrop"]
 [ext_resource type="Texture2D" path="res://assets/ui/icons/book.svg" id="3_book"]
-[ext_resource type="Texture2D" path="res://assets/sprites/wax_seal.png" id="4_seal"]
+[ext_resource type="Texture2D" path="res://assets/ui/icons/open_archive.svg" id="4_seal"]
 
 [sub_resource type="StyleBoxFlat" id="TitlePanel"]
 bg_color = Color(0.933, 0.91, 0.85, 0.98)

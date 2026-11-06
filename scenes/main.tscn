@@ -10,7 +10,7 @@
 [ext_resource type="Script" path="res://scripts/arena_frame.gd" id="8_frame"]
 [ext_resource type="Script" path="res://scripts/audio_manager.gd" id="9_audio"]
 [ext_resource type="Texture2D" path="res://assets/ui/icons/book.svg" id="10_book"]
-[ext_resource type="Texture2D" path="res://assets/sprites/wax_seal.png" id="11_seal"]
+[ext_resource type="Texture2D" path="res://assets/ui/icons/open_archive.svg" id="11_seal"]
 [ext_resource type="Script" path="res://scripts/leaderboard_panel.gd" id="12_leaderboard"]
 
 [sub_resource type="RectangleShape2D" id="WallShape_Horiz"]
