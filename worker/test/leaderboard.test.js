@@ -89,6 +89,20 @@ test('truncates aliases to a safe 20-character display name', async () => {
   assert.ok(Array.from(ctx.db.rows[0].alias).length <= 20);
 });
 
+test('rejects runs shorter than the minimum game time for cleared waves', async () => {
+  const ctx = context();
+  const response = await worker.fetch(post(validSubmission({ wavesCleared: 7, elapsedMs: 100000 })), ctx.env);
+  assert.equal(response.status, 400);
+  assert.equal(ctx.db.rows.length, 0);
+});
+
+test('accepts a plausible run time at the same wave count', async () => {
+  const ctx = context();
+  const response = await worker.fetch(post(validSubmission({ wavesCleared: 7, elapsedMs: 120000 })), ctx.env);
+  assert.equal(response.status, 201);
+  assert.equal(ctx.db.rows.length, 1);
+});
+
 test('rejects invalid IDs, empty aliases, negative counts, and impossible bounds without writing', async (t) => {
   const cases = [
     ['difficulty', { difficultyId: 'nightmare' }],

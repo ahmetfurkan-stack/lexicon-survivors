@@ -230,3 +230,9 @@ Original prompt: https://github.com/yasinkaya701/lexicon-survivors — bunu ince
 - `test/web_hero_animation_regression.js` hazırlık, aktif vuruş ve toparlanmada sırasıyla 0/1/2/3 karelerini doğruluyor; `web_hero_animation_source_test.js` seçicinin render yoluna bağlı olduğunu kontrol ediyor. Oyun scripti önbellek anahtarı yükseltildi.
 - Doğrulama: iki animasyon regresyonu, JS sözdizimi, arena parity, ses manifesti, 18 canavar asset/cache kontrolü, ekonomi parity, canlı Chromium regresyonu ve Godot gameplay regression geçti. Godot kapanışında daha önce görülen ObjectDB/resource uyarıları devam ediyor.
 - Tarayıcıdaki gerçek oyun kareleri ve 6 kahramanın ranged temas sayfası incelendi; menzilli kareler artık vuruş fazlarıyla senkronize. Bu küçük düzeltme animasyon kalitesinin genel incelemesini tamamlamıyor; ekonomi uzun oturum dengesi, Godot dokunmatik oynanış ve leaderboard bütünlüğü hâlâ yayın öncesi iş.
+
+## Leaderboard için imkânsız süre filtresi — 2026-11-06
+
+- Worker, bildirilen dalga sayısını oyunun gerçek normal dalga sayaçları ve boss açılış gecikmesiyle karşılaştırıyor. Hesaplanan alt sürenin %75'inden kısa bir koşu veritabanına yazılmıyor; tolerans tarayıcı zamanlayıcı farklarına yer bırakıyor.
+- Worker testleri, 7 dalgayı 100 saniyede bitiren kaydı reddediyor ve aynı ilerleme için 120 saniyelik makul kaydı kabul ediyor. Tüm 28 Worker testi geçti.
+- Bu yalnızca kaba tutarlılık filtresi. Oyun hâlâ skorları istemciden alıyor; imza/otoritatif sunucu simülasyonu olmadığı için global yarışma güvenliği sağlamaz. Worker üretime gönderilmedi ve deploy sırası gelene kadar bekleyecek.

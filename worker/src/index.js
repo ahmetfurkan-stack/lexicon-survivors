@@ -2,6 +2,7 @@ const ALLOWED_ORIGIN = 'https://yasinkaya701.github.io';
 const MAX_BODY_BYTES = 4096;
 const MAX_LIMIT = 20;
 const MAX_ALIAS_LENGTH = 20;
+const MIN_RUN_TIME_RATIO = 0.75;
 const DIFFICULTIES = new Set(['easy', 'normal', 'hard']);
 const CHARACTERS = new Set([
   'inky', 'quillmaster', 'word_knight', 'rune_sorceress',
@@ -47,6 +48,16 @@ export function sanitizeAlias(value) {
   return /[\p{Script=Latin}0-9]/u.test(truncated) ? truncated : '';
 }
 
+function minimumPlausibleRunTimeMs(wavesCleared) {
+  let expectedMinimumMs = 0;
+  for (let wave = 1; wave <= wavesCleared; wave++) {
+    // Regular waves run for their full timer. Bosses can end early, but appear only after 1.8 seconds.
+    expectedMinimumMs += wave % 5 === 0 ? 1800 : Math.min(42, 22 + (wave - 1) * 0.25) * 1000;
+  }
+  // Leave room for browser timer variance while rejecting obviously impossible submissions.
+  return Math.floor(expectedMinimumMs * MIN_RUN_TIME_RATIO);
+}
+
 export function validateSubmission(input) {
   if (!input || typeof input !== 'object' || Array.isArray(input)) return null;
   if (Object.keys(input).some((key) => !SUBMISSION_KEYS.has(key))) return null;
@@ -55,6 +66,7 @@ export function validateSubmission(input) {
   if (!Number.isInteger(input.wavesCleared) || input.wavesCleared < 0 || input.wavesCleared > 100) return null;
   if (!Number.isInteger(input.kills) || input.kills < 0 || input.kills > 100000) return null;
   if (!Number.isInteger(input.elapsedMs) || input.elapsedMs < 1000 || input.elapsedMs > 43_200_000) return null;
+  if (input.elapsedMs < minimumPlausibleRunTimeMs(input.wavesCleared)) return null;
   const alias = sanitizeAlias(input.alias);
   if (!alias) return null;
   return {
