@@ -1,0 +1,6 @@
+[gd_scene load_steps=2 format=3 uid="uid://porttest123"]
+
+[ext_resource type="Script" path="res://test/godot_port_features_test.gd" id="1_test"]
+
+[node name="GodotPortFeaturesTest" type="Node"]
+script = ExtResource("1_test")

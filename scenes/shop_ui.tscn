@@ -203,6 +203,11 @@ layout_mode = 2
 size_flags_horizontal = 3
 text = "Yadigârlar"
 
+[node name="MistakesTabButton" type="Button" parent="Panel/CategoryBar"]
+layout_mode = 2
+size_flags_horizontal = 3
+text = "📖 Hata Defteri"
+
 [node name="ScrollArea" type="ScrollContainer" parent="Panel"]
 layout_mode = 1
 anchors_preset = 8
@@ -322,6 +327,7 @@ text = "Tamam / Dükkana Dön"
 [connection signal="pressed" from="Panel/CategoryBar/WeaponsTabButton" to="." method="_on_weapons_tab_pressed"]
 [connection signal="pressed" from="Panel/CategoryBar/GadgetsTabButton" to="." method="_on_gadgets_tab_pressed"]
 [connection signal="pressed" from="Panel/CategoryBar/ArtifactsTabButton" to="." method="_on_artifacts_tab_pressed"]
+[connection signal="pressed" from="Panel/CategoryBar/MistakesTabButton" to="." method="_on_mistakes_tab_pressed"]
 [connection signal="pressed" from="Panel/BottomBar/RerollButton" to="." method="_on_reroll_button_pressed"]
 [connection signal="pressed" from="Panel/BottomBar/NextWaveButton" to="." method="_on_next_wave_button_pressed"]
 [connection signal="pressed" from="QuizModal/Box/ContinueButton" to="." method="_on_continue_button_pressed"]

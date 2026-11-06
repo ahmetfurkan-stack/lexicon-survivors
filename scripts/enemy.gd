@@ -57,6 +57,20 @@ var boss_charge_timer: float = 0.0
 var boss_overtime: int = 0
 var boss_phase_tint: Color = Color.WHITE
 
+# Tactical Affixes & Boss Phases
+var affix: String = "" # "", "shielded", "blinker", "commander", "volatile"
+var blink_timer: float = 4.0
+var commander_aura_timer: float = 1.0
+var is_exploding: bool = false
+var explode_timer: float = 0.0
+
+var is_boss: bool = false
+var is_enraged: bool = false
+var laser_cooldown: float = 5.0
+var laser_warning_timer: float = 0.0
+var laser_active_timer: float = 0.0
+var laser_target_pos: Vector2 = Vector2.ZERO
+
 @onready var sprite = $Sprite2D
 @onready var label = $Label
 var ink_drop_scene = preload("res://scenes/ink_drop.tscn")
@@ -159,7 +173,7 @@ func setup_type():
 	var spd_mult = diff_data.get("enemy_speed_mult", 1.0)
 	var hp_mult = diff_data.get("enemy_hp_mult", 1.0)
 	var dmg_mult = diff_data.get("enemy_damage_mult", 1.0)
-	
+
 	if enemy_type == "Typo Slime":
 		max_health = (140.0 + (StatsManager.current_wave - 1) * 36.0) * hp_mult
 		speed = (98.0 + (StatsManager.current_wave - 1) * 3.5) * spd_mult
@@ -323,7 +337,7 @@ func setup_type():
 			sprite.texture = load("res://assets/sprites/upgrade_v1/monster_lexicon_dragon_boss.png")
 		if label:
 			label.text = "LEXICON DRAGON OVERLORD"
-			
+
 	if is_milestone_boss:
 		if boss_health_override > 0.0:
 			max_health = boss_health_override
@@ -352,9 +366,39 @@ func setup_type():
 				(collision_shape.shape as CircleShape2D).radius = 37.0 if StatsManager.current_wave < 100 else 42.0
 		boss_skill_interval = maxf(4.1, 6.8 - float(StatsManager.current_wave) * 0.017)
 	ink_reward = boss_reward_override if is_milestone_boss and boss_reward_override > 0 else StatsManager.get_enemy_ink_reward(enemy_type, ink_reward)
+	is_boss = enemy_type in ["Red Pen Boss", "Lexicon Dragon Boss"]
 	health = max_health
 
+	if affix != "" and label:
+		match affix:
+			"shielded":
+				label.text = "🛡️ " + label.text
+			"blinker":
+				label.text = "⚡ " + label.text
+			"commander":
+				label.text = "🔮 " + label.text
+			"volatile":
+				label.text = "💣 " + label.text
+
+func _draw_tactical_affix_overlay():
+	if affix == "shielded":
+		draw_arc(Vector2.ZERO, 22.0, -PI/2.5, PI/2.5, 16, Color(0.2, 0.8, 1.0, 0.85), 3.0)
+	elif affix == "commander":
+		draw_circle(Vector2.ZERO, 40.0, Color(0.8, 0.3, 1.0, 0.12))
+		draw_arc(Vector2.ZERO, 40.0, 0, TAU, 24, Color(0.9, 0.4, 1.0, 0.7), 2.0)
+	elif is_exploding:
+		var pulse = 0.5 + sin(explode_timer * 22.0) * 0.45
+		draw_circle(Vector2.ZERO, 55.0, Color(1.0, 0.2, 0.2, pulse))
+
+	if is_enraged and laser_warning_timer > 0:
+		var target_local = to_local(laser_target_pos)
+		draw_line(Vector2.ZERO, target_local, Color(1.0, 0.2, 0.2, 0.65), 2.0)
+	elif is_enraged and laser_active_timer > 0:
+		var target_local = to_local(laser_target_pos)
+		draw_line(Vector2.ZERO, target_local, Color(1.0, 0.85, 0.3, 0.95), 12.0)
+
 func _physics_process(delta: float):
+	queue_redraw()
 	_update_readable_motion()
 	hit_squash_timer = maxf(0.0, hit_squash_timer - delta)
 	weapon_mark_timer = maxf(0.0, weapon_mark_timer - delta)
@@ -379,27 +423,80 @@ func _physics_process(delta: float):
 	if flash_timer > 0:
 		flash_timer -= delta
 		if flash_timer <= 0:
-			modulate = boss_phase_tint if is_milestone_boss else Color.WHITE
-			
+			modulate = boss_phase_tint if is_milestone_boss else (Color(2.8, 0.4, 0.4) if is_enraged else Color.WHITE)
+	if is_exploding:
+		explode_timer -= delta
+		velocity = Vector2.ZERO
+		modulate = Color(2.5, 0.4, 0.4) if int(explode_timer * 12.0) % 2 == 0 else Color.WHITE
+		if explode_timer <= 0.0:
+			detonate_volatile_bomb()
+		return
+
 	if attack_cooldown > 0:
 		attack_cooldown -= delta
 	if behavior_cooldown > 0:
 		behavior_cooldown -= delta
 	if recovery_timer > 0.0:
 		recovery_timer = maxf(0.0, recovery_timer - delta)
-		
+
+	# Affix: Blinker teleport
+	if affix == "blinker" and target_player and is_instance_valid(target_player):
+		blink_timer -= delta
+		if blink_timer <= 0:
+			blink_timer = 4.2
+			var blink_ang = randf() * TAU
+			global_position = target_player.global_position + Vector2(cos(blink_ang), sin(blink_ang)) * randf_range(110.0, 150.0)
+			StatsManager.add_floating_text(global_position + Vector2(0, -20), "⚡ SIÇRAMA!", Color(1.0, 0.9, 0.2), 16)
+
+	# Affix: Commander buffing aura
+	if affix == "commander":
+		commander_aura_timer -= delta
+		if commander_aura_timer <= 0:
+			commander_aura_timer = 1.0
+			var enemies = get_tree().get_nodes_in_group("enemies")
+			for e in enemies:
+				if is_instance_valid(e) and e != self and global_position.distance_to(e.global_position) <= 180.0:
+					if "speed" in e and not e.is_boss:
+						e.speed = min(e.speed * 1.35, 260.0)
+
+	# Boss Enraged Laser Attack Cycle
+	if is_enraged and target_player and is_instance_valid(target_player):
+		if laser_warning_timer > 0:
+			laser_warning_timer -= delta
+			if laser_warning_timer <= 0:
+				laser_active_timer = 0.4
+				StatsManager.trigger_screen_shake(0.35, 10.0)
+				# The warning line locks to its original target, so dodging remains possible.
+				var to_player = target_player.global_position - global_position
+				var to_target = laser_target_pos - global_position
+				var target_length := to_target.length()
+				var along_beam := to_player.dot(to_target.normalized())
+				var cross_track := absf(to_target.normalized().cross(to_player))
+				if target_length <= 800.0 and along_beam > 0.0 and along_beam <= target_length and cross_track <= 26.0:
+					if target_player.has_method("take_damage"):
+						target_player.take_damage(damage_to_player * 1.5)
+		elif laser_active_timer > 0:
+			laser_active_timer -= delta
+		else:
+			laser_cooldown -= delta
+			if laser_cooldown <= 0:
+				laser_cooldown = 5.5
+				laser_warning_timer = 1.0
+				laser_target_pos = target_player.global_position
+			StatsManager.add_floating_text(global_position + Vector2(0, -40), "LAZER KİLİTLENDİ", Color(1.0, 0.2, 0.2), 22)
+
 	# Find player
 	if not target_player or not is_instance_valid(target_player):
 		if is_inside_tree():
 			var players = get_tree().get_nodes_in_group("player")
 			if players.size() > 0:
 				target_player = players[0]
-			
+
 	if target_player and is_instance_valid(target_player):
 		var dir = (target_player.global_position - global_position).normalized()
 		var distance_to_player = global_position.distance_to(target_player.global_position)
 		var desired_velocity = dir * speed
-		
+
 		# Flip sprite based on direction
 		if sprite and dir.x != 0:
 			sprite.flip_h = dir.x < 0
@@ -421,7 +518,7 @@ func _physics_process(delta: float):
 		velocity = desired_velocity + knockback
 		knockback = knockback.move_toward(Vector2.ZERO, 600.0 * delta)
 		move_and_slide()
-		
+
 		# Check contact with player
 		for i in get_slide_collision_count():
 			var collision = get_slide_collision(i)
@@ -739,6 +836,7 @@ func fire_harpy_bolt():
 	bolt.global_position = global_position + attack_direction * 24.0
 
 func _draw():
+	_draw_tactical_affix_overlay()
 	if is_milestone_boss:
 		_draw_milestone_boss()
 		return
@@ -812,7 +910,11 @@ func _draw_milestone_boss() -> void:
 			draw_line(Vector2.ZERO, cross * 1050.0, Color(boss_custom_color, 0.35), 3.0, true)
 
 func take_damage(amount: float, knock_dir: Vector2, impact_profile: String = "ink", is_critical: bool = false):
+	if is_exploding:
+		return
 	amount *= StatsManager.get_relic_damage_multiplier(self)
+	if affix == "shielded" and velocity.length_squared() > 0.01 and (-knock_dir.normalized()).dot(velocity.normalized()) > 0.0:
+		amount *= 0.25
 	if is_milestone_boss and recovery_timer > 0.0:
 		amount *= 1.25
 	StatsManager.relic_on_enemy_hit(self)
@@ -829,9 +931,42 @@ func take_damage(amount: float, knock_dir: Vector2, impact_profile: String = "in
 	var push_strength := 0.0 if is_milestone_boss else (205.0 if is_critical else 150.0)
 	knockback = knock_dir.normalized() * push_strength
 	spawn_hit_effect("critical" if is_critical else impact_profile, knock_dir, is_critical)
-	
+
+	if is_boss and not is_enraged and health < max_health * 0.5:
+		trigger_boss_enrage()
+
 	if health <= 0:
-		die()
+		if affix == "volatile" and not is_exploding:
+			start_volatile_explosion()
+		else:
+			die()
+
+func trigger_boss_enrage() -> void:
+	if is_enraged:
+		return
+	is_enraged = true
+	speed *= 1.25
+	damage_to_player *= 1.25
+	modulate = Color(2.8, 0.4, 0.4)
+	StatsManager.trigger_screen_shake(0.45, 12.0)
+	StatsManager.trigger_tactical_alert("BOSS PHASE 2: KIZGINLIK", "Hız ve hasar arttı. Lazer saldırısının uyarı çizgisini takip et.")
+	StatsManager.add_floating_text(global_position + Vector2(0, -45), "ENRAGED PHASE 2", Color(1.0, 0.2, 0.2), 26)
+	queue_redraw()
+
+func start_volatile_explosion() -> void:
+	is_exploding = true
+	explode_timer = 1.1
+	StatsManager.add_floating_text(global_position + Vector2(0, -25), "PATLAMA GERİ SAYIMI", Color(1.0, 0.3, 0.2), 18)
+	queue_redraw()
+
+func detonate_volatile_bomb() -> void:
+	StatsManager.trigger_screen_shake(0.3, 9.0)
+	var players := get_tree().get_nodes_in_group("player")
+	if not players.is_empty():
+		var player = players[0]
+		if is_instance_valid(player) and global_position.distance_to(player.global_position) <= 140.0 and player.has_method("take_damage"):
+			player.take_damage(damage_to_player * 1.2)
+	die()
 
 func spawn_hit_effect(impact_profile: String, knock_dir: Vector2, is_critical: bool = false) -> void:
 	if not is_inside_tree():
@@ -917,7 +1052,7 @@ func die():
 			drop.global_position = global_position
 			drop.ink_value = ink_reward
 			get_tree().current_scene.call_deferred("add_child", drop)
-		
+
 	queue_free()
 
 func despawn_without_rewards():

@@ -12,12 +12,14 @@ signal shop_closed()
 @onready var chapter_title = $Panel/ChapterStrip/ChapterTitle
 @onready var chapter_narration = $Panel/ChapterStrip/ChapterNarration
 @onready var chapter_mark = $Panel/ChapterStrip/ChapterMark
+@onready var next_wave_button = $Panel/BottomBar/NextWaveButton
 
 # Tabs
 @onready var cards_tab_btn = $Panel/CategoryBar/CardsTabButton
 @onready var weapons_tab_btn = $Panel/CategoryBar/WeaponsTabButton
 @onready var gadgets_tab_btn = $Panel/CategoryBar/GadgetsTabButton
 @onready var artifacts_tab_btn = $Panel/CategoryBar/ArtifactsTabButton
+@onready var mistakes_tab_btn = $Panel/CategoryBar/MistakesTabButton
 
 # Quiz Modal
 @onready var quiz_modal = $QuizModal
@@ -28,7 +30,7 @@ signal shop_closed()
 @onready var options_container = $QuizModal/Box/OptionsContainer
 @onready var quiz_continue_btn = $QuizModal/Box/ContinueButton
 
-var current_tab: String = "cards" # "cards", "weapons", "gadgets", "artifacts"
+var current_tab: String = "cards" # "cards", "weapons", "gadgets", "artifacts", "mistakes"
 var current_cards: Array = []
 var active_quiz_card: Dictionary = {}
 var active_card_index: int = -1
@@ -118,6 +120,9 @@ func style_shop_tab(button: Button, active: bool) -> void:
 	button.add_theme_color_override("font_color", label_color)
 	button.add_theme_color_override("font_hover_color", label_color)
 
+var auto_tur_timer: float = 3.0
+var auto_tur_paused: bool = false
+
 func _ready():
 	hide()
 	quiz_modal.hide()
@@ -128,15 +133,38 @@ func _ready():
 	reroll_button.icon = load("res://assets/ui/icons/reroll.svg")
 	StatsManager.ink_changed.connect(_on_ink_changed)
 	StatsManager.synergy_activated.connect(_on_synergy_activated)
+	StatsManager.mistakes_updated.connect(update_mistakes_tab_title)
+
+func _process(delta: float):
+	if not visible:
+		return
+	update_mistakes_tab_title()
+	if StatsManager.auto_new_tur and not auto_tur_paused and not quiz_modal.visible and current_tab == "cards":
+		auto_tur_timer -= delta
+		if next_wave_button:
+			next_wave_button.text = "⚔ Sonraki Dalga (" + str(int(ceil(max(0.0, auto_tur_timer)))) + "s) ▶"
+		if auto_tur_timer <= 0:
+			_on_next_wave_button_pressed()
+	else:
+		if next_wave_button:
+			next_wave_button.text = "⚔ Sonraki Dalgaya Başla ▶"
+
+func update_mistakes_tab_title():
+	if mistakes_tab_btn:
+		var count = StatsManager.mistake_words.size()
+		mistakes_tab_btn.text = "📖 Hata Defteri (" + str(count) + ")"
 
 func open_shop():
 	show()
 	quiz_modal.hide()
 	current_tab = "cards"
 	highlight_tab_buttons()
+	auto_tur_timer = 3.0
+	auto_tur_paused = not StatsManager.auto_new_tur
 	update_top_bar()
 	update_chapter_header()
 	update_synergy_display()
+	update_mistakes_tab_title()
 	refresh_cards()
 
 func update_chapter_header():
@@ -179,18 +207,28 @@ func refresh_cards():
 func _on_cards_tab_pressed():
 	current_tab = "cards"
 	reroll_button.visible = true
+	auto_tur_paused = false
 	highlight_tab_buttons()
 	render_current_view()
 
 func _on_weapons_tab_pressed():
 	current_tab = "weapons"
 	reroll_button.visible = false
+	auto_tur_paused = true
 	highlight_tab_buttons()
 	render_current_view()
 
 func _on_artifacts_tab_pressed():
 	current_tab = "artifacts"
 	reroll_button.visible = false
+	auto_tur_paused = true
+	highlight_tab_buttons()
+	render_current_view()
+
+func _on_mistakes_tab_pressed():
+	current_tab = "mistakes"
+	reroll_button.visible = false
+	auto_tur_paused = true
 	highlight_tab_buttons()
 	render_current_view()
 
@@ -205,11 +243,12 @@ func highlight_tab_buttons():
 	style_shop_tab(weapons_tab_btn, current_tab == "weapons")
 	style_shop_tab(gadgets_tab_btn, current_tab == "gadgets")
 	style_shop_tab(artifacts_tab_btn, current_tab == "artifacts")
+	style_shop_tab(mistakes_tab_btn, current_tab == "mistakes")
 
 func render_current_view():
 	for child in cards_container.get_children():
 		child.queue_free()
-		
+
 	match current_tab:
 		"cards":
 			render_cards()
@@ -219,6 +258,8 @@ func render_current_view():
 			render_gadgets()
 		"artifacts":
 			render_artifacts()
+		"mistakes":
+			render_mistakes()
 
 func render_gadgets():
 	for gadget_id in StatsManager.gadgets_catalog:
@@ -292,11 +333,11 @@ func render_cards():
 	for i in range(current_cards.size()):
 		var card = current_cards[i]
 		var card_panel = make_shop_card_panel(Color(0.52, 0.20, 0.25, 1))
-		
+
 		var vbox = VBoxContainer.new()
 		vbox.add_theme_constant_override("separation", 8)
 		card_panel.add_child(vbox)
-		
+
 		# Type & Level header
 		var tag_label = Label.new()
 		var q_type = card.get("question_type", "meaning").capitalize()
@@ -305,20 +346,20 @@ func render_cards():
 		tag_label.add_theme_font_size_override("font_size", 10)
 		tag_label.add_theme_color_override("font_color", Color(0.46, 0.41, 0.34, 1))
 		vbox.add_child(tag_label)
-		
+
 		# Word Title
 		var title_label = Label.new()
 		title_label.text = card["word"]
 		style_shop_title(title_label, 22)
 		vbox.add_child(title_label)
-		
+
 		# Description
 		var desc_label = Label.new()
 		desc_label.text = card["description"]
 		desc_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 		style_shop_description(desc_label)
 		vbox.add_child(desc_label)
-		
+
 		# Example sentence
 		var ex_label = Label.new()
 		ex_label.text = '"' + card.get("example", "") + '"'
@@ -326,26 +367,26 @@ func render_cards():
 		ex_label.add_theme_color_override("font_color", Color(0.45, 0.43, 0.38, 1))
 		ex_label.add_theme_font_size_override("font_size", 12)
 		vbox.add_child(ex_label)
-		
+
 		var spacer = Control.new()
 		spacer.size_flags_vertical = Control.SIZE_EXPAND_FILL
 		vbox.add_child(spacer)
 		vbox.add_child(make_shop_price_label(str(card["cost"]) + "  ·  MÜREKKEP"))
-		
+
 		# Buy / Quiz Button
 		var buy_btn = Button.new()
 		var cost = card["cost"]
 		buy_btn.text = "Sınavı başlat"
 		buy_btn.custom_minimum_size = Vector2(0, 42)
 		style_shop_action(buy_btn)
-		
+
 		if StatsManager.ink_count < cost:
 			buy_btn.disabled = true
 			buy_btn.text = "Yetersiz Mürekkep (" + str(cost) + ")"
 		else:
 			var idx = i
 			buy_btn.pressed.connect(func(): start_card_quiz(card, idx))
-			
+
 		vbox.add_child(buy_btn)
 		cards_container.add_child(card_panel)
 
@@ -354,37 +395,37 @@ func render_weapons():
 	for k in keys:
 		var w = StatsManager.weapons_catalog[k]
 		var card_panel = make_shop_card_panel(Color(0.56, 0.37, 0.21, 1))
-		
+
 		var vbox = VBoxContainer.new()
 		vbox.add_theme_constant_override("separation", 10)
 		card_panel.add_child(vbox)
-		
+
 		var tag = Label.new()
 		tag.text = "SİLAH  ·  TEÇHİZAT"
 		tag.add_theme_font_override("font", SHOP_MONO_FONT)
 		tag.add_theme_font_size_override("font_size", 10)
 		tag.add_theme_color_override("font_color", Color(0.46, 0.41, 0.34, 1))
 		vbox.add_child(tag)
-		
+
 		var title = Label.new()
 		title.text = w["name"]
 		style_shop_title(title, 19)
 		title.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 		vbox.add_child(title)
-		
+
 		var desc = Label.new()
 		desc.text = w["desc"]
 		desc.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 		style_shop_description(desc)
 		vbox.add_child(desc)
-		
+
 		var stats_lbl = Label.new()
 		stats_lbl.text = "Taban Hasar: " + str(w["damage"]) + "\nAtış Hızı: " + str(w["cooldown"]) + "s"
 		stats_lbl.add_theme_font_override("font", SHOP_MONO_FONT)
 		stats_lbl.add_theme_font_size_override("font_size", 11)
 		stats_lbl.add_theme_color_override("font_color", Color(0.40, 0.34, 0.27, 1))
 		vbox.add_child(stats_lbl)
-		
+
 		var spacer = Control.new()
 		spacer.size_flags_vertical = Control.SIZE_EXPAND_FILL
 		vbox.add_child(spacer)
@@ -392,13 +433,13 @@ func render_weapons():
 		var weapon_tier: int = StatsManager.get_weapon_tier(w["id"]) if owned_for_price else 0
 		var upgrade_cost: int = StatsManager.get_weapon_tier_cost(w["id"]) if owned_for_price else 0
 		vbox.add_child(make_shop_price_label(("T%d / EFSANEVİ" % weapon_tier) if (owned_for_price and weapon_tier >= 4) else (("T%d → T%d  ·  %d MÜREKKEP" % [weapon_tier, weapon_tier + 1, upgrade_cost]) if owned_for_price else str(w["cost"]) + "  ·  MÜREKKEP")))
-		
+
 		var buy_btn = Button.new()
 		buy_btn.custom_minimum_size = Vector2(0, 44)
 		style_shop_action(buy_btn)
 		var is_owned = StatsManager.has_weapon(w["id"])
 		var w_id = w["id"]
-		
+
 		if is_owned:
 			if weapon_tier >= 4:
 				buy_btn.text = "EFSANEVİ · T4"
@@ -438,7 +479,7 @@ func render_artifacts():
 	for k in keys:
 		var art = StatsManager.artifacts_catalog[k]
 		var card_panel = make_shop_card_panel(Color(0.52, 0.20, 0.25, 1))
-		
+
 		var vbox = VBoxContainer.new()
 		vbox.add_theme_constant_override("separation", 10)
 		card_panel.add_child(vbox)
@@ -449,26 +490,26 @@ func render_artifacts():
 		icon.texture = load("res://" + str(art.get("icon", "assets/sprites/relics/magnifying_glass.png"))) as Texture2D
 		icon.tooltip_text = str(art.get("name", k))
 		vbox.add_child(icon)
-		
+
 		var tag = Label.new()
 		tag.text = "PASİF ESER  ·  GEREÇ"
 		tag.add_theme_font_override("font", SHOP_MONO_FONT)
 		tag.add_theme_font_size_override("font_size", 10)
 		tag.add_theme_color_override("font_color", Color(0.46, 0.41, 0.34, 1))
 		vbox.add_child(tag)
-		
+
 		var title = Label.new()
 		title.text = art["name"]
 		style_shop_title(title, 18)
 		title.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 		vbox.add_child(title)
-		
+
 		var desc = Label.new()
 		desc.text = str(art.get("description", art.get("desc", "")))
 		desc.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 		style_shop_description(desc)
 		vbox.add_child(desc)
-		
+
 		var spacer = Control.new()
 		spacer.size_flags_vertical = Control.SIZE_EXPAND_FILL
 		vbox.add_child(spacer)
@@ -479,11 +520,11 @@ func render_artifacts():
 			vbox.add_child(make_shop_price_label("YUVA %d / 6" % StatsManager.max_weapon_slots))
 		else:
 			vbox.add_child(make_shop_price_label("SAHİP" if is_owned else str(art["cost"]) + "  ·  MÜREKKEP"))
-		
+
 		var buy_btn = Button.new()
 		buy_btn.custom_minimum_size = Vector2(0, 44)
 		style_shop_action(buy_btn)
-		
+
 		if is_owned:
 			buy_btn.text = "TÜM YUVALAR AÇIK" if art_id == "slot_expansion" else "SATIN ALINDI"
 			buy_btn.disabled = true
@@ -503,22 +544,80 @@ func render_artifacts():
 		vbox.add_child(buy_btn)
 		cards_container.add_child(card_panel)
 
+func render_mistakes():
+	if StatsManager.mistake_words.is_empty():
+		var empty_lbl = Label.new()
+		empty_lbl.text = "🎉 Tebrikler! Hata defteriniz boş.\nHiçbir soruda yanlış yapmadınız veya tüm hatalarınızı telafi ettiniz!"
+		empty_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		empty_lbl.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+		empty_lbl.custom_minimum_size = Vector2(600, 200)
+		empty_lbl.modulate = Color(0.4, 1.0, 0.6)
+		cards_container.add_child(empty_lbl)
+		return
+
+	for i in range(StatsManager.mistake_words.size()):
+		var card = StatsManager.mistake_words[i]
+		var card_panel = PanelContainer.new()
+		card_panel.custom_minimum_size = Vector2(265, 340)
+
+		var vbox = VBoxContainer.new()
+		vbox.theme_override_constants.separation = 8
+
+		var title_lbl = Label.new()
+		title_lbl.text = "⚠️ " + card.get("word", "") + "\n[" + card.get("level", "A1") + " • " + card.get("type", "Kelime") + "]"
+		title_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		title_lbl.modulate = Color(1.0, 0.5, 0.5)
+		vbox.add_child(title_lbl)
+
+		var q_lbl = Label.new()
+		q_lbl.text = card.get("question", "")
+		q_lbl.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		q_lbl.modulate = Color(0.9, 0.9, 0.9)
+		vbox.add_child(q_lbl)
+
+		var correct_opt = ""
+		var opts = card.get("options", [])
+		var c_idx = card.get("correct_index", 0)
+		if c_idx >= 0 and c_idx < opts.size():
+			correct_opt = opts[c_idx]
+
+		var ans_lbl = Label.new()
+		ans_lbl.text = "Doğru Yanıt: " + correct_opt
+		ans_lbl.modulate = Color(0.3, 1.0, 0.4)
+		vbox.add_child(ans_lbl)
+
+		var ex_lbl = Label.new()
+		ex_lbl.text = 'Örnek: "' + card.get("example", "") + '"'
+		ex_lbl.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		ex_lbl.modulate = Color(0.7, 0.7, 0.7)
+		vbox.add_child(ex_lbl)
+
+		var tag = Label.new()
+		tag.text = "★ Sonraki turlarda %50 indirimli ve +%75 güçlü Telafi Kartı olarak gelecektir."
+		tag.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		tag.modulate = Color(1.0, 0.85, 0.3)
+		vbox.add_child(tag)
+
+		card_panel.add_child(vbox)
+		cards_container.add_child(card_panel)
+
 func start_card_quiz(card: Dictionary, index: int):
 	active_quiz_card = card
 	active_card_index = index
-	
+	auto_tur_paused = true
+
 	quiz_modal.show()
 	quiz_result_label.text = ""
 	quiz_continue_btn.hide()
-	
+
 	var q_type = card.get("question_type", "meaning").capitalize()
 	quiz_word_title.text = card["word"] + " [" + card["type"] + " • " + q_type + "]"
 	quiz_question.text = card["question"]
 	quiz_example.text = 'Örnek Kullanım: "' + card.get("example", "") + '"'
-	
+
 	for child in options_container.get_children():
 		child.queue_free()
-		
+
 	var opts = card["options"]
 	displayed_option_indices.clear()
 	for i in range(opts.size()):
@@ -539,33 +638,41 @@ func answer_quiz(selected_index: int):
 	for child in options_container.get_children():
 		if child is Button:
 			child.disabled = true
-			
+
 	if selected_index < 0 or selected_index >= displayed_option_indices.size():
 		return
 	var is_correct = (displayed_option_indices[selected_index] == active_quiz_card["correct_index"])
 	var base_cost = active_quiz_card["cost"]
-	
+	var is_redemption = active_quiz_card.get("is_redemption", false)
+
 	if is_correct:
 		var discount_cost = int(ceil(base_cost * 0.5))
-		quiz_result_label.text = "Doğru cevap\n%50 indirim ve +%50 güç kazandın.\nÖdenen: " + str(discount_cost) + " mürekkep"
+		if is_redemption:
+			StatsManager.remove_mistake(active_quiz_card.get("word", ""))
+			quiz_result_label.text = "TELAFİ BAŞARILI\nHata Defteri temizlendi.\n%50 indirim ve +%50 güç kazandın.\nÖdenen: " + str(discount_cost) + " mürekkep"
+		else:
+			quiz_result_label.text = "Doğru cevap\n%50 indirim ve +%50 güç kazandın.\nÖdenen: " + str(discount_cost) + " mürekkep"
 		quiz_result_label.modulate = Color(0.2, 1.0, 0.4)
-		
+
 		StatsManager.spend_ink(discount_cost)
 		StatsManager.apply_card_upgrade(active_quiz_card, true)
 	else:
-		quiz_result_label.text = "YANLIŞ CEVAP. Doğru seçenek: " + active_quiz_card["options"][active_quiz_card["correct_index"]] + "\nKart normal fiyattan alındı: " + str(base_cost) + " Mürekkep"
+		StatsManager.record_mistake(active_quiz_card)
+		quiz_result_label.text = "YANLIŞ CEVAP. Doğru seçenek: " + active_quiz_card["options"][active_quiz_card["correct_index"]] + "\nHata Defterine eklendi; telafi kartı olarak geri dönebilir.\nKart normal fiyattan alındı: " + str(base_cost) + " Mürekkep"
 		quiz_result_label.modulate = Color(1.0, 0.3, 0.3)
-		
+
 		StatsManager.spend_ink(base_cost)
 		StatsManager.apply_card_upgrade(active_quiz_card, false)
-		
+
 	if active_card_index >= 0 and active_card_index < current_cards.size():
 		current_cards.remove_at(active_card_index)
-		
+
 	quiz_continue_btn.show()
 
 func _on_continue_button_pressed():
 	quiz_modal.hide()
+	auto_tur_timer = 3.0
+	auto_tur_paused = not StatsManager.auto_new_tur
 	update_top_bar()
 	update_synergy_display()
 	render_current_view()

@@ -55,10 +55,10 @@ func start_wave():
 func _process(delta: float):
 	if not is_wave_active:
 		return
-		
+
 	time_left -= delta
 	emit_signal("wave_timer_updated", max(0.0, time_left))
-	
+
 	if time_left <= 0:
 		if boss_wave_active:
 			boss_overtime_level += 1
@@ -76,7 +76,7 @@ func _process(delta: float):
 		elif _active_enemy_count() == 0:
 			end_wave()
 		return
-		
+
 	var wave_enemy_cap := _get_wave_enemy_cap()
 	var active_count = _active_enemy_count()
 	if active_count >= wave_enemy_cap:
@@ -141,12 +141,12 @@ func spawn_enemy():
 	find_player()
 	if not player_ref:
 		return
-		
+
 	var spawn_pos := get_arena_spawn_position(player_ref.global_position, 560.0)
-	
+
 	var enemy = enemy_scene.instantiate()
 	enemy.global_position = spawn_pos
-	
+
 	# Choose type based on wave
 	var roll = randf()
 	var wave = StatsManager.current_wave
@@ -176,7 +176,12 @@ func spawn_enemy():
 		enemy.enemy_type = "Grammar Goblin"
 	else:
 		enemy.enemy_type = "Typo Slime"
-		
+
+	# Tactical affixes for wave >= 15 (35% chance)
+	if wave >= 15 and randf() < 0.35 and enemy.enemy_type != "Red Pen Boss" and enemy.enemy_type != "Lexicon Dragon Boss":
+		var affixes = ["shielded", "blinker", "commander", "volatile"]
+		enemy.affix = affixes[randi() % affixes.size()]
+
 	get_tree().current_scene.add_child(enemy)
 
 func spawn_milestone_boss() -> void:

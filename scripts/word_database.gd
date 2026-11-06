@@ -2,7 +2,7 @@ extends Node
 
 
 # 50+ Rich Educational English Vocabulary & Grammar Questions
-# Covering: Türkçe Anlam, Eş Anlam (Synonyms), Zıt Anlam (Antonyms), 
+# Covering: Türkçe Anlam, Eş Anlam (Synonyms), Zıt Anlam (Antonyms),
 # Yazım Yanlışı (Spell Check), Prepositions & Collocations across A1, A2, B1, B2, C1.
 
 var words: Array = [
@@ -814,14 +814,28 @@ func get_random_cards(wave: int, difficulty: String = "normal", count: int = 4) 
 				unlearned.append(w)
 		else:
 			unlearned.append(w)
-			
+
 	if unlearned.size() >= count:
 		pool = unlearned
 	elif pool.size() < count:
 		pool = words.duplicate()
 
 	pool.shuffle()
-	return pool.slice(0, min(count, pool.size()))
+	var result = pool.slice(0, min(count, pool.size()))
+
+	# If player has unredeemed mistake words, guarantee 1 redemption card slot
+	if is_inside_tree() and get_tree().root.has_node("StatsManager"):
+		var sm = get_tree().root.get_node("StatsManager")
+		if sm.mistake_words.size() > 0 and result.size() > 0:
+			var mistake_pool = sm.mistake_words.duplicate()
+			mistake_pool.shuffle()
+			var m_card = mistake_pool[0].duplicate(true)
+			m_card["is_redemption"] = true
+			m_card["cost"] = max(1, int(ceil(m_card.get("cost", 8) * 0.5)))
+			m_card["description"] = "[★ TELAFİ BONUSU +%75 GÜÇ] " + m_card.get("description", "")
+			result[0] = m_card
+
+	return result
 
 func get_word_info(word_name: String) -> Dictionary:
 	for w in words:

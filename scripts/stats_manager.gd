@@ -13,6 +13,13 @@ signal weapon_tier_upgraded(weapon_id: String, tier: int)
 signal artifact_purchased(artifact_id: String)
 signal character_selected(char_id: String)
 signal difficulty_selected(diff_id: String)
+signal game_speed_changed(speed: float)
+signal auto_new_tur_changed(enabled: bool)
+signal auto_new_run_changed(enabled: bool)
+signal floating_text_requested(pos: Vector2, text: String, color: Color, size: int)
+signal screen_shake_requested(duration: float, intensity: float)
+signal tactical_alert_requested(title: String, desc: String)
+signal mistakes_updated()
 
 # Configuration & Choices
 var selected_character: String = "inky"
@@ -52,6 +59,15 @@ var equipped_weapons: Array = ["quill_blaster"]
 var active_weapon_index: int = 0
 var weapon_tiers: Dictionary = {"quill_blaster": 1}
 var artifacts_owned: Array = []
+
+# Game Speed, Automation & Mobile Controls
+var game_speed: float = 1.0
+var game_speed_options: Array = [1.0, 1.5, 2.0, 3.0, 0.5]
+var auto_new_tur: bool = true
+var auto_new_run: bool = true
+var mistake_words: Array = []
+var touch_input_direction: Vector2 = Vector2.ZERO
+var touch_controls_enabled: bool = false
 
 # Character definitions
 var characters: Dictionary = {
@@ -539,7 +555,7 @@ func reset():
 		load_game_economy()
 	var char_data = characters.get(selected_character, characters["inky"])
 	var diff_data = difficulties.get(difficulty, difficulties["normal"])
-	
+
 	max_hp = char_data["hp"] + diff_data.get("player_hp_bonus", 0.0)
 	hp = max_hp
 	move_speed = char_data["move_speed"]
@@ -550,7 +566,7 @@ func reset():
 	pickup_radius = 140.0
 	projectile_count = 1
 	pierce_count = 1
-	
+
 	ink_mult = float(diff_data.get("ink_bonus_mult", 1.0))
 	if selected_character == "lexicon_alchemist":
 		ink_mult *= 1.4
@@ -560,13 +576,13 @@ func reset():
 		var player := get_tree().get_first_node_in_group("player")
 		if player and player.has_method("reset_temporary_gadget_effects"):
 			player.reset_temporary_gadget_effects()
-	
+
 	current_wave = 1
 	ink_count = int(game_economy.get("starting_ink", 0))
 	kill_count = 0
 	words_learned.clear()
 	active_synergies.clear()
-	
+
 	equipped_weapons.clear()
 	equipped_weapons.append(char_data["starting_weapon"])
 	active_weapon_index = 0
@@ -583,7 +599,7 @@ func reset():
 		owned_gadgets.append(starting_gadget)
 	active_gadget = starting_gadget
 	emit_signal("gadget_switched", active_gadget)
-	
+
 	emit_signal("hp_changed", hp, max_hp)
 	emit_signal("ink_changed", ink_count)
 	emit_signal("wave_changed", current_wave)
@@ -606,18 +622,84 @@ func register_kill():
 	emit_signal("kill_count_changed", kill_count)
 
 func heal(amount: float):
+	if amount <= 0:
+		return
 	if selected_character == "lexicon_alchemist":
 		amount *= 1.5
+	var old_hp = hp
 	hp = min(max_hp, hp + amount)
 	emit_signal("hp_changed", hp, max_hp)
+	var healed_val = hp - old_hp
+	if healed_val > 0 and is_inside_tree():
+		var players = get_tree().get_nodes_in_group("player")
+		if players.size() > 0:
+			add_floating_text(players[0].global_position + Vector2(0, -25), "+" + str(int(healed_val)) + " HP", Color(0.25, 1.0, 0.4), 18)
 
 func take_damage(amount: float):
 	var reduction = clamp(armor, 0.0, 0.85)
 	var final_dmg = max(1.0, amount * (1.0 - reduction))
 	hp = max(0.0, hp - final_dmg)
 	emit_signal("hp_changed", hp, max_hp)
+	trigger_screen_shake(0.22, 6.0)
+	if is_inside_tree():
+		var players = get_tree().get_nodes_in_group("player")
+		if players.size() > 0:
+			add_floating_text(players[0].global_position + Vector2(0, -25), "-" + str(int(final_dmg)), Color(1.0, 0.3, 0.3), 19)
 	if hp <= 0.0:
 		emit_signal("player_died")
+
+func set_game_speed(spd: float):
+	game_speed = spd
+	Engine.time_scale = spd
+	emit_signal("game_speed_changed", spd)
+
+func cycle_game_speed() -> float:
+	var idx = game_speed_options.find(game_speed)
+	if idx == -1:
+		idx = 0
+	var next_idx = (idx + 1) % game_speed_options.size()
+	var new_spd = game_speed_options[next_idx]
+	set_game_speed(new_spd)
+	return new_spd
+
+func toggle_auto_new_tur() -> bool:
+	auto_new_tur = not auto_new_tur
+	emit_signal("auto_new_tur_changed", auto_new_tur)
+	return auto_new_tur
+
+func toggle_auto_new_run() -> bool:
+	auto_new_run = not auto_new_run
+	emit_signal("auto_new_run_changed", auto_new_run)
+	return auto_new_run
+
+func add_floating_text(pos: Vector2, text: String, color: Color = Color.WHITE, size: int = 18):
+	emit_signal("floating_text_requested", pos, text, color, size)
+
+func trigger_screen_shake(duration: float = 0.25, intensity: float = 8.0):
+	emit_signal("screen_shake_requested", duration, intensity)
+
+func trigger_tactical_alert(title: String, desc: String):
+	emit_signal("tactical_alert_requested", title, desc)
+
+func record_mistake(card: Dictionary):
+	var w = card.get("word", "")
+	if w.is_empty():
+		return
+	for m in mistake_words:
+		if m.get("word", "") == w:
+			return
+	mistake_words.append(card.duplicate(true))
+	emit_signal("mistakes_updated")
+
+func remove_mistake(word: String):
+	for i in range(mistake_words.size() - 1, -1, -1):
+		if mistake_words[i].get("word", "") == word:
+			mistake_words.remove_at(i)
+	emit_signal("mistakes_updated")
+
+func clear_mistakes():
+	mistake_words.clear()
+	emit_signal("mistakes_updated")
 
 func equip_weapon(weapon_id: String) -> bool:
 	if not weapons_catalog.has(weapon_id):
@@ -689,7 +771,7 @@ func buy_artifact(art_id: String) -> bool:
 		return false
 	if not is_slot_expansion and artifacts_owned.has(art_id):
 		return false
-		
+
 	var art = artifacts_catalog[art_id]
 	if spend_ink(art["cost"]):
 		if is_slot_expansion:
@@ -818,11 +900,12 @@ func get_relic_target_priority(enemy: Node) -> float:
 func apply_card_upgrade(card_data: Dictionary, quiz_bonus: bool = false):
 	if card_data.has("word"):
 		words_learned.append(card_data["word"])
-	var multiplier = 1.5 if quiz_bonus else 1.0
-	
+	var is_redemption = card_data.get("is_redemption", false)
+	var multiplier = (1.75 if is_redemption else 1.5) if quiz_bonus else 1.0
+
 	var stat_name = card_data.get("stat", "")
 	var val = card_data.get("value", 0.0) * multiplier
-	
+
 	match stat_name:
 		"max_hp":
 			max_hp += val
@@ -846,7 +929,7 @@ func apply_card_upgrade(card_data: Dictionary, quiz_bonus: bool = false):
 			armor = clamp(armor + val, 0.0, 0.85)
 		"crit_chance":
 			crit_chance = clamp(crit_chance + val, 0.0, 1.0)
-			
+
 	check_synergies()
 
 var _word_db_instance = null
@@ -867,13 +950,13 @@ func check_synergies():
 		if not info.is_empty():
 			var t = info.get("type", "General")
 			type_counts[t] = type_counts.get(t, 0) + 1
-			
+
 	# 3 Adjectives = Swift Linguist (+35 move speed)
 	if type_counts.get("Adjective", 0) >= 3 and not active_synergies.has("Swift Linguist"):
 		active_synergies["Swift Linguist"] = true
 		move_speed += 35.0
 		emit_signal("synergy_activated", "Swift Linguist", "+35 Hareket Hızı (3 Sıfat Kombosu)")
-		
+
 	# 3 Verbs = Action Master (+25% Damage)
 	if type_counts.get("Verb", 0) >= 3 and not active_synergies.has("Action Master"):
 		active_synergies["Action Master"] = true
