@@ -520,13 +520,15 @@ func _run() -> void:
 	player.attack_anim_timer = 0.0
 	player.run_anim_phase = 0.0
 	player.velocity = Vector2.RIGHT * stats_manager.move_speed
+	assert(player.has_method("get_hero_render_action"), "The hero must blend authored attack poses with its active locomotion")
 	player._update_hero_animation()
 	var running_animation_before_shots: String = player.current_hero_animation
 	player.request_attack_pose("quill_blaster", "ranged", Vector2(100.0, 0.0))
 	assert(player.has_method("get_shot_recoil_offset"), "Ranged attacks must expose their separate recoil response")
 	assert(player.attack_anim_timer > 0.0 and player.attack_anim_duration <= 0.20, "Rapid shots must show a short release pose while preserving most of each run stride")
+	assert(player.get_hero_render_action() == "run", "Ranged fire must preserve the run animation while the player is moving")
 	player._update_hero_animation()
-	assert(player.current_hero_animation == "ranged", "Rapid ranged shots must visibly use an authored weapon-ready pose instead of recoil-only movement")
+	assert(player.current_hero_animation == "run", "A moving shooter must keep the authored run cycle during repeated fire")
 	if player.has_method("get_shot_recoil_offset"):
 		assert(is_equal_approx(player.last_aim_direction.length(), 1.0), "Ranged target vectors must normalize before they drive hero pose and recoil")
 		assert(player.get_shot_recoil_offset().x < 0.0 and player.get_shot_recoil_offset().length() <= 6.5, "A rightward rifle shot must kick the hero body backward within its weapon recoil limit")
@@ -537,8 +539,18 @@ func _run() -> void:
 	player.velocity = Vector2.LEFT * stats_manager.move_speed
 	player._update_hero_animation()
 	assert(not player.sprite.flip_h and player.sprite.rotation < 0.08 and player.sprite.rotation > -0.08, "Brief ranged recoil must turn the body toward its rightward target while preserving the run cycle")
+	player.ranged_recoil_timer = 0.0
+	player._update_hero_animation()
+	assert(player.sprite.flip_h and player.current_hero_animation == "run", "After the recoil, a moving shooter should face their travel direction without dropping the run cycle")
 	assert(player.current_hero_frame != 0, "Run phase must continue advancing during repeated ranged fire")
 	assert(is_equal_approx(player.run_anim_phase, stats_manager.move_speed * 0.18 / 17.0), "Run-cycle phase must advance from actual distance traveled at velocity-scaled cadence")
+	player.velocity = Vector2.ZERO
+	player.request_attack_pose("quill_blaster", "ranged", Vector2.RIGHT)
+	assert(player.get_hero_render_action() == "ranged", "A stationary shooter should still use a readable ready/release pose")
+	player._update_hero_animation()
+	assert(player.current_hero_animation == "ranged", "Stationary shots must retain the authored ranged animation")
+	player.attack_anim_timer = 0.0
+	player.velocity = Vector2.RIGHT * stats_manager.move_speed
 	assert(player.has_method("get_run_frame_index"), "Every character must map onto one shared eight-phase stride cycle")
 	assert(player.has_method("get_hero_run_frame_count"), "Every character must expose its authored run animation length")
 	if player.has_method("get_run_frame_index"):
@@ -571,6 +583,9 @@ func _run() -> void:
 	assert(player.attack_anim_timer > 0.0, "Melee action events must play a readable hero attack response")
 	player._update_hero_animation()
 	assert(player.locomotion_pose_offset == Vector2.ZERO, "Attack pose must clear the running bob before the hero action")
+	player.attack_anim_timer = 0.10
+	player._update_hero_animation()
+	assert(player.get_hero_render_action() == "run" and player.current_hero_animation == "run", "Melee recovery should keep the attack timer but restore the running stride")
 	player.attack_anim_timer = 0.0
 	player._update_hero_animation()
 	assert(player.current_hero_animation == "run" and player.locomotion_pose_offset != Vector2.ZERO, "Locomotion and its stride pose must resume as soon as the melee response recovers")

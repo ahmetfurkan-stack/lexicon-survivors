@@ -466,8 +466,9 @@ func get_hero_run_frame_count(character_id: String = "") -> int:
 func request_attack_pose(weapon_id: String, action_kind: String, aim: Vector2, recoil_px: float = 3.5, rhythm: Dictionary = {}) -> void:
 	if aim.length_squared() > 0.01:
 		last_aim_direction = aim.normalized()
-		if absf(last_aim_direction.x) > 0.05:
-			sprite.flip_h = last_aim_direction.x < 0.0
+		if action_kind != "ranged" or velocity.length() <= 30.0:
+			if absf(last_aim_direction.x) > 0.05:
+				sprite.flip_h = last_aim_direction.x < 0.0
 	if action_kind == "ranged":
 		attack_anim_kind = "ranged"
 		ranged_recoil_direction = last_aim_direction
@@ -500,6 +501,20 @@ func get_shot_recoil_offset() -> Vector2:
 		return Vector2.ZERO
 	var recovery := clampf(ranged_recoil_timer / RANGED_RECOIL_DURATION, 0.0, 1.0)
 	return (-ranged_recoil_direction * ranged_recoil_distance * pow(recovery, 1.65)).round()
+
+func get_hero_render_action() -> String:
+	var moving := is_dashing or velocity.length() > 30.0
+	if is_dashing:
+		return "run"
+	if attack_anim_timer <= 0.0:
+		return "run" if moving else "idle"
+	if attack_anim_kind == "ranged":
+		return "run" if moving else "ranged"
+	var elapsed := maxf(0.0, attack_anim_duration - attack_anim_timer)
+	var contact_end := maxf(0.0, attack_anim_windup) + maxf(0.0, attack_anim_active)
+	if elapsed < contact_end:
+		return "attack"
+	return "run" if moving else "attack"
 
 func play_attack_animation() -> void:
 	request_attack_pose("", "melee", last_aim_direction)
@@ -547,25 +562,23 @@ func _clamp_to_visible_shelf_edge() -> void:
 
 func _update_hero_animation() -> void:
 	_update_locomotion_pose()
+	var animation_name := get_hero_render_action()
 	if ranged_recoil_timer > 0.0 and last_aim_direction.length_squared() > 0.01:
 		if absf(last_aim_direction.x) > 0.05:
 			sprite.flip_h = last_aim_direction.x < 0.0
-	elif absf(velocity.x) > 20.0 and attack_anim_timer <= 0.0:
+	elif animation_name == "run" and absf(velocity.x) > 20.0:
 		sprite.flip_h = velocity.x < 0.0
-	var body_direction := last_aim_direction if attack_anim_timer > 0.0 or ranged_recoil_timer > 0.0 else (velocity.normalized() if velocity.length() > 30.0 else last_aim_direction)
+	elif animation_name == "attack" and attack_anim_timer > 0.0 and absf(last_aim_direction.x) > 0.05:
+		sprite.flip_h = last_aim_direction.x < 0.0
+	var body_direction := last_aim_direction if animation_name == "attack" or ranged_recoil_timer > 0.0 else (velocity.normalized() if velocity.length() > 30.0 else last_aim_direction)
 	# The authored sprites face sideways; a small vertical torso turn keeps up/down
 	# movement and aimed attacks from looking like a lateral strafe.
 	sprite.rotation = clampf(body_direction.y * 0.38, -0.38, 0.38)
 	var animation_set: Dictionary = HERO_ANIMATIONS.get(StatsManager.selected_character, {})
 	if animation_set.is_empty():
 		return
-	var animation_name: String
-	if attack_anim_timer > 0.0:
+	if animation_name == "ranged" and not animation_set.has("ranged"):
 		animation_name = "attack"
-	else:
-		animation_name = "run" if velocity.length() > 30.0 else "idle"
-	if animation_name == "attack" and attack_anim_kind == "ranged" and animation_set.has("ranged"):
-		animation_name = "ranged"
 	var frames: Array = animation_set.get(animation_name, animation_set.get("attack", []))
 	var frame_index: int
 	if animation_name in ["attack", "ranged"]:
@@ -589,7 +602,7 @@ func _update_locomotion_pose() -> void:
 		return
 	var speed := velocity.length()
 	var candidate := Vector2.ZERO
-	if not is_dashing and attack_anim_timer <= 0.0 and speed > 30.0:
+	if not is_dashing and get_hero_render_action() == "run" and speed > 30.0:
 		# Two footfalls per complete eight-frame Inky stride; the old period-2 bob
 		# peaked four times per gait and read as a twitch at native pixel scale.
 		var bob := roundf(2.0 * absf(sin(run_anim_phase * PI / 4.0)))

@@ -167,7 +167,7 @@ function getHorizontalFacing(aimAngle, fallbackLeft = false) {
 
 function getHeroActionDirection(player) {
   if (player.is_dashing && player.dash_dir) return player.dash_dir;
-  if (player.attack_anim_timer > 0 || player.shot_recoil_timer > 0) {
+  if (player.shot_recoil_timer > 0 || getHeroRenderAction(player) === "attack") {
     const aim = player.last_aim || { x: 1, y: 0 };
     const length = Math.hypot(aim.x, aim.y) || 1;
     return { x: aim.x / length, y: aim.y / length };
@@ -189,6 +189,18 @@ function getHeroAnimationFrame(action, player) {
   if (action === "attack" || action === "ranged") return getAttackAnimationFrame(player);
   if (action === "run") return getHeroRunFrameIndex(player.run_phase, getHeroRunFrameCount(state.selected_char));
   return Math.floor(performance.now() / 240) % 4;
+}
+
+function getHeroRenderAction(player) {
+  const moving = player.is_dashing || Math.hypot(player.vx, player.vy) > 30;
+  if (player.is_dashing) return "run";
+  if (player.attack_anim_timer <= 0) return moving ? "run" : "idle";
+  if (player.attack_anim_kind === "ranged") return moving ? "run" : "ranged";
+
+  const elapsed = Math.max(0, player.attack_anim_duration - player.attack_anim_timer);
+  const contactEnd = Math.max(0, player.attack_anim_windup || 0) + Math.max(0, player.attack_anim_active || 0);
+  if (elapsed < contactEnd) return "attack";
+  return moving ? "run" : "attack";
 }
 
 function selectWeaponTarget(weapon, enemies = state.enemies, origin = state.player) {
@@ -3294,7 +3306,9 @@ function requestAttackPose(weaponId, actionKind, aim) {
   if (aim && Math.hypot(aim.x, aim.y) > 0.01) {
     const aimLength = Math.hypot(aim.x, aim.y);
     p.last_aim = { x: aim.x / aimLength, y: aim.y / aimLength };
-    p.facing_left = getHorizontalFacing(Math.atan2(aim.y, aim.x), p.facing_left);
+    if (actionKind !== "ranged" || Math.hypot(p.vx, p.vy) <= 30) {
+      p.facing_left = getHorizontalFacing(Math.atan2(aim.y, aim.x), p.facing_left);
+    }
   }
   if (actionKind === "ranged") {
     p.attack_anim_kind = "ranged";
@@ -6855,9 +6869,7 @@ function render() {
 
   const cData = CHARACTERS[state.selected_char];
   const isMoving = p.is_dashing || Math.hypot(p.vx, p.vy) > 30;
-  const action = p.attack_anim_timer > 0
-    ? (p.attack_anim_kind === "ranged" ? "ranged" : "attack")
-    : isMoving ? "run" : "idle";
+  const action = getHeroRenderAction(p);
   const bodyDirection = aimDirection;
   const bodyTilt = Math.max(-0.38, Math.min(0.38, (bodyDirection?.y || 0) * 0.38));
   ctx.rotate(bodyTilt);
@@ -7211,7 +7223,7 @@ window.render_game_to_text = () => JSON.stringify({
     x: Math.round(state.player.x), y: Math.round(state.player.y),
     vx: Math.round(state.player.vx), vy: Math.round(state.player.vy),
     hp: Math.round(state.hp), max_hp: Math.round(state.max_hp),
-    animation: state.player.attack_anim_timer > 0 ? (state.player.attack_anim_kind === "ranged" ? "ranged" : "attack") : Math.hypot(state.player.vx, state.player.vy) > 20 ? "run" : "idle",
+    animation: getHeroRenderAction(state.player),
     animation_phase: Number((state.player.run_phase % 8).toFixed(2)),
     body_tilt: Number(Math.max(-0.38, Math.min(0.38, ((state.player.attack_anim_timer > 0 ? state.player.last_aim?.y : state.player.vy) || 0) * 0.38)).toFixed(3)),
     locomotion_pose_offset: getLocomotionPoseOffset(state.player),

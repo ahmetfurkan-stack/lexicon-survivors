@@ -16,6 +16,14 @@
     if (actual.some((frame, index) => frame !== expected[index])) {
       throw new Error(`Ranged attack frames must follow windup, impact, and recovery timing. Expected ${expected}; got ${actual}`);
     }
-    return { rangedPoseFrames: actual };
+    const rendered = [
+      getHeroRenderAction({ vx: 180, vy: 0, is_dashing: false, attack_anim_timer: 0.08, attack_anim_kind: "ranged" }),
+      getHeroRenderAction({ vx: 0, vy: 0, is_dashing: false, attack_anim_timer: 0.08, attack_anim_kind: "ranged" }),
+      getHeroRenderAction({ vx: 180, vy: 0, is_dashing: false, attack_anim_timer: 0.08, attack_anim_duration: 0.4, attack_anim_windup: 0.08, attack_anim_active: 0.12, attack_anim_kind: "melee" })
+    ];
+    if (rendered.join(",") !== "run,ranged,run") {
+      throw new Error(`Locomotion should hold through ranged fire and melee recovery. Expected run,ranged,run; got ${rendered}`);
+    }
+    return { rangedPoseFrames: actual, blendedActions: rendered };
   };
 })();
