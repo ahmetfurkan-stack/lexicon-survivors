@@ -17,6 +17,7 @@ var _sfx_cursor := 0
 var _main_theme: AudioStream
 var _boss_theme: AudioStream
 var _boss_mode := false
+var music_choice := "auto"
 var _effect_paths := {
 	"quill_blaster": "res://assets/audio/weapons/weapon_quill_blaster_v1.wav",
 	"syllable_shotgun": "res://assets/audio/weapons/weapon_syllable_shotgun_v1.wav",
@@ -68,6 +69,10 @@ func _ready() -> void:
 		music_player.play()
 	if _boss_theme is AudioStreamWAV:
 		_boss_theme.loop_mode = AudioStreamWAV.LOOP_FORWARD
+	var config := ConfigFile.new()
+	if config.load("user://audio_settings.cfg") == OK:
+		music_choice = str(config.get_value("music", "choice", "auto"))
+	_apply_music_choice()
 
 func play_effect(key: String) -> void:
 	if not _effect_paths.has(key) or _sfx_players.is_empty():
@@ -84,16 +89,29 @@ func set_biome(stage_index: int, boss_wave: bool = false) -> void:
 	var stage := clampi(stage_index, 0, 3)
 	if boss_wave != _boss_mode:
 		_boss_mode = boss_wave
-		var next_theme: AudioStream = _boss_theme if boss_wave and _boss_theme else _main_theme
-		if next_theme and music_player.stream != next_theme:
-			music_player.stream = next_theme
-			music_player.play()
+		_apply_music_choice()
 	if stage != active_stage:
 		active_stage = stage
 		play_effect("chapter_transition")
 		_play_chapter_chime(stage)
 	elif boss_wave:
 		_play_boss_cue(stage)
+
+func set_music_choice(choice: String) -> void:
+	music_choice = choice if choice in ["auto", "library", "last_stand"] else "auto"
+	var config := ConfigFile.new()
+	config.set_value("music", "choice", music_choice)
+	config.save("user://audio_settings.cfg")
+	_apply_music_choice()
+
+func _apply_music_choice() -> void:
+	if not music_player or not _main_theme:
+		return
+	var use_boss := music_choice == "last_stand" or (music_choice == "auto" and _boss_mode)
+	var next_theme: AudioStream = _boss_theme if use_boss and _boss_theme else _main_theme
+	if music_player.stream != next_theme:
+		music_player.stream = next_theme
+		music_player.play()
 
 func _switch_loop(stream: AudioStreamWAV) -> void:
 	active_loop = stream

@@ -1,0 +1,24 @@
+{
+  "version": 1,
+  "starting_ink": 15,
+  "enemy_ink_rewards": {
+    "Typo Slime": 3,
+    "Grammar Goblin": 3,
+    "Typo Splinter": 1,
+    "Punctuation Phantom": 4,
+    "Syntax Titan": 8,
+    "Spelling Spectre": 5,
+    "Red Pen Boss": 60,
+    "Oxymoron Ogre": 10,
+    "Vocabulary Void": 8,
+    "Malapropism Mimic": 6,
+    "Homophone Harpy": 6,
+    "Idiom Imp": 4,
+    "Tautology Twin": 5,
+    "Run-on Reaper": 6,
+    "Dangling Modifier": 5,
+    "Double Negative Drake": 8,
+    "Palindrome Phantom": 6,
+    "Lexicon Dragon Boss": 120
+  }
+}

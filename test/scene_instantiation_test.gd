@@ -17,15 +17,36 @@ func _ready():
 	assert(title_screen.has_method("skip_intro"), "TitleScreen intro should be skippable")
 	assert(title_screen.has_signal("leaderboard_requested"), "Title screen must expose its leaderboard entry action")
 	assert(title_screen.get_node_or_null("Panel/VBox/LeaderboardButton") != null, "Title screen must show an image-led leaderboard entry")
+	var music_choice: OptionButton = title_screen.find_child("MusicChoice", true, false)
+	assert(music_choice != null and music_choice.item_count == 3, "Title screen must offer automatic, library and boss music choices")
 	assert(main_node.has_node("LeaderboardPanel"), "Native game must include its shared leaderboard panel")
 	assert(main_node.get_node("LeaderboardPanel").has_method("open_board"), "Leaderboard panel must be usable from title and game-over UI")
 	assert(main_node.has_node("GameOverLayer/GameOverPanel/LeaderboardButton"), "Final run screen must provide a leaderboard action")
+	await _test_story_intermission(main_node)
 	await _test_leaderboard_offline(main_node)
 	await _test_intro_paths()
 	print("All scene components verified! Quitting cleanly.")
 
+func _test_story_intermission(main_node: Node) -> void:
+	var hud: Node = main_node.get_node("HUD")
+	hud.play_story_intermission(5)
+	await get_tree().process_frame
+	var overlay: Control = hud.get_node("StoryIntermission")
+	assert(overlay.visible, "Every fifth-wave story scene must take focus over the game")
+	assert(hud._story_title.text == "Kanayan Fiş", "Wave 5 must begin the selected character's authored story")
+	assert(hud._story_scene_image.texture.resource_path.ends_with("/scenes/inky/episode_01.png"), "Wave 5 must load its unique Inky scene art")
+	hud._advance_story_panel()
+	await get_tree().process_frame
+	assert(overlay.visible and hud._story_panel_index == 1, "Enter must advance one comic panel at a time")
+	for _panel in range(4):
+		hud._advance_story_panel()
+		await get_tree().process_frame
+	assert(not overlay.visible, "Acknowledging the story scene must close its intermission overlay")
+
 func _test_leaderboard_offline(main_node: Node) -> void:
 	var client: Node = get_tree().root.get_node("LeaderboardClient")
+	var configured_api: String = str(ProjectSettings.get_setting("leaderboard/api_base_url", ""))
+	assert(configured_api.begins_with("https://") and configured_api.contains("workers.dev"), "Native builds must point to the live global leaderboard Worker")
 	var old_url: String = str(client.api_url)
 	client.api_url = ""
 	var submission_id := str(client.create_submission_id())

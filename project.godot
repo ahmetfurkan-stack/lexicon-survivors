@@ -74,4 +74,4 @@ renderer/rendering_method="gl_compatibility"
 reduced_motion=false
 
 [leaderboard]
-api_base_url=""
+api_base_url="https://lexicon-survivors-leaderboard.lexicon-survivors-leaderboard.workers.dev"

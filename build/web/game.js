@@ -569,6 +569,15 @@ class SoundManager {
     if (!this.music) { this.music = new Audio("assets/audio/music/main_theme.mp3"); this.music.loop = true; this.music.volume = 0.24; }
     this.music.play().catch(() => {});
   }
+  setMusicSource(path) {
+    if (!this.music) { this.music = new Audio(); this.music.loop = true; this.music.volume = 0.24; }
+    if (!this.music.src.endsWith(path)) {
+      this.music.src = path;
+      this.music.loop = true;
+      this.music.muted = Boolean(window.gameMusicMuted);
+      this.music.play().catch(() => {});
+    }
+  }
   setMusicMuted(muted) { if (this.music) this.music.muted = muted; }
   init() {
     if (!this.ctx) {
@@ -716,6 +725,7 @@ class MedievalBGM {
     this.isMuted = false;
     this.volume = 0.24;
     this.mode = "peaceful"; // "peaceful" | "battle" | "boss"
+    this.musicChoice = localStorage.getItem("lexicon_music_choice") || "auto";
     this.biome = -1;
     this.step = 0;
     this.timerId = null;
@@ -782,7 +792,21 @@ class MedievalBGM {
   setMode(newMode) {
     if (this.harpPatterns[newMode]) {
       this.mode = newMode;
+      this.syncMusicChoice();
     }
+  }
+
+  setMusicChoice(choice) {
+    this.musicChoice = ["auto", "library", "last_stand"].includes(choice) ? choice : "auto";
+    localStorage.setItem("lexicon_music_choice", this.musicChoice);
+    this.syncMusicChoice();
+  }
+
+  syncMusicChoice() {
+    const path = this.musicChoice === "last_stand" || (this.musicChoice === "auto" && this.mode === "boss")
+      ? "assets/audio/music/boss_theme_dark_last_stand.wav"
+      : "assets/audio/music/main_theme.mp3";
+    this.sm.setMusicSource(path);
   }
 
   setBiomeForWave(wave) {
@@ -817,6 +841,7 @@ class MedievalBGM {
 
   toggleMute() {
     this.isMuted = !this.isMuted;
+    window.gameMusicMuted = this.isMuted;
     this.sm.setMusicMuted(this.isMuted);
     return !this.isMuted;
   }
@@ -1338,6 +1363,51 @@ const utilityCatalogReady = fetch("assets/data/utility_items.json").then(respons
   return true;
 }).catch(error => { console.warn("Shared utility catalog unavailable; built-in catalog retained", error); return false; });
 
+let GAME_ECONOMY = null;
+async function loadGameEconomy() {
+  const response = await fetch("assets/data/game_economy.json", { cache: "no-store" });
+  if (!response.ok) throw new Error(`Game economy HTTP ${response.status}`);
+  const data = await response.json();
+  const rewards = data?.enemy_ink_rewards;
+  if (data.version !== 1 || !Number.isInteger(data.starting_ink) || data.starting_ink < 0
+    || !rewards || Object.keys(rewards).length !== 18
+    || Object.entries(rewards).some(([name, amount]) => !name || !Number.isInteger(amount) || amount <= 0)) {
+    throw new Error("Shared game economy data is invalid");
+  }
+  GAME_ECONOMY = data;
+  return true;
+}
+const gameEconomyReady = loadGameEconomy().catch(error => { console.error("Shared game economy unavailable", error); return false; });
+function getEnemyInkReward(enemyType, fallback = 1) {
+  return GAME_ECONOMY?.enemy_ink_rewards?.[enemyType] ?? fallback;
+}
+
+let STORY_ARC_DATA = null;
+const storyArcReady = fetch("assets/data/story_arc.json", { cache: "no-store" }).then(response => {
+  if (!response.ok) throw new Error(`Story arc HTTP ${response.status}`);
+  return response.json();
+}).then(data => {
+  if (data.version !== 2 || data.panel_count !== 5 || data.episodes?.length !== 20
+    || Object.keys(data.characters || {}).length !== 6 || data.relic_catalog?.length !== 18) throw new Error("Story arc data is incomplete");
+  for (const [id, arc] of Object.entries(data.characters)) {
+    if (!CHARACTERS[id] || arc.episodes?.length !== data.episodes.length
+      || arc.episodes.some((episode, index) => episode.wave !== data.episodes[index].wave || episode.beats?.length !== data.panel_count)) {
+      throw new Error(`Missing character story: ${id}`);
+    }
+  }
+  for (const episode of data.episodes) {
+    if (episode.wave % 5 !== 0 || !episode.backdrop || !episode.music) {
+      throw new Error(`Invalid story episode at wave ${episode.wave}`);
+    }
+  }
+  STORY_ARC_DATA = data;
+  for (const relic of data.relic_catalog) {
+    ARTIFACTS_CATALOG[relic.id] = { ...relic, desc: relic.description, cost: 99999, story_only: true };
+  }
+  return true;
+}).catch(error => { console.error("Shared story arc unavailable", error); return false; });
+storyArcReady.then(ready => { if (ready && document.getElementById("title-screen")?.style.display !== "none") initTitleScreen(); });
+
 // =========================================
 // 5. GAME STATE
 // =========================================
@@ -1427,6 +1497,7 @@ const state = {
     attack_anim_duration: 0.28,
     attack_anim_windup: 0.08,
     attack_anim_active: 0.08,
+    attack_anim_kind: "melee",
     shot_recoil_timer: 0,
     shot_recoil_duration: 0.14,
     shot_recoil_direction: { x: 1, y: 0 },
@@ -1532,7 +1603,12 @@ const spriteList = [
   "upgrade_v1/monster_idiom_imp.png", "upgrade_v1/monster_tautology_twin.png",
   "upgrade_v1/monster_dangling_modifier.png", "upgrade_v1/monster_double_negative_drake.png",
   "upgrade_v1/monster_run_on_reaper.png",
+  "upgrade_v1/monster_syntax_titan.png", "upgrade_v1/monster_malapropism_mimic.png",
+  "upgrade_v1/monster_palindrome_phantom.png", "upgrade_v1/monster_oxymoron_ogre.png",
+  "upgrade_v1/monster_vocabulary_void.png",
   "upgrade_v1/monster_lexicon_dragon_boss.png", "upgrade_v1/monster_red_pen_boss.png",
+  "upgrade_v2/boss_red_inquisitor.png", "upgrade_v2/boss_lexicon_dragon.png",
+  "upgrade_v2/boss_void_curator.png", "upgrade_v2/boss_syntax_titan.png",
   "upgrade_v1/threat_seal.png",
   "player.png", "player_quillmaster.png", "player_knight.png",
   "player_sorceress.png", "player_alchemist.png", "player_assassin.png",
@@ -1569,7 +1645,21 @@ const spriteList = [
   "brazier_pedestal.png", "illuminated_lectern.png", "touch_weapon_icon.png",
   "bookshelf_wall.png", "wax_seal.png"
 ];
+const GENERATED_HERO_ANIMATION_KEYS = ["inky", "quillmaster", "word_knight", "rune_sorceress", "alchemist", "shadow_scribe"];
+spriteList.push(...GENERATED_HERO_ANIMATION_KEYS.flatMap(key => [
+  ...Array.from({ length: 8 }, (_, frame) => `upgrade_v1/animations/${key}_run_v2_${frame}.png`),
+  ...Array.from({ length: 4 }, (_, frame) => `upgrade_v1/animations/${key}_ranged_v2_${frame}.png`),
+  ...Array.from({ length: 4 }, (_, frame) => `upgrade_v1/animations/${key}_attack_v2_${frame}.png`)
+]));
 spriteList.push(...Object.values(WEAPONS_CATALOG).map(weapon => weapon.sprite));
+const ENEMY_SPRITE_VERSION = "monster-refresh-20261106-2";
+const LEGACY_ENEMY_SPRITES = new Set([
+  "typo_slime.png", "typo_splinter.png", "grammar_goblin.png", "punctuation_phantom.png",
+  "syntax_titan.png", "spelling_spectre.png", "red_pen_boss.png", "oxymoron_ogre.png",
+  "vocabulary_void.png", "malapropism_mimic.png", "homophone_harpy.png", "idiom_imp.png",
+  "lexicon_dragon_boss.png", "tautology_twin.png", "run_on_reaper.png", "dangling_modifier.png",
+  "double_negative_drake.png", "palindrome_phantom.png"
+]);
 
 function loadAssets(callback) {
   let loaded = 0;
@@ -1585,22 +1675,33 @@ function loadAssets(callback) {
     "upgrade_v1/monster_dangling_modifier.png": "dangling_modifier.png",
     "upgrade_v1/monster_double_negative_drake.png": "double_negative_drake.png",
     "upgrade_v1/monster_run_on_reaper.png": "run_on_reaper.png",
+    "upgrade_v1/monster_syntax_titan.png": "syntax_titan.png",
+    "upgrade_v1/monster_malapropism_mimic.png": "malapropism_mimic.png",
+    "upgrade_v1/monster_palindrome_phantom.png": "palindrome_phantom.png",
+    "upgrade_v1/monster_oxymoron_ogre.png": "oxymoron_ogre.png",
+    "upgrade_v1/monster_vocabulary_void.png": "vocabulary_void.png",
     "upgrade_v1/monster_lexicon_dragon_boss.png": "lexicon_dragon_boss.png",
     "upgrade_v1/monster_red_pen_boss.png": "red_pen_boss.png"
   };
-  spriteList.forEach(name => {
+  const aliasTargets = new Set(Object.values(generatedEnemyAliases));
+  const assetsToLoad = spriteList.filter(name => !aliasTargets.has(name));
+  assetsToLoad.forEach(name => {
     const img = new Image();
-    img.src = "assets/sprites/" + name;
+    const url = new URL("assets/sprites/" + name, window.location.href);
+    if (name.includes("upgrade_v1/monster_") || LEGACY_ENEMY_SPRITES.has(name)) {
+      url.searchParams.set("v", ENEMY_SPRITE_VERSION);
+    }
+    img.src = url.href;
     img.onload = () => {
       loaded++;
       images[name] = img;
       if (generatedEnemyAliases[name]) images[generatedEnemyAliases[name]] = img;
-      if (loaded === spriteList.length) callback();
+      if (loaded === assetsToLoad.length) callback();
     };
     img.onerror = () => {
       loaded++;
       console.warn("Could not load sprite:", name);
-      if (loaded === spriteList.length) callback();
+      if (loaded === assetsToLoad.length) callback();
     };
   });
 }
@@ -1677,6 +1778,21 @@ function toggleMusic() {
     return true;
   }
   return bgm.toggleMute();
+}
+
+function setMusicChoice(choice) {
+  bgm.setMusicChoice(choice);
+  for (const id of ["title-music-select", "mobile-music-select"]) {
+    const select = document.getElementById(id);
+    if (select) select.value = bgm.musicChoice;
+  }
+}
+for (const id of ["title-music-select", "mobile-music-select"]) {
+  const select = document.getElementById(id);
+  if (select) {
+    select.value = bgm.musicChoice;
+    select.addEventListener("change", () => setMusicChoice(select.value));
+  }
 }
 
 if (musicBtn) {
@@ -2299,6 +2415,14 @@ function clearMistakes() {
 
 const keys = {};
 window.addEventListener("keydown", e => {
+  const storyOverlay = document.getElementById("story-intermission");
+  if (storyOverlay && !storyOverlay.hidden) {
+    e.preventDefault();
+    e.stopImmediatePropagation();
+    if (["Enter", " ", "ArrowRight"].includes(e.key)) closeStoryIntermission();
+    else if (e.key === "Escape") skipStoryIntermission();
+    return;
+  }
   keys[e.key.toLowerCase()] = true;
   if (e.code === "Space" || e.key === "Shift") {
     activateActiveGadget();
@@ -2584,6 +2708,7 @@ function initTitleScreen() {
   charGrid.innerHTML = "";
   ["inky", "quillmaster", "word_knight", "rune_sorceress", "lexicon_alchemist", "shadow_lexicographer"].forEach(cid => {
     const c = CHARACTERS[cid];
+    const storyMotive = STORY_ARC_DATA?.characters?.[cid]?.motive || "";
     const card = document.createElement("div");
     card.className = "choice-card" + (cid === state.selected_char ? " selected" : "");
     card.setAttribute("role", "button");
@@ -2604,6 +2729,7 @@ function initTitleScreen() {
         </div>
       </div>
       <div class="desc" style="font-size: 10.5px; margin: 3px 0 2px 0;">${c.desc}</div>
+      <div class="story-motive" style="font-size:10px;margin:3px 0;color:#765d39;font-style:italic;">Kişisel arayış · ${storyMotive}</div>
       <div class="passive" style="font-size: 9.5px; padding-top: 2px;">${c.passive}</div>
     `;
 
@@ -2653,6 +2779,8 @@ const onStartGame = async (e) => {
   if (state.is_wave_active) return;
   if (weaponVisualsStatus !== "ready" && !(await ensureWeaponVisuals())) return;
   await utilityCatalogReady;
+  if (!(await gameEconomyReady)) return;
+  if (!(await storyArcReady)) return;
   sounds.init();
   bgm.start();
   bgm.setMode("battle");
@@ -2660,6 +2788,11 @@ const onStartGame = async (e) => {
   startGame();
 };
 document.getElementById("start-game-btn").onclick = onStartGame;
+
+function getCharacterInkMultiplier(characterId, difficultyId) {
+  const difficultyData = DIFFICULTIES[difficultyId] || DIFFICULTIES.normal;
+  return difficultyData.ink_bonus_mult * (characterId === "lexicon_alchemist" ? 1.4 : 1.0);
+}
 
 function resetStats() {
   state.is_inventory_open = false;
@@ -2677,7 +2810,7 @@ function resetStats() {
   state.pickup_radius = 150;
   state.projectile_count = 1;
   state.pierce_count = 1;
-  state.ink_mult = d.ink_bonus_mult;
+  state.ink_mult = getCharacterInkMultiplier(state.selected_char, state.difficulty);
 
   state.max_weapon_slots = 4;
   state.equipped_weapons = [{ id: c.starting_weapon, tier: 1 }];
@@ -2699,7 +2832,7 @@ function resetStats() {
   state.gadget_cooldown_mult = 1;
 
   state.current_wave = 1;
-  state.ink_count = 15;
+  state.ink_count = GAME_ECONOMY?.starting_ink ?? 0;
   state.kill_count = 0;
   state.words_learned = [];
   state.active_synergies = {};
@@ -2721,6 +2854,7 @@ function resetStats() {
   state.player.attack_anim_duration = 0.28;
   state.player.attack_anim_windup = 0.08;
   state.player.attack_anim_active = 0.08;
+  state.player.attack_anim_kind = "melee";
   state.player.shot_recoil_timer = 0;
   state.player.shot_recoil_pixels = 0;
   state.player.run_phase = 0;
@@ -2836,12 +2970,137 @@ function endWave() {
   syncMobileControlsVisibility();
   bgm.setMode("peaceful");
 
-  if (state.current_wave >= state.max_waves) {
+  if (state.current_wave % 5 === 0) {
+    showStoryIntermission(state.current_wave);
+  } else if (state.current_wave >= state.max_waves) {
     victoryScreen();
   } else {
     openShop();
   }
 }
+
+let storyWavePending = 0;
+let storyEpisodeIndex = -1;
+let storyPanelIndex = 0;
+const storySpeakerNames = { caption: "SAHNE", narrator: "SAHNE", hero: "KÂŞİF", neris: "NERİS", whisper: "BOŞ SAYFA", mother_echo: "LALE'NİN YANKISI", lio_echo: "LIO'NUN YANKISI", shadow_double: "GÖLGE", blank_page: "BOŞ SAYFA" };
+function renderStoryPanel() {
+  if (!STORY_ARC_DATA || storyEpisodeIndex < 0) return;
+  const characterArc = STORY_ARC_DATA.characters[state.selected_char];
+  const episode = characterArc.episodes[storyEpisodeIndex];
+  const beat = episode.beats[storyPanelIndex];
+  const speakerId = beat[0];
+  const speaker = document.getElementById("story-speaker");
+  const portrait = document.getElementById("story-speaker-portrait");
+  const sceneImage = document.getElementById("story-scene-image");
+  const dialogue = document.querySelector(".story-dialogue-frame");
+  const heroSpeakerIds = new Set([state.selected_char, "hero", "rune_sorceress", "lexicon_alchemist", "shadow_lexicographer"]);
+  const bossRosterEntry = MILESTONE_BOSS_ROSTER?.[storyEpisodeIndex];
+  const isBossVoice = speakerId.startsWith("boss_");
+  const portraitPaths = {
+    hero: `assets/sprites/${CHARACTERS[state.selected_char].sprite}`,
+    neris: "assets/sprites/story/neris_portrait.png",
+    whisper: "assets/sprites/upgrade_v2/boss_void_curator.png",
+    narrator: "",
+    mother_echo: "",
+    lio_echo: "",
+    shadow_double: `assets/sprites/${CHARACTERS[state.selected_char].sprite}`
+  };
+  document.getElementById("story-kicker").textContent = `ARŞİV ARASI · DALGA ${String(episode.wave).padStart(2, "0")} · ${String(storyEpisodeIndex + 1).padStart(2, "0")} / 20`;
+  document.getElementById("story-title").textContent = episode.title;
+  document.getElementById("story-location").textContent = episode.location;
+  document.getElementById("story-copy").textContent = beat[1];
+  document.getElementById("story-scene-caption").textContent = episode.scene;
+  document.getElementById("story-counter").textContent = `${storyPanelIndex + 1} / ${STORY_ARC_DATA.panel_count}`;
+  sceneImage.src = `assets/sprites/story/${episode.backdrop}`;
+  sceneImage.alt = `${episode.scene} · ${episode.location}`;
+  const chosenBossSprite = isBossVoice && bossRosterEntry ? bossRosterEntry[1] : "";
+  const speakerPath = heroSpeakerIds.has(speakerId) ? portraitPaths.hero
+    : (chosenBossSprite || portraitPaths[speakerId] || "");
+  const speakerName = heroSpeakerIds.has(speakerId) ? CHARACTERS[state.selected_char].name
+    : speakerId === "narrator" ? "SAHNE"
+      : isBossVoice && bossRosterEntry ? bossRosterEntry[2] : storySpeakerNames[speakerId] || speakerId.replaceAll("_", " ").toLocaleUpperCase("tr-TR");
+  speaker.textContent = speakerName;
+  portrait.hidden = !speakerPath;
+  if (speakerPath) {
+    portrait.dataset.kind = isBossVoice ? "boss" : speakerId;
+    portrait.src = `assets/sprites/${speakerPath}`;
+    portrait.alt = speakerName;
+  }
+  const memory = document.getElementById("story-boss-memory");
+  const memoryItem = episode.boss_reward;
+  const showMemory = storyPanelIndex === STORY_ARC_DATA.panel_count - 1 && !!memoryItem;
+  memory.hidden = !showMemory;
+  if (showMemory) {
+    document.getElementById("story-memory-icon").src = memoryItem.icon || "assets/sprites/story/memory_clue.svg";
+    const memoryLabel = memoryItem.type === "relic" ? "YADİGÂR" : memoryItem.type === "ending" ? "SON KARAR" : "BOSS ANI";
+    document.getElementById("story-memory-title").textContent = `${memoryLabel} · ${memoryItem.name}`;
+    document.getElementById("story-memory-copy").textContent = memoryItem.description;
+  }
+  dialogue.classList.remove("story-dialogue-frame");
+  void dialogue.offsetWidth;
+  dialogue.classList.add("story-dialogue-frame");
+  const next = document.getElementById("story-next");
+  next.textContent = storyPanelIndex === STORY_ARC_DATA.panel_count - 1
+    ? (episode.wave >= state.max_waves ? "ENTER · SON SAYFAYI AÇ" : "ENTER · DÜKKÂNA GEÇ")
+    : "ENTER · SONRAKİ KARE";
+}
+
+function showStoryIntermission(wave) {
+  if (!STORY_ARC_DATA) return openShop();
+  storyEpisodeIndex = STORY_ARC_DATA.episodes.findIndex(episode => episode.wave === wave);
+  if (storyEpisodeIndex < 0) return openShop();
+  storyWavePending = wave;
+  storyPanelIndex = 0;
+  const episode = STORY_ARC_DATA.characters[state.selected_char].episodes[storyEpisodeIndex];
+  document.getElementById("story-intermission").hidden = false;
+  document.getElementById("story-skip").hidden = false;
+  bgm.setMode(episode.music);
+  bgm.playChapterChime();
+  renderStoryPanel();
+}
+function closeStoryIntermission() {
+  if (storyPanelIndex < STORY_ARC_DATA.panel_count - 1) {
+    storyPanelIndex += 1;
+    sounds.playTone(540 + storyPanelIndex * 34, "triangle", 0.055, 0.11);
+    renderStoryPanel();
+    return;
+  }
+  finishStoryIntermission();
+}
+function skipStoryIntermission() {
+  finishStoryIntermission();
+}
+function finishStoryIntermission() {
+  grantStoryIntermissionReward();
+  document.getElementById("story-intermission").hidden = true;
+  if (storyWavePending >= state.max_waves) victoryScreen();
+  else if (storyWavePending) openShop();
+  storyWavePending = 0;
+  storyEpisodeIndex = -1;
+  storyPanelIndex = 0;
+}
+function grantStoryIntermissionReward() {
+  if (!STORY_ARC_DATA || storyEpisodeIndex < 0 || storyWavePending <= 0) return;
+  const episode = STORY_ARC_DATA.characters[state.selected_char]?.episodes?.[storyEpisodeIndex];
+  const reward = episode?.boss_reward;
+  if (!reward) return;
+  if (reward.type === "relic" && reward.id && !state.artifacts_owned.includes(reward.id)) {
+    state.artifacts_owned.push(reward.id);
+    applyArtifact(reward);
+    state.story_relics_found = [...(state.story_relics_found || []), reward.id];
+  }
+  const codexKey = "lexicon_story_codex_v1";
+  let codex = [];
+  try { codex = JSON.parse(localStorage.getItem(codexKey) || "[]"); } catch (_) { codex = []; }
+  const recordId = `${state.selected_char}:${storyWavePending}`;
+  if (!codex.some(record => record.id === recordId)) {
+    codex.push({ id: recordId, character_id: state.selected_char, wave: storyWavePending, title: reward.name, text: reward.description, kind: reward.type });
+    localStorage.setItem(codexKey, JSON.stringify(codex));
+  }
+  updateHUD();
+}
+document.getElementById("story-next")?.addEventListener("click", closeStoryIntermission);
+document.getElementById("story-skip")?.addEventListener("click", skipStoryIntermission);
 
 // =========================================
 // 9. GADGET ACTIVATION LOGIC (5 GADGETS)
@@ -3009,14 +3268,23 @@ function requestAttackPose(weaponId, actionKind, aim) {
     p.facing_left = getHorizontalFacing(Math.atan2(aim.y, aim.x), p.facing_left);
   }
   if (actionKind === "ranged") {
+    p.attack_anim_kind = "ranged";
     const visual = getWeaponVisual(weaponId);
     p.shot_recoil_direction = p.last_aim || { x: 1, y: 0 };
     p.shot_recoil_pixels = Math.max(2, Math.min(6.5, (visual?.recoil_px || 3.5) * 0.72));
     p.shot_recoil_duration = 0.14;
     p.shot_recoil_timer = p.shot_recoil_duration;
+	// Show a brief ready/release/settle pose on impact; heavy weapons visibly brace longer.
+	const poseDuration = ["crossword_crossbow", "grammar_sniper", "thesaurus_rocket"].includes(weaponId) ? 0.30
+	  : ["syllable_shotgun", "lexicon_beam", "rune_orb"].includes(weaponId) ? 0.24 : 0.20;
+	p.attack_anim_windup = poseDuration * 0.36;
+	p.attack_anim_active = poseDuration * 0.18;
+	p.attack_anim_duration = poseDuration;
+	p.attack_anim_timer = poseDuration;
     return;
   }
   if (!["melee", "cast", "heavy"].includes(actionKind)) return;
+  p.attack_anim_kind = actionKind;
   const rhythm = getWeaponArchetype(weaponId)?.rhythm || MELEE_TIMINGS[weaponId] || {};
   p.attack_anim_windup = Math.max(0, Number(rhythm.windup) || 0);
   p.attack_anim_active = Math.max(0, Number(rhythm.active) || 0.08);
@@ -4074,11 +4342,176 @@ function updateBossHealthBar() {
   const title = document.getElementById("boss-hp-title");
   if (title) {
     if (aliveBosses.length === 1) {
-      const bossName = aliveBosses[0].type === "Lexicon Dragon Boss" ? "LEKSİKON EJDERHASI" : "KIRMIZI KALEM";
+      const bossName = aliveBosses[0].label || (aliveBosses[0].type === "Lexicon Dragon Boss" ? "LEKSİKON EJDERHASI" : aliveBosses[0].type.toLocaleUpperCase("tr-TR"));
       title.textContent = `${bossName} · %${Math.ceil(pct)}`;
     } else {
       title.textContent = `ELEBAŞLARI ORDUSU · ${aliveBosses.length} · %${Math.ceil(pct)}`;
     }
+  }
+}
+
+function fireBossProjectile(boss, angle, speed = 260, damageFactor = 0.55, shape = "orb") {
+  const before = state.enemy_projectiles.length;
+  spawnEnemyProjectile(boss.x, boss.y, Math.cos(angle), Math.sin(angle), boss.damage * damageFactor, speed);
+  const projectile = state.enemy_projectiles[before];
+  if (projectile) {
+    projectile.color = boss.boss_color || "#df625d";
+    projectile.shape = shape;
+    projectile.radius = shape === "shard" ? 9 : 12;
+  }
+}
+
+function resolveBossArea(boss, x, y, radius, damageFactor = 0.82, slow = false) {
+  state.particles.push({ x, y, radius: 14, max_radius: radius, alpha: 0.95, color: "rgba(225, 94, 86, " });
+  const distance = Math.hypot(state.player.x - x, state.player.y - y);
+  if (distance <= radius && state.player.invuln_timer <= 0 && !state.player.is_dashing) {
+    takePlayerDamage(boss.damage * damageFactor);
+    state.player.invuln_timer = 0.7;
+    if (slow) { state.player.slow_timer = 1.15; state.player.slow_factor = 0.62; }
+  }
+}
+
+function updateMilestoneBossSkill(boss, dt, dirX, dirY, chronoMult) {
+  if (boss.hp <= boss.max_hp * 0.68 && boss.boss_phase < 2) {
+    boss.boss_phase = 2;
+    boss.boss_skill_interval *= 0.82;
+    boss.speed *= 1.08;
+    sounds.bossRoar();
+    triggerScreenShake(0.32, 9);
+  } else if (boss.hp <= boss.max_hp * 0.32 && boss.boss_phase < 3) {
+    boss.boss_phase = 3;
+    boss.enraged = true;
+    boss.boss_skill_interval *= 0.76;
+    boss.speed *= 1.10;
+    sounds.bossRoar();
+    triggerScreenShake(0.42, 12);
+  }
+  boss.boss_skill_cooldown = Math.max(0, (boss.boss_skill_cooldown || 0) - dt);
+  if (boss.boss_skill_cooldown > 0) return;
+  const phase = boss.boss_phase || 1;
+  const duration = phase === 3 ? 0.72 : 0.9;
+  const baseDamage = phase === 3 ? 0.60 : 0.48;
+  const targetX = state.player.x + state.player.vx * 0.38;
+  const targetY = state.player.y + state.player.vy * 0.38;
+  const angle = Math.atan2(targetY - boss.y, targetX - boss.x);
+  const telegraphLine = (angleArg = angle, length = 1250) => ({
+    is_laser: true, x1: boss.x, y1: boss.y,
+    x2: boss.x + Math.cos(angleArg) * length, y2: boss.y + Math.sin(angleArg) * length,
+    timer: duration, max_timer: duration, color: boss.boss_color,
+    action: () => {}
+  });
+  const groundMark = (x, y, radius, action, kind = "boss") => ({
+    x, y, radius, timer: duration, max_timer: duration, is_boss_area: true, kind,
+    color: boss.boss_color, action
+  });
+  boss.boss_skill_cooldown = Math.max(3.2, boss.boss_skill_interval || 6.5);
+  const fireFan = (count, spread = 0.68, factor = baseDamage) => {
+    for (let index = 0; index < count; index++) {
+      const shotAngle = angle - spread / 2 + spread * index / Math.max(1, count - 1);
+      fireBossProjectile(boss, shotAngle, 285 + phase * 28, factor, "shard");
+    }
+    sounds.enemyShoot();
+  };
+  switch (boss.boss_skill) {
+    case "judgment":
+    case "charge": {
+      const telegraph = telegraphLine(angle, 950);
+      telegraph.action = () => {
+        if (boss.dead) return;
+        if (boss.boss_skill === "charge") {
+          boss.vx = Math.cos(angle) * (430 + phase * 80) * chronoMult;
+          boss.vy = Math.sin(angle) * (430 + phase * 80) * chronoMult;
+          boss.charge_damage = boss.damage * 0.55;
+          boss.charge_timer = 0.58;
+        } else {
+          fireFan(phase === 3 ? 7 : 5, phase === 3 ? 0.5 : 0.36, baseDamage);
+        }
+      };
+      state.telegraphs.push(telegraph);
+      break;
+    }
+    case "quake":
+    case "nova":
+    case "orbit": {
+      const radius = boss.boss_skill === "orbit" ? 145 : (boss.boss_skill === "nova" ? 115 : 205);
+      const markX = boss.x, markY = boss.y;
+      state.telegraphs.push(groundMark(boss.x, boss.y, radius, () => {
+        if (boss.dead) return;
+        resolveBossArea(boss, markX, markY, radius, baseDamage, boss.boss_skill === "nova");
+        if (boss.boss_skill === "orbit") {
+          const count = phase === 3 ? 16 : 10;
+          for (let index = 0; index < count; index++) fireBossProjectile(boss, index * Math.PI * 2 / count, 205 + phase * 24, 0.38, "orb");
+        }
+        sounds.detonateMine();
+      }, boss.boss_skill));
+      break;
+    }
+    case "fan":
+    case "crossfire":
+    case "shards":
+    case "finale": {
+      const ray = telegraphLine(angle, 820);
+      ray.action = () => {
+        if (boss.dead) return;
+        fireFan(boss.boss_skill === "finale" && phase === 3 ? 9 : boss.boss_skill === "shards" ? 6 : 5,
+          boss.boss_skill === "crossfire" ? 0.9 : 0.66, baseDamage);
+        if (boss.boss_skill === "crossfire" || boss.boss_skill === "finale") {
+          const crossAngle = angle + Math.PI / 2;
+          for (let index = -1; index <= 1; index++) {
+            const a = crossAngle + index * 0.16;
+            fireBossProjectile(boss, a, 315, baseDamage * 0.78, "shard");
+          }
+        }
+      };
+      state.telegraphs.push(ray);
+      break;
+    }
+    case "mirror":
+    case "return":
+    case "echo": {
+      state.telegraphs.push(groundMark(boss.x, boss.y, 128, () => {
+        if (boss.dead) return;
+        const count = boss.boss_skill === "echo" ? 10 : 8;
+        for (let index = 0; index < count; index++) {
+          const a = index * Math.PI * 2 / count + (boss.boss_skill === "return" ? Math.PI / 8 : 0);
+          fireBossProjectile(boss, a, 220 + phase * 24, 0.42, "ink");
+        }
+        sounds.enemyShoot();
+      }, boss.boss_skill));
+      break;
+    }
+    case "gravity":
+    case "snare":
+    case "rift":
+    case "embers": {
+      const radius = boss.boss_skill === "gravity" ? 150 : 92;
+      const x = boss.boss_skill === "rift" ? boss.x - dirX * 105 : targetX;
+      const y = boss.boss_skill === "rift" ? boss.y - dirY * 105 : targetY;
+      state.telegraphs.push(groundMark(x, y, radius, () => {
+        if (boss.dead) return;
+        if (boss.boss_skill === "rift") {
+          const oldX = boss.x, oldY = boss.y;
+          boss.x = Math.max(-1100, Math.min(1100, x));
+          boss.y = Math.max(-800, Math.min(800, y));
+          state.particles.push({ x: oldX, y: oldY, radius: 14, max_radius: 70, alpha: 0.8, color: "rgba(151, 117, 226, " });
+        } else if (boss.boss_skill === "gravity") {
+          const pullX = x - state.player.x, pullY = y - state.player.y;
+          const pullDist = Math.hypot(pullX, pullY);
+          if (pullDist <= radius && pullDist > 0) {
+            state.player.x += pullX / pullDist * Math.min(42, radius - pullDist + 18);
+            state.player.y += pullY / pullDist * Math.min(42, radius - pullDist + 18);
+            clampPlayerToArena(state.player);
+          }
+          resolveBossArea(boss, x, y, radius, baseDamage * 0.8, true);
+        } else {
+          resolveBossArea(boss, x, y, radius, baseDamage, boss.boss_skill !== "embers");
+          if (boss.boss_skill === "embers") fireFan(3, 0.95, 0.28);
+        }
+      }, boss.boss_skill));
+      break;
+    }
+    default:
+      state.telegraphs.push(groundMark(targetX, targetY, 105, () => resolveBossArea(boss, targetX, targetY, 105, baseDamage), "boss"));
   }
 }
 
@@ -4087,8 +4520,24 @@ function updateEnemies(dt) {
 
   state.wave_time_left -= dt;
   if (state.wave_time_left <= 0) {
-    endWave();
-    return;
+    const milestoneBoss = state.current_wave % 5 === 0
+      ? state.enemies.find(enemy => enemy.is_boss && !enemy.dead)
+      : null;
+    if (milestoneBoss) {
+      // Boss waves are won by defeating the boss, never by running out the clock.
+      // Overtime is a clear escalation beat rather than a silent boss despawn.
+      state.wave_time_left = 18;
+      if (!milestoneBoss.enraged) {
+        milestoneBoss.enraged = true;
+        milestoneBoss.speed *= 1.12;
+        milestoneBoss.boss_skill_interval = Math.max(3.0, (milestoneBoss.boss_skill_interval || 6.5) * 0.78);
+        triggerTacticalAlert("BOSS ÖFKELENDİ", "Artık her saldırı aralığı kısaldı. Telegraphta güvenli alanı bulun.");
+        sounds.bossRoar();
+      }
+    } else {
+      endWave();
+      return;
+    }
   }
 
   // Update Active Tactical Telegraphs (Warning circles, bombs, lasers)
@@ -4109,19 +4558,18 @@ function updateEnemies(dt) {
     if (state.milestone_boss_delay === 0) spawnMilestoneBoss(state.current_wave);
   }
 
-  // Hardcore Massive Horde Swarm Spawn Curve: rapid spawn rate & batch spawns
-  spawnTimer -= dt;
-  const diffFactor = state.difficulty === "easy" ? 1.15 : (state.difficulty === "hard" ? 0.75 : 1.0);
-  const interval = Math.max(0.12, (0.60 - state.current_wave * 0.04) * diffFactor);
-
-  if (spawnTimer <= 0) {
-    spawnTimer = interval;
-    // Match the readable early-wave cadence in the Godot build, then grow it.
-    const batchCount = state.current_wave >= 25 ? 3 : (state.current_wave >= 8 ? 2 : 1);
-    for (let s = 0; s < batchCount; s++) {
-      const livingCount = state.enemies.reduce((count, enemy) => count + (enemy.dead ? 0 : 1), 0);
-      if (livingCount < getWaveEnemyCap()) {
-        spawnEnemy();
+  // Every fifth wave is a clean duel: its boss is the only enemy in the arena.
+  // Other waves retain the existing survivor horde and pacing.
+  if (state.current_wave % 5 !== 0) {
+    spawnTimer -= dt;
+    const diffFactor = state.difficulty === "easy" ? 1.15 : (state.difficulty === "hard" ? 0.75 : 1.0);
+    const interval = Math.max(0.12, (0.60 - state.current_wave * 0.04) * diffFactor);
+    if (spawnTimer <= 0) {
+      spawnTimer = interval;
+      const batchCount = state.current_wave >= 25 ? 3 : (state.current_wave >= 8 ? 2 : 1);
+      for (let s = 0; s < batchCount; s++) {
+        const livingCount = state.enemies.reduce((count, enemy) => count + (enemy.dead ? 0 : 1), 0);
+        if (livingCount < getWaveEnemyCap()) spawnEnemy();
       }
     }
   }
@@ -4142,6 +4590,8 @@ function updateEnemies(dt) {
   });
 
   state.enemies.forEach(e => {
+    e.charge_timer = Math.max(0, (e.charge_timer || 0) - dt);
+    if (e.charge_timer === 0) e.charge_damage = 0;
     e.hit_flash_timer = Math.max(0, (e.hit_flash_timer || 0) - dt);
     e.armor_break_timer = Math.max(0, (e.armor_break_timer || 0) - dt);
     e.quill_mark_timer = Math.max(0, (e.quill_mark_timer || 0) - dt);
@@ -4197,6 +4647,8 @@ function updateEnemies(dt) {
     const dirX = dist > 0.1 ? (aiTarget.x - e.x) / dist : 0;
     const dirY = dist > 0.1 ? (aiTarget.y - e.y) / dist : 0;
     e.facing_left = dirX < 0;
+
+    if (e.is_boss && state.current_wave % 5 === 0) updateMilestoneBossSkill(e, dt, dirX, dirY, chronoMult);
 
     let spd = e.speed * chronoMult * (e.slow_timer > 0 ? (e.slow_factor || 0.58) : 1.0);
     if (e.is_buffed) spd *= 1.35; // Commander aura buff!
@@ -4417,79 +4869,6 @@ function updateEnemies(dt) {
       }
       case "Red Pen Boss":
       case "Lexicon Dragon Boss": {
-        // Enraged Phase 2 transition at < 50% HP
-        if (e.hp < e.max_hp * 0.5 && !e.enraged) {
-          e.enraged = true;
-          sounds.bossRoar();
-          e.speed *= 1.25;
-          for (let r = 20; r <= 100; r += 25) {
-            state.particles.push({
-              x: e.x, y: e.y, radius: r, max_radius: r + 40, alpha: 0.9,
-              color: "rgba(220, 38, 38, "
-            });
-          }
-          // Summon 2 elite guards
-          for (let g = 0; g < 2; g++) {
-            const ga = (g / 2) * Math.PI * 2;
-            addAliveEnemy({
-              type: "Oxymoron Ogre",
-              x: e.x + Math.cos(ga) * 80, y: e.y + Math.sin(ga) * 80,
-              vx: 0, vy: 0,
-              hp: 450 * getWaveHpMult(state.current_wave),
-              max_hp: 450 * getWaveHpMult(state.current_wave),
-              speed: 95, damage: 45, ink_reward: 10,
-              label: "ENRAGE GUARD", sprite: "oxymoron_ogre.png",
-              size: 54, affix: "shielded", is_elite: true, facing_left: false
-            });
-          }
-        }
-
-        // Enraged Telegraphed Red Line Judgment Laser
-        if (e.enraged) {
-          e.laser_cooldown = (e.laser_cooldown || 4.2) - dt;
-          if (e.laser_cooldown <= 0) {
-            e.laser_cooldown = 4.6;
-            const lDirX = dirX; const lDirY = dirY;
-            const lOrigX = e.x; const lOrigY = e.y;
-            state.telegraphs.push({
-              is_laser: true, x1: lOrigX, y1: lOrigY,
-              x2: lOrigX + lDirX * 1200, y2: lOrigY + lDirY * 1200,
-              timer: 0.75, max_timer: 0.75,
-              action: () => {
-                if (e.dead) return;
-                sounds.enemyShoot();
-                for (let b = 1; b <= 6; b++) {
-                  spawnEnemyProjectile(
-                    lOrigX + lDirX * b * 110,
-                    lOrigY + lDirY * b * 110,
-                    lDirX, lDirY, e.damage * 0.9, 450
-                  );
-                }
-              }
-            });
-          }
-        }
-
-        e.boss_timer = (e.boss_timer || 3.0) - dt;
-        if (e.boss_timer <= 0) {
-          e.boss_timer = e.type === "Lexicon Dragon Boss" ? 2.5 : 3.0;
-          sounds.bossRoar();
-          if (e.type === "Lexicon Dragon Boss") {
-            const count = e.enraged ? 12 : 8;
-            for (let i = 0; i < count; i++) {
-              const ang = (i / count) * Math.PI * 2;
-              spawnEnemyProjectile(e.x, e.y, Math.cos(ang), Math.sin(ang), e.damage * 0.75, 280 * chronoMult);
-            }
-          } else {
-            const baseAng = Math.atan2(dirY, dirX);
-            const spreads = e.enraged ? [-2, -1, 0, 1, 2] : [-1, 0, 1];
-            spreads.forEach(i => {
-              const ang = baseAng + i * 0.22;
-              spawnEnemyProjectile(e.x, e.y, Math.cos(ang), Math.sin(ang), e.damage * 0.75, 260 * chronoMult);
-            });
-          }
-          e.vx = dirX * 180 * chronoMult; e.vy = dirY * 180 * chronoMult;
-        }
         e.x += (dirX * spd + e.vx) * dt;
         e.y += (dirY * spd + e.vy) * dt;
         break;
@@ -4501,11 +4880,14 @@ function updateEnemies(dt) {
       }
     }
 
+    e.x = Math.max(-1150, Math.min(1150, e.x));
+    e.y = Math.max(-850, Math.min(850, e.y));
+
     // Contact damage with generous 0.70s i-frame & pushback spacing
     const contactDist = (e.size || 34) / 2 + 15;
     if (playerDist < contactDist && p.invuln_timer <= 0 && !p.is_dashing) {
       sounds.hit();
-      takePlayerDamage(e.damage);
+      takePlayerDamage(e.damage + (e.charge_timer > 0 ? (e.charge_damage || 0) : 0));
       p.invuln_timer = 0.70;
       // Push enemy back gently so player can escape the clump
       e.vx = -dirX * 220;
@@ -4533,12 +4915,18 @@ function updateEnemies(dt) {
 
   // Dead enemies & splitting & health drops & volatile bomb
   const newEnemies = [];
+  let milestoneBossDefeated = false;
   state.enemies.forEach(e => {
     if (e.hp <= 0 && !e.dead) {
       e.dead = true;
       sounds.enemyDeath();
       state.kill_count++;
-      spawnInkDrop(e.x, e.y, e.ink_reward);
+      const isBoss = e.is_boss || e.type === "Red Pen Boss" || e.type === "Lexicon Dragon Boss";
+      const inkReward = e.is_boss
+        ? (e.ink_reward || Math.round(32 + state.current_wave * 1.4))
+        : getEnemyInkReward(e.type, e.ink_reward || 1);
+      // A boss earns one concentrated seal; regular enemies use the shared balance table.
+      spawnInkDrop(e.x, e.y, inkReward);
 
       if (state.selected_char === "rune_sorceress") {
         state.particles.push({x:e.x,y:e.y,radius:12,max_radius:128,alpha:0.95,color:"rgba(166, 119, 255, "});
@@ -4599,12 +4987,12 @@ function updateEnemies(dt) {
         }
       }
 
-      if (e.is_boss || e.type === "Red Pen Boss" || e.type === "Lexicon Dragon Boss") {
+      if (isBoss) {
+        if (e.is_boss && state.current_wave % 5 === 0) milestoneBossDefeated = true;
         // Guaranteed Boss Elixir (+50 HP)
         state.health_drops.push({ x: e.x, y: e.y, value: 50, collected: false });
-        for (let i = 0; i < 18; i++) {
-          spawnInkDrop(e.x + (Math.random() - 0.5) * 90, e.y + (Math.random() - 0.5) * 90, 5);
-        }
+        // One concentrated seal replaces the old 18-drop pinata. The duel
+        // should pay out, while the story relic remains a deliberate milestone.
         updateBossHealthBar();
       }
       updateHUD();
@@ -4613,6 +5001,7 @@ function updateEnemies(dt) {
 
   state.enemies = state.enemies.filter(e => !e.dead);
   newEnemies.forEach(addAliveEnemy);
+  if (milestoneBossDefeated && state.is_wave_active) endWave();
 }
 
 function spawnEnemy() {
@@ -4628,19 +5017,6 @@ function spawnEnemy() {
   const dmgM = getWaveDamageMult(wave) * d.enemy_damage_mult;
 
   const roll = Math.random();
-
-  // Rare Wave 20+ Mini-Boss Encounter (2% chance if no boss is active)
-  if (wave >= 20 && roll < 0.02 && !state.enemies.some(e => (e.is_boss || e.type === "Red Pen Boss") && !e.dead)) {
-    addAliveEnemy({
-      type: "Red Pen Boss", x, y, vx: 0, vy: 0,
-      hp: (1600 + wave * 90) * hpM, max_hp: (1600 + wave * 90) * hpM,
-      speed: 52 * d.enemy_speed_mult, damage: (75 + wave * 1.4) * d.enemy_damage_mult,
-      ink_reward: 45, label: `RED PEN PATROL (MINI-BOSS)`,
-      sprite: "red_pen_boss.png", size: 64, is_boss: true, is_elite: true, facing_left: false
-    });
-    updateBossHealthBar();
-    return;
-  }
 
   // 13 Diverse Linguistic Enemies
   if (wave >= 30 && roll < 0.10) {
@@ -4757,94 +5133,72 @@ function spawnEnemy() {
   }
 }
 
+const MILESTONE_BOSS_ROSTER = [
+  ["Red Pen Boss", "upgrade_v2/boss_red_inquisitor.png", "Judgment Warden", "#e45c54", "judgment"],
+  ["Syntax Titan", "upgrade_v2/boss_syntax_titan.png", "The Unfinished Titan", "#e2a74b", "quake"],
+  ["Oxymoron Ogre", "upgrade_v1/monster_oxymoron_ogre.png", "The Contradiction", "#f47b45", "nova"],
+  ["Homophone Harpy", "upgrade_v1/monster_homophone_harpy.png", "Twin-Voice Harpy", "#9b8ae7", "fan"],
+  ["Lexicon Dragon Boss", "upgrade_v2/boss_lexicon_dragon.png", "The Lexicon Dragon", "#d34b68", "orbit"],
+  ["Run-on Reaper", "upgrade_v1/monster_run_on_reaper.png", "The Run-on Reaper", "#c64a42", "charge"],
+  ["Malapropism Mimic", "upgrade_v1/monster_malapropism_mimic.png", "The Borrowed Face", "#a879d4", "mirror"],
+  ["Vocabulary Void", "upgrade_v2/boss_void_curator.png", "The Wordless Maw", "#6b64d9", "gravity"],
+  ["Punctuation Phantom", "upgrade_v1/monster_punctuation_phantom.png", "The Last Full Stop", "#70a8cf", "crossfire"],
+  ["Double Negative Drake", "upgrade_v1/monster_double_negative_drake.png", "The No-No Drake", "#7e9b52", "rift"],
+  ["Palindrome Phantom", "upgrade_v1/monster_palindrome_phantom.png", "The Reversing Shade", "#bd78cb", "return"],
+  ["Tautology Twin", "upgrade_v1/monster_tautology_twin.png", "The Repeating Pair", "#d07d54", "echo"],
+  ["Dangling Modifier", "upgrade_v1/monster_dangling_modifier.png", "The Hanging Sentence", "#5faaa2", "snare"],
+  ["Spelling Spectre", "upgrade_v1/monster_spelling_spectre.png", "The Pale Proofreader", "#91a9c4", "shards"],
+  ["Idiom Imp", "upgrade_v1/monster_idiom_imp.png", "The Literal Flame", "#dc7450", "embers"],
+  ["Red Pen Boss", "upgrade_v2/boss_red_inquisitor.png", "The Redactor", "#d94841", "judgment"],
+  ["Oxymoron Ogre", "upgrade_v1/monster_oxymoron_ogre.png", "The Split-Truth Ogre", "#f18b43", "quake"],
+  ["Malapropism Mimic", "upgrade_v1/monster_malapropism_mimic.png", "The False Neris", "#8b65c4", "mirror"],
+  ["Vocabulary Void", "upgrade_v2/boss_void_curator.png", "The Unwritten", "#5441b8", "gravity"],
+  ["Lexicon Dragon Boss", "upgrade_v2/boss_lexicon_dragon.png", "Omega, Last Word", "#df3d65", "finale"]
+];
+const BOSS_TELEGRAPH_GUIDANCE = {
+  judgment: "Kırmızı çizgi yönünü gösterir; çizgiden çapraz kaçış yap.", quake: "Yayılan halka yere çarpmadan önce dışarı çık.",
+  nova: "Parlayan işaret takip eder; hareket etmeyi sürdür.", fan: "Yelpaze atışları geniş bir açı kaplar; yaklaşıp arkasına geç.",
+  orbit: "Dairesel mermi halkasında açıklık bul.", charge: "Şerit yönünü kilitler; son anda yandan sıyrıl.",
+  mirror: "Mühür kapandığında çevresine yayılır; mesafe aç.", gravity: "Mor alan hareketini çeker ve yavaşlatır.",
+  crossfire: "Çapraz çizgilerde iki saldırı koridoru da tehlikeli.", rift: "Işınlanma mührü güvenli konumunu değiştirir.",
+  return: "Geri dönen mürekkep halkasıyla arana mesafe koy.", echo: "Yankı halkaları boşluklu biçimde yayılır.",
+  snare: "Zemindeki mühür kısa süreliğine hareketini keser.", shards: "Kristal parçalar açılı bir yay çizer.",
+  embers: "Köz işaretlerinden çık; küçük ama hızlı darbeler gelir.", finale: "Son evrede yatay ve dikey saldırı şeritleri üst üste biner."
+};
+const BOSS_SPRITE_FALLBACKS = Object.freeze({
+  "upgrade_v2/boss_red_inquisitor.png": "upgrade_v1/monster_red_pen_boss.png",
+  "upgrade_v2/boss_lexicon_dragon.png": "upgrade_v1/monster_lexicon_dragon_boss.png",
+  "upgrade_v2/boss_void_curator.png": "upgrade_v1/monster_vocabulary_void.png",
+  "upgrade_v2/boss_syntax_titan.png": "upgrade_v1/monster_syntax_titan.png"
+});
+
 function spawnMilestoneBoss(wave) {
-  const p = state.player;
-  const d = DIFFICULTIES[state.difficulty];
-  const hpM = getWaveHpMult(wave) * d.enemy_hp_mult;
-
+  const player = state.player;
+  const difficulty = DIFFICULTIES[state.difficulty];
+  const [type, sprite, name, color, skill] = MILESTONE_BOSS_ROSTER[Math.min(19, Math.floor(wave / 5) - 1)];
+  const waveScale = getWaveHpMult(wave);
+  const hp = (900 + wave * 80) * Math.pow(waveScale, 0.45) * difficulty.enemy_hp_mult;
+  const angle = Math.random() * Math.PI * 2;
+  const point = getArenaSpawnPosition(player, 560, angle);
+  const boss = {
+    type, sprite, x: point.x, y: point.y, vx: 0, vy: 0,
+    hp, max_hp: hp, speed: (54 + Math.min(28, wave * 0.16)) * difficulty.enemy_speed_mult,
+    damage: (26 + wave * 1.15) * difficulty.enemy_damage_mult,
+    ink_reward: Math.round(32 + wave * 1.4), label: name.toUpperCase(),
+    size: wave >= 100 ? 108 : (68 + Math.min(20, wave * 0.16)),
+    is_elite: true, is_boss: true, boss_color: color, boss_skill: skill,
+    boss_skill_cooldown: 4.2, boss_skill_interval: Math.max(4.3, 7.2 - wave * 0.018),
+    boss_phase: 1, boss_phase_action: false, facing_left: Math.cos(angle) > 0
+  };
   sounds.bossRoar();
-
-  const bossList = [];
-
-  if (wave === 100) {
-    // Ultimate Climax: The Omega Dragon + 2 Great Dragons + 4 Inquisitors (7 Bosses)
-    bossList.push({
-      type: "Lexicon Dragon Boss",
-      hp: 38000 * d.enemy_hp_mult, max_hp: 38000 * d.enemy_hp_mult,
-      speed: 62 * d.enemy_speed_mult, damage: 220 * d.enemy_damage_mult,
-      ink_reward: 180, label: "THE OMEGA LEXICON DRAGON (FINAL BOSS)",
-      sprite: "lexicon_dragon_boss.png", size: 92, is_elite: true, is_boss: true
-    });
-    for (let i = 0; i < 2; i++) {
-      bossList.push({
-        type: "Lexicon Dragon Boss",
-        hp: 14000 * d.enemy_hp_mult, max_hp: 14000 * d.enemy_hp_mult,
-        speed: 65 * d.enemy_speed_mult, damage: 130 * d.enemy_damage_mult,
-        ink_reward: 100, label: `ELDER DRAGON #${i + 1}`,
-        sprite: "lexicon_dragon_boss.png", size: 80, is_elite: true, is_boss: true
-      });
-    }
-    for (let i = 0; i < 4; i++) {
-      bossList.push({
-        type: "Red Pen Boss",
-        hp: 6000 * hpM, max_hp: 6000 * hpM,
-        speed: 55 * d.enemy_speed_mult, damage: 140 * d.enemy_damage_mult,
-        ink_reward: 70, label: `OMEGA INQUISITOR #${i + 1}`,
-        sprite: "red_pen_boss.png", size: 70, is_elite: true, is_boss: true
-      });
-    }
-  } else if (wave === 50) {
-    // Great Dragon + 3 Inquisitors (4 Bosses)
-    bossList.push({
-      type: "Lexicon Dragon Boss",
-      hp: 16500 * d.enemy_hp_mult, max_hp: 16500 * d.enemy_hp_mult,
-      speed: 58 * d.enemy_speed_mult, damage: 145 * d.enemy_damage_mult,
-      ink_reward: 100, label: "GREAT LEXICON DRAGON (WAVE 50 OVERLORD)",
-      sprite: "lexicon_dragon_boss.png", size: 84, is_elite: true, is_boss: true
-    });
-    for (let i = 0; i < 3; i++) {
-      bossList.push({
-        type: "Red Pen Boss",
-        hp: (2000 + wave * 90) * hpM, max_hp: (2000 + wave * 90) * hpM,
-        speed: 54 * d.enemy_speed_mult, damage: (85 + wave * 1.5) * d.enemy_damage_mult,
-        ink_reward: 60, label: `DRAGON GUARD INQUISITOR #${i + 1}`,
-        sprite: "red_pen_boss.png", size: 68, is_elite: true, is_boss: true
-      });
-    }
-  } else {
-    // Progressive Multi-Boss count: scales as wave increases!
-    // Wave 5-10: 1, Wave 15-20: 2, Wave 25-30: 3, Wave 35-40: 4, Wave 45: 5, Wave 60: 6, Wave 70: 7, Wave 80+: 8
-    const bossCount = Math.min(8, Math.max(1, Math.floor(wave / 10) + (wave % 10 >= 5 ? 1 : 0)));
-    for (let i = 0; i < bossCount; i++) {
-      bossList.push({
-        type: "Red Pen Boss",
-        hp: (2400 + wave * 130) * hpM, max_hp: (2400 + wave * 130) * hpM,
-        speed: 52 * d.enemy_speed_mult, damage: (95 + wave * 1.8) * d.enemy_damage_mult,
-        ink_reward: 60,
-        label: bossCount > 1 ? `RED PEN INQUISITOR #${i + 1} (WAVE ${wave})` : `RED PEN INQUISITOR (WAVE ${wave} BOSS)`,
-        sprite: "red_pen_boss.png", size: 70, is_elite: wave > 30, is_boss: true
-      });
-    }
-  }
-
-  // Ring Encirclement: Encircle the player symmetrically!
-  bossList.forEach((boss, idx) => {
-    const ang = (idx / bossList.length) * Math.PI * 2 + (Math.random() * 0.2);
-    const spawnPoint = getArenaSpawnPosition(p, 540, ang);
-    boss.x = spawnPoint.x;
-    boss.y = spawnPoint.y;
-    boss.vx = 0;
-    boss.vy = 0;
-    boss.facing_left = Math.cos(ang) > 0;
-    addAliveEnemy(boss);
-  });
-
+  addAliveEnemy(boss);
+  triggerTacticalAlert(name.toLocaleUpperCase("tr-TR"), BOSS_TELEGRAPH_GUIDANCE[skill] || "İşaretlere bak, saldırıdan önce güvenli alanı bul.");
   updateBossHealthBar();
 }
 
 function spawnEnemyProjectile(x, y, dx, dy, dmg, spd) {
   state.enemy_projectiles.push({
-    x, y, dx, dy, damage: dmg, spd: spd, lifetime: 3.2, dead: false
+    x, y, dx, dy, damage: dmg, spd: spd, lifetime: 3.2, dead: false, color: null, shape: "orb", radius: 8
   });
 }
 
@@ -5347,6 +5701,7 @@ function renderShopView() {
     Object.keys(ARTIFACTS_CATALOG).forEach(aId => {
       const a = ARTIFACTS_CATALOG[aId];
       const isOwned = state.artifacts_owned.includes(aId);
+      if (a.story_only && !isOwned) return;
       const card = document.createElement("div");
       card.className = "choice-card shop-card";
       card.innerHTML = `
@@ -5386,7 +5741,7 @@ function applyArtifact(art) {
     else if (k === "armor") state.armor = Math.min(0.85, state.armor + val);
     else if (k === "crit_chance") state.crit_chance = Math.min(1.0, state.crit_chance + val);
     else if (k === "ink_mult") state.ink_mult += val;
-    else if (k === "gadget_cooldown_mult") state.gadget_cooldown_mult = Math.max(0.65, 1 + val);
+    else if (k === "gadget_cooldown_mult") state.gadget_cooldown_mult = Math.max(0.65, state.gadget_cooldown_mult + val);
     else if (k === "max_weapon_slots") state.max_weapon_slots = Math.min(6, state.max_weapon_slots + val);
   });
 }
@@ -5999,7 +6354,8 @@ function render() {
       if (tg.is_laser) {
         ctx.save();
         const pProg = Math.max(0, tg.timer / (tg.max_timer || 0.75));
-        ctx.strokeStyle = `rgba(255, 40, 40, ${0.45 + (1 - pProg) * 0.5})`;
+        ctx.strokeStyle = tg.color || `rgba(255, 40, 40, ${0.45 + (1 - pProg) * 0.5})`;
+        ctx.globalAlpha = 0.4 + (1 - pProg) * 0.55;
         ctx.lineWidth = 3.5 + (1 - pProg) * 3;
         ctx.setLineDash([14, 8]);
         ctx.beginPath();
@@ -6011,6 +6367,25 @@ function render() {
         ctx.save();
         ctx.translate(tg.x, tg.y);
         const pProg = Math.max(0, tg.timer / (tg.max_timer || 1.0));
+        if (tg.is_boss_area) {
+          const bossColor = tg.color || "#e45c54";
+          const glow = 0.16 + (1 - pProg) * 0.34;
+          ctx.globalAlpha = 1;
+          ctx.fillStyle = bossColor + Math.round(glow * 255).toString(16).padStart(2, "0");
+          ctx.beginPath(); ctx.arc(0, 0, tg.radius * (1 - pProg * 0.35), 0, Math.PI * 2); ctx.fill();
+          ctx.strokeStyle = bossColor; ctx.lineWidth = 2.5 + (1 - pProg) * 2;
+          ctx.setLineDash(tg.kind === "rift" || tg.kind === "mirror" ? [5, 6] : []);
+          ctx.beginPath(); ctx.arc(0, 0, tg.radius, 0, Math.PI * 2); ctx.stroke();
+          ctx.setLineDash([]);
+          for (let mark = 0; mark < 8; mark++) {
+            const a = mark * Math.PI / 4 + performance.now() * 0.0003;
+            const inner = tg.radius * 0.82, outer = tg.radius * 0.96;
+            ctx.beginPath(); ctx.moveTo(Math.cos(a) * inner, Math.sin(a) * inner);
+            ctx.lineTo(Math.cos(a) * outer, Math.sin(a) * outer); ctx.stroke();
+          }
+          ctx.restore();
+          return;
+        }
         const seal = images["upgrade_v1/threat_seal.png"];
         if (seal) {
           const sealSize = Math.min(88, Math.max(36, (tg.radius || 42) * 1.05));
@@ -6161,11 +6536,22 @@ function render() {
   state.enemy_projectiles.forEach(ep => {
     ctx.save();
     ctx.translate(ep.x, ep.y);
-    const spr = images["bullet_enemy_red.png"];
-    if (spr) {
-      ctx.drawImage(spr, -10, -10, 20, 20);
+    if (ep.color) {
+      const r = ep.radius || 10;
+      ctx.shadowColor = ep.color; ctx.shadowBlur = 13;
+      ctx.fillStyle = ep.color;
+      ctx.strokeStyle = "rgba(255,244,220,.9)"; ctx.lineWidth = 1.3;
+      ctx.beginPath();
+      if (ep.shape === "shard") {
+        ctx.moveTo(0, -r * 1.5); ctx.lineTo(r * 0.7, 0); ctx.lineTo(0, r * 1.5); ctx.lineTo(-r * 0.7, 0); ctx.closePath();
+      } else if (ep.shape === "ink") {
+        ctx.ellipse(0, 0, r * 1.25, r * 0.7, Math.atan2(ep.dy, ep.dx), 0, Math.PI * 2);
+      } else ctx.arc(0, 0, r, 0, Math.PI * 2);
+      ctx.fill(); ctx.stroke();
     } else {
-      ctx.fillStyle = "#ff1744"; ctx.beginPath(); ctx.arc(0, 0, 7, 0, Math.PI * 2); ctx.fill();
+      const spr = images["bullet_enemy_red.png"];
+      if (spr) ctx.drawImage(spr, -10, -10, 20, 20);
+      else { ctx.fillStyle = "#ff1744"; ctx.beginPath(); ctx.arc(0, 0, 7, 0, Math.PI * 2); ctx.fill(); }
     }
     ctx.restore();
   });
@@ -6242,6 +6628,26 @@ function render() {
     ctx.save();
     ctx.translate(e.x, e.y);
 
+    if (e.is_boss) {
+      const pulse = 1 + Math.sin(performance.now() * (e.boss_phase === 3 ? 0.009 : 0.005) + (e.boss_phase || 1)) * 0.035;
+      const radius = (e.size || 66) * 0.9 * pulse;
+      ctx.save();
+      ctx.globalAlpha = e.boss_phase === 3 ? 0.72 : 0.45;
+      ctx.strokeStyle = e.boss_color || "#d95858";
+      ctx.shadowColor = e.boss_color || "#d95858";
+      ctx.shadowBlur = e.boss_phase === 3 ? 22 : 12;
+      ctx.lineWidth = e.boss_phase === 3 ? 3.5 : 2.3;
+      ctx.setLineDash([Math.max(8, radius * 0.25), Math.max(6, radius * 0.14)]);
+      ctx.beginPath(); ctx.arc(0, 0, radius, performance.now() * -0.00042, Math.PI * 2 + performance.now() * -0.00042); ctx.stroke();
+      ctx.setLineDash([]);
+      for (let seal = 0; seal < 3; seal++) {
+        const a = performance.now() * (seal % 2 ? 0.0011 : -0.0014) + seal * Math.PI * 2 / 3;
+        const sx = Math.cos(a) * radius, sy = Math.sin(a) * radius;
+        ctx.fillStyle = "#f2dfb0"; ctx.beginPath(); ctx.arc(sx, sy, e.boss_phase === 3 ? 4.5 : 3.5, 0, Math.PI * 2); ctx.fill();
+      }
+      ctx.restore();
+    }
+
     // Enraged Boss Aura
     if (e.enraged) {
       ctx.shadowColor = "#ef4444";
@@ -6254,7 +6660,7 @@ function render() {
 
     if (e.facing_left) ctx.scale(-1, 1);
 
-    const spr = images[e.sprite];
+    const spr = images[e.sprite] || images[BOSS_SPRITE_FALLBACKS[e.sprite]] || images[e.type === "Red Pen Boss" ? "red_pen_boss.png" : e.type === "Lexicon Dragon Boss" ? "lexicon_dragon_boss.png" : ""];
     const sz = e.size || 36;
     const spriteSize = sz * 1.55;
     if (spr) {
@@ -6389,7 +6795,9 @@ function render() {
 
   const cData = CHARACTERS[state.selected_char];
   const isMoving = p.is_dashing || Math.hypot(p.vx, p.vy) > 30;
-  const action = p.attack_anim_timer > 0 ? "attack" : isMoving ? "run" : "idle";
+  const action = p.attack_anim_timer > 0
+    ? (p.attack_anim_kind === "ranged" ? "ranged" : "attack")
+    : isMoving ? "run" : "idle";
   const bodyDirection = aimDirection;
   const bodyTilt = Math.max(-0.38, Math.min(0.38, (bodyDirection?.y || 0) * 0.38));
   ctx.rotate(bodyTilt);
@@ -6402,8 +6810,11 @@ function render() {
     : state.selected_char === "rune_sorceress" ? "rune_sorceress"
     : state.selected_char === "lexicon_alchemist" ? "alchemist"
     : state.selected_char === "shadow_lexicographer" ? "shadow_scribe" : null;
+  const actionAsset = action === "run" || action === "ranged" || action === "attack"
+    ? `${animationKey}_${action}_v2_${frame}.png`
+    : `${animationKey}_${action}_${frame}.png`;
   const actionSprite = animationKey
-    ? images[`upgrade_v1/animations/${animationKey}_${action}_${frame}.png`]
+    ? images[`upgrade_v1/animations/${actionAsset}`]
     : null;
   const pSpr = actionSprite || images[cData.sprite] || images["player.png"];
   if (pSpr) ctx.drawImage(pSpr, -44, -44, 88, 88);
@@ -6678,6 +7089,7 @@ function runGuardParryRuntimeContract() {
 
 window.weaponArchetypeTestApi = Object.freeze({
   snapshot: () => ({ status: weaponVisualsStatus, error: weaponVisualsError, archetypes: WEAPON_ARCHETYPES }),
+  inkMultiplier: getCharacterInkMultiplier,
   getSignature: getWeaponSignature,
   getSignatureData: getWeaponArchetype,
   getEvolution: getWeaponEvolution,
@@ -6699,7 +7111,7 @@ window.weaponArchetypeTestApi = Object.freeze({
     const before = getLocomotionPoseOffset(p);
     requestAttackPose(weaponId, "ranged", aim);
     const direction = getHeroActionDirection(p);
-    const result = { attackTimer: p.attack_anim_timer, recoil: getShotRecoilOffset(p), before, after: getLocomotionPoseOffset(p),
+    const result = { attackTimer: p.attack_anim_timer, attackFrame: getAttackAnimationFrame(p), recoil: getShotRecoilOffset(p), before, after: getLocomotionPoseOffset(p),
       bodyDirection: direction, facingLeft: getHorizontalFacing(Math.atan2(direction.y, direction.x), p.facing_left) };
     Object.assign(p, old);
     return result;
@@ -6741,7 +7153,7 @@ window.render_game_to_text = () => JSON.stringify({
     x: Math.round(state.player.x), y: Math.round(state.player.y),
     vx: Math.round(state.player.vx), vy: Math.round(state.player.vy),
     hp: Math.round(state.hp), max_hp: Math.round(state.max_hp),
-    animation: state.player.attack_anim_timer > 0 ? "attack" : Math.hypot(state.player.vx, state.player.vy) > 20 ? "run" : "idle",
+    animation: state.player.attack_anim_timer > 0 ? (state.player.attack_anim_kind === "ranged" ? "ranged" : "attack") : Math.hypot(state.player.vx, state.player.vy) > 20 ? "run" : "idle",
     animation_phase: Number((state.player.run_phase % 8).toFixed(2)),
     body_tilt: Number(Math.max(-0.38, Math.min(0.38, ((state.player.attack_anim_timer > 0 ? state.player.last_aim?.y : state.player.vy) || 0) * 0.38)).toFixed(3)),
     locomotion_pose_offset: getLocomotionPoseOffset(state.player),

@@ -180,3 +180,28 @@ Original prompt: https://github.com/yasinkaya701/lexicon-survivors — bunu ince
 - Canlı Playwright koordinat akışı: intro skip → oyunu başlat → hareket. Wave 1, düşmanlar ve yeni HUD görüntülendi; konsol hatası yok. Yerel regresyonlar: weapon/combat/arena/audio, Worker 26/26 ve Godot gameplay/V2/scene kontrolleri geçti. Godot kapanışında önceki ObjectDB/resource leak uyarıları sürüyor.
 - Tarayıcı girişimi sırasında `locator.click()` intro animasyonu hareket ederken stabil element bekledi ve intro otomatik kapanınca zaman aşımına uğradı; hemen yapılan gerçek koordinat tıklaması geçişi sorunsuz tamamladı. Bu nedenle kullanıcı etkileşimi akışı geçerli, fakat animasyonlu butonlar için otomasyon zamanlaması hassas.
 - Geniş hedef henüz tamamlanmadı: ekonomi dengelemesi, saldırı görselleri için kapsamlı görsel kalite incelemesi, Godot mobil touch emülasyonu ve leaderboard skor bütünlüğü araştırması sonraki işler olarak duruyor.
+
+
+## Canavar görselleri, müzik seçimi ve 5. dalga hikâye araları — 2026-11-06
+
+- Kullanıcı geri bildirimine göre 18 canavar portresi yenilendi: her türün ayrı silueti ve rengi olan şeffaf 64×64 sprite'lar Godot ve web asset dizinlerine bağlandı. İki üretim master'ı, temas sayfası ve kaynak notları `output/imagegen/monsters/refresh-v1/` altında. Eski canavar sorununun nedeni, web yükleyicisinin aynı isimli legacy PNG'leri yeni alias'larla yarış içinde yüklemesiydi; alias kopyaları listeden çıkarıldı ve hem oyun scriptine hem düşman sprite'larına cache anahtarı eklendi.
+- Başlık ekranına üç seçenekli müzik seçimi eklendi: otomatik (boss dalgalarında Son Nöbet'e geçer), Karanlık Kütüphane ve Son Nöbet. Tercih web'de localStorage'a, Godot'ta `user://audio_settings.cfg` dosyasına kaydediliyor; mobil hızlı ayarlarda da aynı seçenekler var.
+- Her 5. dalga boss arası artık kısa anlatı sahnesiyle sonlanıyor; sahne onaylanana kadar dükkân açılmıyor. 19 ayrı hikâye kaydı web/Godot'a eklendi. Biyom/arena ve bölüm başlıkları 1/26/51/76 dalgalarında, yani 25 dalgalık döngüde kalıyor.
+- Doğrulama: Godot asset importu ve scene-instantiation testi (müzik seçeneği + dalga 5 hikâye sahnesi), gameplay regression (köşe hareketi dâhil), headless runtime, web JavaScript sözdizimi, ses manifesti, web silah şeması ve `git diff --check` geçti. Tarayıcıda müzik seçimi ve canlı sprite yüklenmesi gözle kontrol edildi; konsol hatası görülmedi. Godot test kapanışındaki önceden görülen ObjectDB/resource uyarıları devam ediyor.
+- Bu artış henüz deploy edilmedi; daha geniş geliştirme hedefi ve uçtan uca inceleme sürüyor.
+
+## Eski canavar alias yarışını giderme ve ekonomi pasifi düzeltmesi — 2026-11-06
+
+- Eski düşman görünüşü için web yükleyicisi artık yenilenmiş canonical sprite'ları yükledikten sonra aynı alias adlarını kök dizindeki eski PNG'lerle ezmiyor. Canonical 18 canavar görselinin sürüm URL'si ve ana oyun scriptinin cache anahtarı yenilendi; eski tarayıcı cache'i de yeni kodu alacak.
+- Ekonomi denetiminde Alchemist kartında yazan +%40 mürekkep kazanımının yalnızca açıklama olarak kaldığı bulundu. Godot ve web'de zorluk çarpanına karakter pasifi uygulanıyor; test Alchemist ve Inky kazancının ayrı kaldığını denetliyor.
+- Gerçek iPhone 14 dokunma emülasyonunda aktif dalga sırasında Gadget düğmesi 4.9 sn cooldown başlattı ve Çanta envanteri açtı; JavaScript konsol hatası yok. Bu test HTML sentetik click değil gerçek Playwright touchscreen tap kullandı.
+- Doğrulama: Godot `gameplay_regression_test.gd` geçti (köşe erişimi dâhil; kapanışta önceden bilinen ObjectDB/resource uyarıları var); web weapon archetype regresyonu, 18 canavar sprite/alias/mirror/cache testi, arena parity ve `git diff --check` geçti. Web runtime ink çarpanı normal zorlukta Inky 1.2, Alchemist 1.68 olarak doğrulandı.
+- Bu çalışma henüz deploy edilmedi. Geniş hedefin kalan yayın kapıları: ekonomi eğrisi/oturum simülasyonu, saldırı görsellerinin görsel kalite incelemesi, Godot dokunmatik oynanış ve leaderboard koşu doğrulama kararı.
+
+## Karakter başına benzersiz hikâye sahneleri — 2026-11-06
+
+- Altı karakterin her birinin 20 bölümüne ayrı 512×320 civarı sahne görseli üretildi; toplam 120 görselin yolu karakter/dalga sırasına göre `story_arc.json` içine bağlandı. Sahne atlasları ham kaynaklarıyla `output/imagegen/story/scenes/` altında saklanıyor.
+- Sahnelerde karaktere özel mekân/kadraj ve NPC tasarımları var: Inky/Mira/Neris, Quillmaster/Ada/Neris, Şövalye/yoldaşlar/Neris, Rün Büyücüsü/Lale yankısı, Simyacı/Lio ve Gölge Hattatı/çifti. Kitap/fiş üstündeki sahte yazılar mümkün olduğunca sembol çizgisi olarak tutuldu; iki bozuk yazı karesi yeniden üretildi.
+- 120 kaynak görsel `assets/sprites/story/scenes/` içine; web kopyaları `build/web/assets/sprites/story/scenes/` içine eklendi. Her panelin SHA-256 değeri benzersiz, web kopyası kaynakla bayt bayt aynı. Oyunda hikâye kartları beş ayrı Enter adımıyla ilerliyor.
+- Hikâye regresyonu artık 120 benzersiz path/dosya/hash ve kaynak-web eşitliğini doğruluyor. Godot içe aktarma, Inky 5. dalga paneli ve beş Enter adımı testi geçti. Godot boss/v2, web canavar cache, silah, ekonomi ve hikâye regresyonları geçti; headless Godot kapanışında önceki ObjectDB/resource leak uyarıları sürüyor.
+- Web önizlemesi yeniden yüklendi, oyun ekranı açıldı ve Playwright konsol hata kaydı oluşmadı. Canlı Pages henüz bu 120 sahneyi ve yeni canavar sprite cache anahtarını içermiyor; geniş hedefin kalan yayın kapıları tamamlandıktan sonra deploy edilmeli.

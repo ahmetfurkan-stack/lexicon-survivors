@@ -30,6 +30,7 @@ var pierce_count: int = 1
 var armor: float = 0.0 # Damage reduction percentage (0.0 - 0.85)
 var crit_chance: float = 0.05
 var ink_mult: float = 1.0
+var game_economy: Dictionary = {}
 var gadget_cooldown_base: float = 4.0
 var gadget_cooldown_mult: float = 1.0
 var max_weapon_slots: int = 4
@@ -400,6 +401,31 @@ var owned_gadgets: Array = ["eraser_dash"]
 func _ready() -> void:
 	load_weapon_economy()
 	load_utility_items()
+	load_game_economy()
+
+func load_game_economy() -> bool:
+	var file := FileAccess.open("res://assets/data/game_economy.json", FileAccess.READ)
+	if file == null:
+		push_error("Missing shared game economy data")
+		return false
+	var parsed: Variant = JSON.parse_string(file.get_as_text())
+	if not parsed is Dictionary or int(parsed.get("version", 0)) != 1:
+		push_error("Invalid shared game economy data")
+		return false
+	var rewards: Variant = parsed.get("enemy_ink_rewards", {})
+	if not rewards is Dictionary or rewards.size() != 18:
+		push_error("Shared game economy must define all 18 enemy rewards")
+		return false
+	for enemy_type in rewards:
+		if int(rewards[enemy_type]) <= 0:
+			push_error("Enemy %s has an invalid ink reward" % enemy_type)
+			return false
+	game_economy = parsed
+	return true
+
+func get_enemy_ink_reward(enemy_type: String, fallback: int = 1) -> int:
+	var rewards: Dictionary = game_economy.get("enemy_ink_rewards", {})
+	return int(rewards.get(enemy_type, fallback))
 
 func load_weapon_economy() -> bool:
 	var file := FileAccess.open("res://assets/data/weapon_archetypes.json", FileAccess.READ)
@@ -501,6 +527,8 @@ func set_difficulty(diff_id: String):
 		emit_signal("difficulty_selected", diff_id)
 
 func reset():
+	if game_economy.is_empty():
+		load_game_economy()
 	var char_data = characters.get(selected_character, characters["inky"])
 	var diff_data = difficulties.get(difficulty, difficulties["normal"])
 	
@@ -515,7 +543,9 @@ func reset():
 	projectile_count = 1
 	pierce_count = 1
 	
-	ink_mult = diff_data.get("ink_bonus_mult", 1.0)
+	ink_mult = float(diff_data.get("ink_bonus_mult", 1.0))
+	if selected_character == "lexicon_alchemist":
+		ink_mult *= 1.4
 	gadget_cooldown_base = 4.0
 	gadget_cooldown_mult = 1.0
 	if is_inside_tree():
@@ -524,7 +554,7 @@ func reset():
 			player.reset_temporary_gadget_effects()
 	
 	current_wave = 1
-	ink_count = 0
+	ink_count = int(game_economy.get("starting_ink", 0))
 	kill_count = 0
 	words_learned.clear()
 	active_synergies.clear()
@@ -685,6 +715,33 @@ func buy_artifact(art_id: String) -> bool:
 		emit_signal("artifact_purchased", art_id)
 		return true
 	return false
+
+func grant_story_relic(relic: Dictionary) -> bool:
+	var relic_id := str(relic.get("id", ""))
+	if relic_id.is_empty() or artifacts_owned.has(relic_id):
+		return false
+	var granted := relic.duplicate(true)
+	granted["cost"] = 0
+	granted["desc"] = str(granted.get("description", ""))
+	artifacts_catalog[relic_id] = granted
+	artifacts_owned.append(relic_id)
+	var stats: Dictionary = granted.get("stats", {})
+	for stat_name in stats:
+		var value: float = float(stats[stat_name])
+		match str(stat_name):
+			"max_hp":
+				max_hp += value
+				hp += value
+				emit_signal("hp_changed", hp, max_hp)
+			"move_speed": move_speed += value
+			"damage": damage_mult += value
+			"attack_speed": attack_speed_mult += value
+			"armor": armor = clamp(armor + value, 0.0, 0.85)
+			"crit_chance": crit_chance = clamp(crit_chance + value, 0.0, 1.0)
+			"ink_mult": ink_mult += value
+			"gadget_cooldown_mult": gadget_cooldown_mult = maxf(0.25, gadget_cooldown_mult + value)
+	emit_signal("artifact_purchased", relic_id)
+	return true
 
 func has_artifact(art_id: String) -> bool:
 	return slot_expansion_count > 0 if art_id == "slot_expansion" else artifacts_owned.has(art_id)

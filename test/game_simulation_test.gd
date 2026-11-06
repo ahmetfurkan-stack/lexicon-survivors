@@ -18,7 +18,7 @@ func _init():
 	print("[TEST 2] Testing StatsManager initial state & upgrades...")
 	StatsManager.reset()
 	assert(StatsManager.hp == StatsManager.max_hp, "HP must start at the selected character's maximum")
-	assert(StatsManager.ink_count == 0, "Ink must start at 0")
+	assert(StatsManager.ink_count == 15, "A run must begin with the shared starter amount for its first shop purchase")
 	
 	StatsManager.add_ink(50)
 	var expected_ink = int(ceil(50.0 * StatsManager.ink_mult))

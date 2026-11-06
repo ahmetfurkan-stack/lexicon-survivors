@@ -33,8 +33,39 @@ func _ready():
 	_style_start_button()
 	
 	build_character_cards()
+	_build_music_selector()
 	set_difficulty("normal")
 	start_intro()
+
+func _build_music_selector() -> void:
+	var row := HBoxContainer.new()
+	row.alignment = BoxContainer.ALIGNMENT_CENTER
+	row.add_theme_constant_override("separation", 10)
+	var label := Label.new()
+	label.text = "MÜZİK"
+	label.add_theme_color_override("font_color", Color("#725a3a"))
+	label.add_theme_font_size_override("font_size", 12)
+	row.add_child(label)
+	var picker := OptionButton.new()
+	picker.name = "MusicChoice"
+	picker.custom_minimum_size = Vector2(250, 36)
+	picker.add_item("Otomatik · dalgaya göre", 0)
+	picker.add_item("Karanlık Kütüphane", 1)
+	picker.add_item("Son Nöbet", 2)
+	var audio_manager := get_tree().root.find_child("AudioManager", true, false)
+	var saved_choice := "auto"
+	if audio_manager:
+		saved_choice = str(audio_manager.music_choice)
+	picker.select({"auto": 0, "library": 1, "last_stand": 2}.get(saved_choice, 0))
+	picker.item_selected.connect(func(index: int):
+		var manager := get_tree().root.find_child("AudioManager", true, false)
+		if manager:
+			manager.set_music_choice(["auto", "library", "last_stand"][index])
+	)
+	row.add_child(picker)
+	var vbox := get_node("Panel/VBox") as VBoxContainer
+	vbox.add_child(row)
+	vbox.move_child(row, 2)
 
 func _input(event: InputEvent) -> void:
 	if not intro_active:

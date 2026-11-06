@@ -45,6 +45,7 @@ var attack_anim_timer: float = 0.0
 var attack_anim_duration: float = 0.28
 var attack_anim_windup: float = 0.08
 var attack_anim_active: float = 0.08
+var attack_anim_kind: String = "melee"
 var ranged_recoil_timer: float = 0.0
 var ranged_recoil_direction: Vector2 = Vector2.RIGHT
 var ranged_recoil_distance: float = 0.0
@@ -62,20 +63,26 @@ const INKY_IDLE_FRAMES := [
 	preload("res://assets/sprites/upgrade_v1/animations/inky_idle_3.png")
 ]
 const INKY_RUN_FRAMES := [
-	preload("res://assets/sprites/upgrade_v1/animations/inky_run_0.png"),
-	preload("res://assets/sprites/upgrade_v1/animations/inky_run_1.png"),
-	preload("res://assets/sprites/upgrade_v1/animations/inky_run_2.png"),
-	preload("res://assets/sprites/upgrade_v1/animations/inky_run_3.png"),
-	preload("res://assets/sprites/upgrade_v1/animations/inky_run_4.png"),
-	preload("res://assets/sprites/upgrade_v1/animations/inky_run_5.png"),
-	preload("res://assets/sprites/upgrade_v1/animations/inky_run_6.png"),
-	preload("res://assets/sprites/upgrade_v1/animations/inky_run_7.png")
+	preload("res://assets/sprites/upgrade_v1/animations/inky_run_v2_0.png"),
+	preload("res://assets/sprites/upgrade_v1/animations/inky_run_v2_1.png"),
+	preload("res://assets/sprites/upgrade_v1/animations/inky_run_v2_2.png"),
+	preload("res://assets/sprites/upgrade_v1/animations/inky_run_v2_3.png"),
+	preload("res://assets/sprites/upgrade_v1/animations/inky_run_v2_4.png"),
+	preload("res://assets/sprites/upgrade_v1/animations/inky_run_v2_5.png"),
+	preload("res://assets/sprites/upgrade_v1/animations/inky_run_v2_6.png"),
+	preload("res://assets/sprites/upgrade_v1/animations/inky_run_v2_7.png")
 ]
 const INKY_ATTACK_FRAMES := [
-	preload("res://assets/sprites/upgrade_v1/animations/inky_attack_0.png"),
-	preload("res://assets/sprites/upgrade_v1/animations/inky_attack_1.png"),
-	preload("res://assets/sprites/upgrade_v1/animations/inky_attack_2.png"),
-	preload("res://assets/sprites/upgrade_v1/animations/inky_attack_3.png")
+	preload("res://assets/sprites/upgrade_v1/animations/inky_attack_v2_0.png"),
+	preload("res://assets/sprites/upgrade_v1/animations/inky_attack_v2_1.png"),
+	preload("res://assets/sprites/upgrade_v1/animations/inky_attack_v2_2.png"),
+	preload("res://assets/sprites/upgrade_v1/animations/inky_attack_v2_3.png")
+]
+const INKY_RANGED_FRAMES := [
+	preload("res://assets/sprites/upgrade_v1/animations/inky_ranged_v2_0.png"),
+	preload("res://assets/sprites/upgrade_v1/animations/inky_ranged_v2_1.png"),
+	preload("res://assets/sprites/upgrade_v1/animations/inky_ranged_v2_2.png"),
+	preload("res://assets/sprites/upgrade_v1/animations/inky_ranged_v2_3.png")
 ]
 const WORD_KNIGHT_IDLE_FRAMES := [
 	preload("res://assets/sprites/upgrade_v1/animations/word_knight_idle_0.png"),
@@ -84,20 +91,20 @@ const WORD_KNIGHT_IDLE_FRAMES := [
 	preload("res://assets/sprites/upgrade_v1/animations/word_knight_idle_3.png")
 ]
 const WORD_KNIGHT_RUN_FRAMES := [
-	preload("res://assets/sprites/upgrade_v1/animations/word_knight_run_0.png"),
-	preload("res://assets/sprites/upgrade_v1/animations/word_knight_run_1.png"),
-	preload("res://assets/sprites/upgrade_v1/animations/word_knight_run_2.png"),
-	preload("res://assets/sprites/upgrade_v1/animations/word_knight_run_3.png"),
-	preload("res://assets/sprites/upgrade_v1/animations/word_knight_run_4.png"),
-	preload("res://assets/sprites/upgrade_v1/animations/word_knight_run_5.png"),
-	preload("res://assets/sprites/upgrade_v1/animations/word_knight_run_6.png"),
-	preload("res://assets/sprites/upgrade_v1/animations/word_knight_run_7.png")
+	preload("res://assets/sprites/upgrade_v1/animations/word_knight_run_v2_0.png"),
+	preload("res://assets/sprites/upgrade_v1/animations/word_knight_run_v2_1.png"),
+	preload("res://assets/sprites/upgrade_v1/animations/word_knight_run_v2_2.png"),
+	preload("res://assets/sprites/upgrade_v1/animations/word_knight_run_v2_3.png"),
+	preload("res://assets/sprites/upgrade_v1/animations/word_knight_run_v2_4.png"),
+	preload("res://assets/sprites/upgrade_v1/animations/word_knight_run_v2_5.png"),
+	preload("res://assets/sprites/upgrade_v1/animations/word_knight_run_v2_6.png"),
+	preload("res://assets/sprites/upgrade_v1/animations/word_knight_run_v2_7.png")
 ]
 const WORD_KNIGHT_ATTACK_FRAMES := [
-	preload("res://assets/sprites/upgrade_v1/animations/word_knight_attack_0.png"),
-	preload("res://assets/sprites/upgrade_v1/animations/word_knight_attack_1.png"),
-	preload("res://assets/sprites/upgrade_v1/animations/word_knight_attack_2.png"),
-	preload("res://assets/sprites/upgrade_v1/animations/word_knight_attack_3.png")
+	preload("res://assets/sprites/upgrade_v1/animations/word_knight_attack_v2_0.png"),
+	preload("res://assets/sprites/upgrade_v1/animations/word_knight_attack_v2_1.png"),
+	preload("res://assets/sprites/upgrade_v1/animations/word_knight_attack_v2_2.png"),
+	preload("res://assets/sprites/upgrade_v1/animations/word_knight_attack_v2_3.png")
 ]
 const SHADOW_SCRIBE_IDLE_FRAMES := [
 	preload("res://assets/sprites/upgrade_v1/animations/shadow_scribe_idle_0.png"),
@@ -106,20 +113,20 @@ const SHADOW_SCRIBE_IDLE_FRAMES := [
 	preload("res://assets/sprites/upgrade_v1/animations/shadow_scribe_idle_3.png")
 ]
 const SHADOW_SCRIBE_RUN_FRAMES := [
-	preload("res://assets/sprites/upgrade_v1/animations/shadow_scribe_run_0.png"),
-	preload("res://assets/sprites/upgrade_v1/animations/shadow_scribe_run_1.png"),
-	preload("res://assets/sprites/upgrade_v1/animations/shadow_scribe_run_2.png"),
-	preload("res://assets/sprites/upgrade_v1/animations/shadow_scribe_run_3.png"),
-	preload("res://assets/sprites/upgrade_v1/animations/shadow_scribe_run_4.png"),
-	preload("res://assets/sprites/upgrade_v1/animations/shadow_scribe_run_5.png"),
-	preload("res://assets/sprites/upgrade_v1/animations/shadow_scribe_run_6.png"),
-	preload("res://assets/sprites/upgrade_v1/animations/shadow_scribe_run_7.png")
+	preload("res://assets/sprites/upgrade_v1/animations/shadow_scribe_run_v2_0.png"),
+	preload("res://assets/sprites/upgrade_v1/animations/shadow_scribe_run_v2_1.png"),
+	preload("res://assets/sprites/upgrade_v1/animations/shadow_scribe_run_v2_2.png"),
+	preload("res://assets/sprites/upgrade_v1/animations/shadow_scribe_run_v2_3.png"),
+	preload("res://assets/sprites/upgrade_v1/animations/shadow_scribe_run_v2_4.png"),
+	preload("res://assets/sprites/upgrade_v1/animations/shadow_scribe_run_v2_5.png"),
+	preload("res://assets/sprites/upgrade_v1/animations/shadow_scribe_run_v2_6.png"),
+	preload("res://assets/sprites/upgrade_v1/animations/shadow_scribe_run_v2_7.png")
 ]
 const SHADOW_SCRIBE_ATTACK_FRAMES := [
-	preload("res://assets/sprites/upgrade_v1/animations/shadow_scribe_attack_0.png"),
-	preload("res://assets/sprites/upgrade_v1/animations/shadow_scribe_attack_1.png"),
-	preload("res://assets/sprites/upgrade_v1/animations/shadow_scribe_attack_2.png"),
-	preload("res://assets/sprites/upgrade_v1/animations/shadow_scribe_attack_3.png")
+	preload("res://assets/sprites/upgrade_v1/animations/shadow_scribe_attack_v2_0.png"),
+	preload("res://assets/sprites/upgrade_v1/animations/shadow_scribe_attack_v2_1.png"),
+	preload("res://assets/sprites/upgrade_v1/animations/shadow_scribe_attack_v2_2.png"),
+	preload("res://assets/sprites/upgrade_v1/animations/shadow_scribe_attack_v2_3.png")
 ]
 const QUILLMASTER_IDLE_FRAMES := [
 	preload("res://assets/sprites/upgrade_v1/animations/quillmaster_idle_0.png"),
@@ -128,20 +135,20 @@ const QUILLMASTER_IDLE_FRAMES := [
 	preload("res://assets/sprites/upgrade_v1/animations/quillmaster_idle_3.png")
 ]
 const QUILLMASTER_RUN_FRAMES := [
-	preload("res://assets/sprites/upgrade_v1/animations/quillmaster_run_0.png"),
-	preload("res://assets/sprites/upgrade_v1/animations/quillmaster_run_1.png"),
-	preload("res://assets/sprites/upgrade_v1/animations/quillmaster_run_2.png"),
-	preload("res://assets/sprites/upgrade_v1/animations/quillmaster_run_3.png"),
-	preload("res://assets/sprites/upgrade_v1/animations/quillmaster_run_4.png"),
-	preload("res://assets/sprites/upgrade_v1/animations/quillmaster_run_5.png"),
-	preload("res://assets/sprites/upgrade_v1/animations/quillmaster_run_6.png"),
-	preload("res://assets/sprites/upgrade_v1/animations/quillmaster_run_7.png")
+	preload("res://assets/sprites/upgrade_v1/animations/quillmaster_run_v2_0.png"),
+	preload("res://assets/sprites/upgrade_v1/animations/quillmaster_run_v2_1.png"),
+	preload("res://assets/sprites/upgrade_v1/animations/quillmaster_run_v2_2.png"),
+	preload("res://assets/sprites/upgrade_v1/animations/quillmaster_run_v2_3.png"),
+	preload("res://assets/sprites/upgrade_v1/animations/quillmaster_run_v2_4.png"),
+	preload("res://assets/sprites/upgrade_v1/animations/quillmaster_run_v2_5.png"),
+	preload("res://assets/sprites/upgrade_v1/animations/quillmaster_run_v2_6.png"),
+	preload("res://assets/sprites/upgrade_v1/animations/quillmaster_run_v2_7.png")
 ]
 const QUILLMASTER_ATTACK_FRAMES := [
-	preload("res://assets/sprites/upgrade_v1/animations/quillmaster_attack_0.png"),
-	preload("res://assets/sprites/upgrade_v1/animations/quillmaster_attack_1.png"),
-	preload("res://assets/sprites/upgrade_v1/animations/quillmaster_attack_2.png"),
-	preload("res://assets/sprites/upgrade_v1/animations/quillmaster_attack_3.png")
+	preload("res://assets/sprites/upgrade_v1/animations/quillmaster_attack_v2_0.png"),
+	preload("res://assets/sprites/upgrade_v1/animations/quillmaster_attack_v2_1.png"),
+	preload("res://assets/sprites/upgrade_v1/animations/quillmaster_attack_v2_2.png"),
+	preload("res://assets/sprites/upgrade_v1/animations/quillmaster_attack_v2_3.png")
 ]
 const RUNE_SORCERESS_IDLE_FRAMES := [
 	preload("res://assets/sprites/upgrade_v1/animations/rune_sorceress_idle_0.png"),
@@ -150,20 +157,20 @@ const RUNE_SORCERESS_IDLE_FRAMES := [
 	preload("res://assets/sprites/upgrade_v1/animations/rune_sorceress_idle_3.png")
 ]
 const RUNE_SORCERESS_RUN_FRAMES := [
-	preload("res://assets/sprites/upgrade_v1/animations/rune_sorceress_run_0.png"),
-	preload("res://assets/sprites/upgrade_v1/animations/rune_sorceress_run_1.png"),
-	preload("res://assets/sprites/upgrade_v1/animations/rune_sorceress_run_2.png"),
-	preload("res://assets/sprites/upgrade_v1/animations/rune_sorceress_run_3.png"),
-	preload("res://assets/sprites/upgrade_v1/animations/rune_sorceress_run_4.png"),
-	preload("res://assets/sprites/upgrade_v1/animations/rune_sorceress_run_5.png"),
-	preload("res://assets/sprites/upgrade_v1/animations/rune_sorceress_run_6.png"),
-	preload("res://assets/sprites/upgrade_v1/animations/rune_sorceress_run_7.png")
+	preload("res://assets/sprites/upgrade_v1/animations/rune_sorceress_run_v2_0.png"),
+	preload("res://assets/sprites/upgrade_v1/animations/rune_sorceress_run_v2_1.png"),
+	preload("res://assets/sprites/upgrade_v1/animations/rune_sorceress_run_v2_2.png"),
+	preload("res://assets/sprites/upgrade_v1/animations/rune_sorceress_run_v2_3.png"),
+	preload("res://assets/sprites/upgrade_v1/animations/rune_sorceress_run_v2_4.png"),
+	preload("res://assets/sprites/upgrade_v1/animations/rune_sorceress_run_v2_5.png"),
+	preload("res://assets/sprites/upgrade_v1/animations/rune_sorceress_run_v2_6.png"),
+	preload("res://assets/sprites/upgrade_v1/animations/rune_sorceress_run_v2_7.png")
 ]
 const RUNE_SORCERESS_ATTACK_FRAMES := [
-	preload("res://assets/sprites/upgrade_v1/animations/rune_sorceress_attack_0.png"),
-	preload("res://assets/sprites/upgrade_v1/animations/rune_sorceress_attack_1.png"),
-	preload("res://assets/sprites/upgrade_v1/animations/rune_sorceress_attack_2.png"),
-	preload("res://assets/sprites/upgrade_v1/animations/rune_sorceress_attack_3.png")
+	preload("res://assets/sprites/upgrade_v1/animations/rune_sorceress_attack_v2_0.png"),
+	preload("res://assets/sprites/upgrade_v1/animations/rune_sorceress_attack_v2_1.png"),
+	preload("res://assets/sprites/upgrade_v1/animations/rune_sorceress_attack_v2_2.png"),
+	preload("res://assets/sprites/upgrade_v1/animations/rune_sorceress_attack_v2_3.png")
 ]
 const ALCHEMIST_IDLE_FRAMES := [
 	preload("res://assets/sprites/upgrade_v1/animations/alchemist_idle_0.png"),
@@ -172,28 +179,58 @@ const ALCHEMIST_IDLE_FRAMES := [
 	preload("res://assets/sprites/upgrade_v1/animations/alchemist_idle_3.png")
 ]
 const ALCHEMIST_RUN_FRAMES := [
-	preload("res://assets/sprites/upgrade_v1/animations/alchemist_run_0.png"),
-	preload("res://assets/sprites/upgrade_v1/animations/alchemist_run_1.png"),
-	preload("res://assets/sprites/upgrade_v1/animations/alchemist_run_2.png"),
-	preload("res://assets/sprites/upgrade_v1/animations/alchemist_run_3.png"),
-	preload("res://assets/sprites/upgrade_v1/animations/alchemist_run_4.png"),
-	preload("res://assets/sprites/upgrade_v1/animations/alchemist_run_5.png"),
-	preload("res://assets/sprites/upgrade_v1/animations/alchemist_run_6.png"),
-	preload("res://assets/sprites/upgrade_v1/animations/alchemist_run_7.png")
+	preload("res://assets/sprites/upgrade_v1/animations/alchemist_run_v2_0.png"),
+	preload("res://assets/sprites/upgrade_v1/animations/alchemist_run_v2_1.png"),
+	preload("res://assets/sprites/upgrade_v1/animations/alchemist_run_v2_2.png"),
+	preload("res://assets/sprites/upgrade_v1/animations/alchemist_run_v2_3.png"),
+	preload("res://assets/sprites/upgrade_v1/animations/alchemist_run_v2_4.png"),
+	preload("res://assets/sprites/upgrade_v1/animations/alchemist_run_v2_5.png"),
+	preload("res://assets/sprites/upgrade_v1/animations/alchemist_run_v2_6.png"),
+	preload("res://assets/sprites/upgrade_v1/animations/alchemist_run_v2_7.png")
 ]
 const ALCHEMIST_ATTACK_FRAMES := [
-	preload("res://assets/sprites/upgrade_v1/animations/alchemist_attack_0.png"),
-	preload("res://assets/sprites/upgrade_v1/animations/alchemist_attack_1.png"),
-	preload("res://assets/sprites/upgrade_v1/animations/alchemist_attack_2.png"),
-	preload("res://assets/sprites/upgrade_v1/animations/alchemist_attack_3.png")
+	preload("res://assets/sprites/upgrade_v1/animations/alchemist_attack_v2_0.png"),
+	preload("res://assets/sprites/upgrade_v1/animations/alchemist_attack_v2_1.png"),
+	preload("res://assets/sprites/upgrade_v1/animations/alchemist_attack_v2_2.png"),
+	preload("res://assets/sprites/upgrade_v1/animations/alchemist_attack_v2_3.png")
+]
+const WORD_KNIGHT_RANGED_FRAMES := [
+	preload("res://assets/sprites/upgrade_v1/animations/word_knight_ranged_v2_0.png"),
+	preload("res://assets/sprites/upgrade_v1/animations/word_knight_ranged_v2_1.png"),
+	preload("res://assets/sprites/upgrade_v1/animations/word_knight_ranged_v2_2.png"),
+	preload("res://assets/sprites/upgrade_v1/animations/word_knight_ranged_v2_3.png")
+]
+const SHADOW_SCRIBE_RANGED_FRAMES := [
+	preload("res://assets/sprites/upgrade_v1/animations/shadow_scribe_ranged_v2_0.png"),
+	preload("res://assets/sprites/upgrade_v1/animations/shadow_scribe_ranged_v2_1.png"),
+	preload("res://assets/sprites/upgrade_v1/animations/shadow_scribe_ranged_v2_2.png"),
+	preload("res://assets/sprites/upgrade_v1/animations/shadow_scribe_ranged_v2_3.png")
+]
+const QUILLMASTER_RANGED_FRAMES := [
+	preload("res://assets/sprites/upgrade_v1/animations/quillmaster_ranged_v2_0.png"),
+	preload("res://assets/sprites/upgrade_v1/animations/quillmaster_ranged_v2_1.png"),
+	preload("res://assets/sprites/upgrade_v1/animations/quillmaster_ranged_v2_2.png"),
+	preload("res://assets/sprites/upgrade_v1/animations/quillmaster_ranged_v2_3.png")
+]
+const RUNE_SORCERESS_RANGED_FRAMES := [
+	preload("res://assets/sprites/upgrade_v1/animations/rune_sorceress_ranged_v2_0.png"),
+	preload("res://assets/sprites/upgrade_v1/animations/rune_sorceress_ranged_v2_1.png"),
+	preload("res://assets/sprites/upgrade_v1/animations/rune_sorceress_ranged_v2_2.png"),
+	preload("res://assets/sprites/upgrade_v1/animations/rune_sorceress_ranged_v2_3.png")
+]
+const ALCHEMIST_RANGED_FRAMES := [
+	preload("res://assets/sprites/upgrade_v1/animations/alchemist_ranged_v2_0.png"),
+	preload("res://assets/sprites/upgrade_v1/animations/alchemist_ranged_v2_1.png"),
+	preload("res://assets/sprites/upgrade_v1/animations/alchemist_ranged_v2_2.png"),
+	preload("res://assets/sprites/upgrade_v1/animations/alchemist_ranged_v2_3.png")
 ]
 const HERO_ANIMATIONS := {
-	"inky": {"idle": INKY_IDLE_FRAMES, "run": INKY_RUN_FRAMES, "attack": INKY_ATTACK_FRAMES},
-	"word_knight": {"idle": WORD_KNIGHT_IDLE_FRAMES, "run": WORD_KNIGHT_RUN_FRAMES, "attack": WORD_KNIGHT_ATTACK_FRAMES},
-	"shadow_lexicographer": {"idle": SHADOW_SCRIBE_IDLE_FRAMES, "run": SHADOW_SCRIBE_RUN_FRAMES, "attack": SHADOW_SCRIBE_ATTACK_FRAMES},
-	"quillmaster": {"idle": QUILLMASTER_IDLE_FRAMES, "run": QUILLMASTER_RUN_FRAMES, "attack": QUILLMASTER_ATTACK_FRAMES},
-	"rune_sorceress": {"idle": RUNE_SORCERESS_IDLE_FRAMES, "run": RUNE_SORCERESS_RUN_FRAMES, "attack": RUNE_SORCERESS_ATTACK_FRAMES},
-	"lexicon_alchemist": {"idle": ALCHEMIST_IDLE_FRAMES, "run": ALCHEMIST_RUN_FRAMES, "attack": ALCHEMIST_ATTACK_FRAMES}
+	"inky": {"idle": INKY_IDLE_FRAMES, "run": INKY_RUN_FRAMES, "attack": INKY_ATTACK_FRAMES, "ranged": INKY_RANGED_FRAMES},
+	"word_knight": {"idle": WORD_KNIGHT_IDLE_FRAMES, "run": WORD_KNIGHT_RUN_FRAMES, "attack": WORD_KNIGHT_ATTACK_FRAMES, "ranged": WORD_KNIGHT_RANGED_FRAMES},
+	"shadow_lexicographer": {"idle": SHADOW_SCRIBE_IDLE_FRAMES, "run": SHADOW_SCRIBE_RUN_FRAMES, "attack": SHADOW_SCRIBE_ATTACK_FRAMES, "ranged": SHADOW_SCRIBE_RANGED_FRAMES},
+	"quillmaster": {"idle": QUILLMASTER_IDLE_FRAMES, "run": QUILLMASTER_RUN_FRAMES, "attack": QUILLMASTER_ATTACK_FRAMES, "ranged": QUILLMASTER_RANGED_FRAMES},
+	"rune_sorceress": {"idle": RUNE_SORCERESS_IDLE_FRAMES, "run": RUNE_SORCERESS_RUN_FRAMES, "attack": RUNE_SORCERESS_ATTACK_FRAMES, "ranged": RUNE_SORCERESS_RANGED_FRAMES},
+	"lexicon_alchemist": {"idle": ALCHEMIST_IDLE_FRAMES, "run": ALCHEMIST_RUN_FRAMES, "attack": ALCHEMIST_ATTACK_FRAMES, "ranged": ALCHEMIST_RANGED_FRAMES}
 }
 
 func _ready():
@@ -432,12 +469,25 @@ func request_attack_pose(weapon_id: String, action_kind: String, aim: Vector2, r
 		if absf(last_aim_direction.x) > 0.05:
 			sprite.flip_h = last_aim_direction.x < 0.0
 	if action_kind == "ranged":
+		attack_anim_kind = "ranged"
 		ranged_recoil_direction = last_aim_direction
 		ranged_recoil_distance = clampf(recoil_px * 0.72, 2.0, 6.5)
 		ranged_recoil_timer = RANGED_RECOIL_DURATION
+		# Ranged hits use a short weapon-ready → release → settle pose. Heavy
+		# weapons get a longer brace, while rapid fire preserves the locomotion loop.
+		var ranged_pose_duration := 0.20
+		if weapon_id in ["crossword_crossbow", "grammar_sniper", "thesaurus_rocket"]:
+			ranged_pose_duration = 0.30
+		elif weapon_id in ["syllable_shotgun", "lexicon_beam", "rune_orb"]:
+			ranged_pose_duration = 0.24
+		attack_anim_windup = ranged_pose_duration * 0.36
+		attack_anim_active = ranged_pose_duration * 0.18
+		attack_anim_duration = ranged_pose_duration
+		attack_anim_timer = ranged_pose_duration
 		return
 	if action_kind not in ["melee", "cast", "heavy"]:
 		return
+	attack_anim_kind = action_kind
 	attack_anim_windup = maxf(0.0, float(rhythm.get("windup", 0.08)))
 	attack_anim_active = maxf(0.0, float(rhythm.get("active", 0.08)))
 	var recovery_cap := 0.30 if action_kind == "heavy" else 0.18 if action_kind == "melee" else 0.22
@@ -472,10 +522,19 @@ func cancel_active_dash() -> void:
 		sprite.modulate = character_base_color
 
 func get_gadget_direction() -> Vector2:
-	var direction := Input.get_vector("move_left", "move_right", "move_up", "move_down")
-	if direction == Vector2.ZERO:
-		direction = Vector2.LEFT if sprite.flip_h else Vector2.RIGHT
-	return direction.normalized()
+	var keyboard_direction := Input.get_vector("move_left", "move_right", "move_up", "move_down")
+	var touch_direction := Vector2.ZERO
+	var hud := get_tree().get_first_node_in_group("hud")
+	if hud and hud.has_method("get_touch_move_vector"):
+		touch_direction = hud.get_touch_move_vector()
+	var fallback := Vector2.LEFT if sprite.flip_h else Vector2.RIGHT
+	return resolve_gadget_direction(keyboard_direction, touch_direction, fallback)
+
+func resolve_gadget_direction(keyboard_direction: Vector2, touch_direction: Vector2, fallback: Vector2) -> Vector2:
+	var direction := keyboard_direction if keyboard_direction.length_squared() > 0.01 else touch_direction
+	if direction.length_squared() <= 0.01:
+		direction = fallback
+	return direction.normalized() if direction.length_squared() > 0.01 else Vector2.RIGHT
 
 func _clamp_to_visible_shelf_edge() -> void:
 	var previous_position := global_position
@@ -505,9 +564,11 @@ func _update_hero_animation() -> void:
 		animation_name = "attack"
 	else:
 		animation_name = "run" if velocity.length() > 30.0 else "idle"
-	var frames: Array = animation_set[animation_name]
+	if animation_name == "attack" and attack_anim_kind == "ranged" and animation_set.has("ranged"):
+		animation_name = "ranged"
+	var frames: Array = animation_set.get(animation_name, animation_set.get("attack", []))
 	var frame_index: int
-	if animation_name == "attack":
+	if animation_name in ["attack", "ranged"]:
 		var attack_elapsed := maxf(0.0, attack_anim_duration - attack_anim_timer)
 		var active_end := attack_anim_windup + attack_anim_active
 		if attack_anim_windup > 0.0 and attack_elapsed < attack_anim_windup:

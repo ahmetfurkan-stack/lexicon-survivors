@@ -1,5 +1,7 @@
 extends CanvasLayer
 
+signal story_continued
+
 @onready var hp_bar = $MarginContainer/VBox/TopRow/HealthBar
 @onready var hp_label = $MarginContainer/VBox/TopRow/HealthBar/HPLabel
 @onready var timer_label = $MarginContainer/VBox/TopRow/TimerLabel
@@ -35,6 +37,25 @@ var inventory_open: bool = false
 var inventory_category: String = "weapons"
 var _touch_ui_override: bool = false
 var _has_touch_ui_override: bool = false
+var _story_overlay: Control
+var _story_title: Label
+var _story_copy: Label
+var _story_kicker: Label
+var _story_location: Label
+var _story_scene_image: TextureRect
+var _story_scene_caption: Label
+var _story_actor: TextureRect
+var _story_speaker: Label
+var _story_counter: Label
+var _story_memory: Label
+var _story_memory_icon: TextureRect
+var _story_next_button: Button
+var _story_skip_button: Button
+var _story_data: Dictionary = {}
+var _story_active: bool = false
+var _story_episode_index: int = -1
+var _story_panel_index: int = 0
+var _story_pending_wave: int = 0
 
 const CHAPTERS = [
 	{
@@ -77,6 +98,8 @@ func _ready():
 	inventory_weapons_tab.pressed.connect(func(): _set_inventory_category("weapons"))
 	inventory_gadgets_tab.pressed.connect(func(): _set_inventory_category("gadgets"))
 	_apply_touch_safe_area()
+	_load_story_arc()
+	_build_story_intermission()
 	refresh_inventory()
 	StatsManager.hp_changed.connect(_on_hp_changed)
 	StatsManager.ink_changed.connect(_on_ink_changed)
@@ -87,7 +110,7 @@ func _ready():
 	StatsManager.character_selected.connect(_on_character_changed)
 	StatsManager.difficulty_selected.connect(_on_difficulty_changed)
 	StatsManager.gadget_switched.connect(_on_gadget_switched)
-	
+
 	_on_hp_changed(StatsManager.hp, StatsManager.max_hp)
 	_on_ink_changed(StatsManager.ink_count)
 	_on_kill_changed(StatsManager.kill_count)
@@ -137,17 +160,290 @@ func _apply_touch_safe_area_insets(right_inset: float, bottom_inset: float, left
 	touch_stick.offset_top = -168.0 - bottom_inset
 	touch_stick.offset_bottom = -24.0 - bottom_inset
 
+func _build_story_intermission() -> void:
+	_story_overlay = Control.new()
+	_story_overlay.name = "StoryIntermission"
+	_story_overlay.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	_story_overlay.process_mode = Node.PROCESS_MODE_ALWAYS
+	_story_overlay.z_index = 180
+	_story_overlay.mouse_filter = Control.MOUSE_FILTER_STOP
+	_story_overlay.hide()
+	add_child(_story_overlay)
+	var shade := ColorRect.new()
+	shade.color = Color(0.025, 0.04, 0.033, 0.94)
+	shade.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	shade.mouse_filter = Control.MOUSE_FILTER_STOP
+	_story_overlay.add_child(shade)
+	var center := CenterContainer.new()
+	center.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	center.offset_left = 20
+	center.offset_right = -20
+	center.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_story_overlay.add_child(center)
+	var panel := PanelContainer.new()
+	panel.custom_minimum_size = Vector2(minf(900.0, get_viewport().get_visible_rect().size.x - 48.0), minf(640.0, get_viewport().get_visible_rect().size.y - 48.0))
+	panel.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
+	var style := StyleBoxFlat.new()
+	style.bg_color = Color("#1d2520")
+	style.border_color = Color("#a78d5c")
+	style.set_border_width_all(1)
+	style.set_content_margin_all(16)
+	panel.add_theme_stylebox_override("panel", style)
+	center.add_child(panel)
+	var column := VBoxContainer.new()
+	column.add_theme_constant_override("separation", 13)
+	panel.add_child(column)
+	_story_kicker = Label.new()
+	_story_kicker.add_theme_color_override("font_color", Color("#c5aa72"))
+	_story_kicker.add_theme_font_size_override("font_size", 12)
+	column.add_child(_story_kicker)
+	_story_location = Label.new()
+	_story_location.add_theme_color_override("font_color", Color("#a9b6aa"))
+	_story_location.add_theme_font_size_override("font_size", 11)
+	column.add_child(_story_location)
+	_story_title = Label.new()
+	_story_title.add_theme_color_override("font_color", Color("#f0ede3"))
+	_story_title.add_theme_font_size_override("font_size", 23)
+	_story_title.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	column.add_child(_story_title)
+	var scene := Control.new()
+	var story_viewport := get_viewport().get_visible_rect().size
+	scene.custom_minimum_size = Vector2(minf(600, story_viewport.x - 80), minf(360, story_viewport.y * 0.46))
+	scene.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	column.add_child(scene)
+	_story_scene_image = TextureRect.new()
+	_story_scene_image.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	_story_scene_image.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	_story_scene_image.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_COVERED
+	_story_scene_image.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	scene.add_child(_story_scene_image)
+	var scene_shade := ColorRect.new()
+	scene_shade.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	scene_shade.color = Color(0.02, 0.03, 0.025, 0.20)
+	scene_shade.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	scene.add_child(scene_shade)
+	_story_scene_caption = Label.new()
+	_story_scene_caption.set_anchors_and_offsets_preset(Control.PRESET_TOP_LEFT)
+	_story_scene_caption.position = Vector2(12, 10)
+	_story_scene_caption.size = Vector2(440, 58)
+	_story_scene_caption.add_theme_color_override("font_color", Color("#eee8d7"))
+	_story_scene_caption.add_theme_font_size_override("font_size", 12)
+	_story_scene_caption.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	_story_scene_caption.add_theme_color_override("font_shadow_color", Color(0, 0, 0, 0.85))
+	_story_scene_caption.add_theme_constant_override("shadow_offset_x", 1)
+	_story_scene_caption.add_theme_constant_override("shadow_offset_y", 1)
+	_story_scene_caption.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	scene.add_child(_story_scene_caption)
+	_story_actor = TextureRect.new()
+	_story_actor.set_anchors_and_offsets_preset(Control.PRESET_BOTTOM_RIGHT)
+	_story_actor.offset_left = -208
+	_story_actor.offset_top = -244
+	_story_actor.offset_right = -12
+	_story_actor.offset_bottom = -6
+	_story_actor.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	_story_actor.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	_story_actor.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	scene.add_child(_story_actor)
+	var dialogue := PanelContainer.new()
+	dialogue.set_anchors_and_offsets_preset(Control.PRESET_BOTTOM_WIDE)
+	dialogue.offset_left = 12
+	dialogue.offset_right = -12
+	dialogue.offset_top = -116
+	dialogue.offset_bottom = -12
+	var dialogue_style := StyleBoxFlat.new()
+	dialogue_style.bg_color = Color(0.055, 0.08, 0.065, 0.95)
+	dialogue_style.border_color = Color("#c8b278")
+	dialogue_style.set_border_width_all(1)
+	dialogue_style.set_content_margin_all(12)
+	dialogue.add_theme_stylebox_override("panel", dialogue_style)
+	scene.add_child(dialogue)
+	var dialogue_column := VBoxContainer.new()
+	dialogue_column.add_theme_constant_override("separation", 4)
+	dialogue.add_child(dialogue_column)
+	_story_speaker = Label.new()
+	_story_speaker.add_theme_color_override("font_color", Color("#d8c895"))
+	_story_speaker.add_theme_font_size_override("font_size", 11)
+	dialogue_column.add_child(_story_speaker)
+	_story_copy = Label.new()
+	_story_copy.add_theme_color_override("font_color", Color("#c7cec5"))
+	_story_copy.add_theme_font_size_override("font_size", 16)
+	_story_copy.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	_story_copy.custom_minimum_size.y = 48
+	dialogue_column.add_child(_story_copy)
+	var memory_row := HBoxContainer.new()
+	memory_row.add_theme_constant_override("separation", 10)
+	column.add_child(memory_row)
+	_story_memory_icon = TextureRect.new()
+	_story_memory_icon.custom_minimum_size = Vector2(40, 40)
+	_story_memory_icon.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	_story_memory_icon.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	memory_row.add_child(_story_memory_icon)
+	_story_memory = Label.new()
+	_story_memory.add_theme_color_override("font_color", Color("#e3c98c"))
+	_story_memory.add_theme_font_size_override("font_size", 12)
+	_story_memory.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	_story_memory.hide()
+	_story_memory.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	memory_row.add_child(_story_memory)
+	memory_row.hide()
+	var controls: BoxContainer
+	if story_viewport.x < 720:
+		controls = VBoxContainer.new()
+		controls.add_theme_constant_override("separation", 6)
+	else:
+		controls = HBoxContainer.new()
+	controls.add_theme_constant_override("separation", 10)
+	controls.alignment = BoxContainer.ALIGNMENT_CENTER
+	column.add_child(controls)
+	_story_next_button = Button.new()
+	_story_next_button.text = "ENTER · SONRAKİ KARE"
+	_story_next_button.custom_minimum_size = Vector2(minf(220, story_viewport.x - 96), 42)
+	_story_next_button.pressed.connect(_advance_story_panel)
+	controls.add_child(_story_next_button)
+	_story_skip_button = Button.new()
+	_story_skip_button.text = "HİKÂYEYİ ATLA"
+	_story_skip_button.custom_minimum_size = Vector2(150, 42)
+	_story_skip_button.pressed.connect(_finish_story_intermission)
+	controls.add_child(_story_skip_button)
+	_story_counter = Label.new()
+	_story_counter.add_theme_color_override("font_color", Color("#c7cec5"))
+	_story_counter.add_theme_font_size_override("font_size", 12)
+	controls.add_child(_story_counter)
+
+func _load_story_arc() -> void:
+	var file := FileAccess.open("res://assets/data/story_arc.json", FileAccess.READ)
+	if file == null:
+		push_error("Story arc data is missing: res://assets/data/story_arc.json")
+		return
+	var parsed: Variant = JSON.parse_string(file.get_as_text())
+	if not parsed is Dictionary or int(parsed.get("version", 0)) != 2 or int(parsed.get("panel_count", 0)) != 5:
+		push_error("Story arc data has an unsupported version or panel count")
+		return
+	var profiles: Dictionary = parsed.get("characters", {})
+	if profiles.size() != 6:
+		push_error("Story arc data needs six distinct character tracks")
+		return
+	for char_id in profiles:
+		if profiles[char_id].get("episodes", []).size() != 20:
+			push_error("Story arc has missing episodes for %s" % char_id)
+			return
+	_story_data = parsed
+
+func _render_story_panel() -> void:
+	if _story_episode_index < 0 or _story_data.is_empty():
+		return
+	var char_id := StatsManager.selected_character
+	var character: Dictionary = _story_data.get("characters", {}).get(char_id, {})
+	var episodes: Array = character.get("episodes", [])
+	if _story_episode_index >= episodes.size():
+		return
+	var episode: Dictionary = episodes[_story_episode_index]
+	var beats: Array = episode.get("beats", [])
+	if _story_panel_index >= beats.size():
+		return
+	var beat: Array = beats[_story_panel_index]
+	var speaker_id := str(beat[0])
+	var actor_path := _get_story_actor_path(speaker_id, char_id)
+	_story_actor.texture = load(actor_path) if not actor_path.is_empty() else null
+	_story_actor.visible = _story_actor.texture != null
+	_story_kicker.text = "BOSS ARASI  ·  DALGA %02d  ·  %02d / 20" % [_story_pending_wave, _story_episode_index + 1]
+	_story_location.text = str(episode.get("location", "Arşiv"))
+	_story_title.text = str(episode.get("title", "Kayıp kayıt"))
+	_story_scene_caption.text = str(episode.get("scene", ""))
+	_story_speaker.text = _get_story_speaker_name(speaker_id, char_id)
+	_story_copy.text = str(beat[1])
+	_story_counter.text = "%d / 5" % [_story_panel_index + 1]
+	_story_scene_image.texture = load("res://assets/sprites/story/" + str(episode.get("backdrop", "story_library.png")))
+	var reward: Dictionary = episode.get("boss_reward", {}) if episode.get("boss_reward", null) is Dictionary else {}
+	var show_reward := _story_panel_index == 4 and not reward.is_empty()
+	(_story_memory.get_parent() as HBoxContainer).visible = show_reward
+	if show_reward:
+		var icon_path := str(reward.get("icon", "res://assets/sprites/story/memory_clue.svg"))
+		if not icon_path.begins_with("res://"):
+			icon_path = "res://" + icon_path
+		_story_memory_icon.texture = load(icon_path)
+		_story_memory.text = ("YADİGÂR" if reward.get("type") == "relic" else "BOSS ANI") + " · " + str(reward.get("name", "")) + "\n" + str(reward.get("description", ""))
+	_story_next_button.text = "ENTER · %s" % ("SONU AÇ" if _story_pending_wave >= StatsManager.max_waves and _story_panel_index == 4 else ("DÜKKÂNA GEÇ" if _story_panel_index == 4 else "SONRAKİ KARE"))
+func _get_story_speaker_name(speaker_id: String, char_id: String) -> String:
+	if speaker_id in [char_id, "hero", "rune_sorceress", "lexicon_alchemist", "shadow_lexicographer", "quillmaster", "word_knight"]:
+		return str(StatsManager.characters.get(char_id, {}).get("name", "Kâşif"))
+	var names := {"caption": "SAHNE", "narrator": "SAHNE", "neris": "NERİS", "whisper": "BOŞ SAYFA", "blank_page": "BOŞ SAYFA", "mother_echo": "LALE'NİN YANKISI", "lio_echo": "LIO'NUN YANKISI", "shadow_double": "GÖLGE"}
+	return str(names.get(speaker_id, speaker_id.replace("_", " ").to_upper()))
+
+func _get_story_actor_path(speaker_id: String, char_id: String) -> String:
+	var hero_sprites := {"inky":"hero_inky.png", "quillmaster":"hero_quillmaster.png", "word_knight":"hero_word_knight.png", "rune_sorceress":"hero_rune_sorceress.png", "lexicon_alchemist":"hero_alchemist.png", "shadow_lexicographer":"hero_shadow_scribe.png"}
+	if speaker_id in [char_id, "hero"]:
+		return "res://assets/sprites/upgrade_v1/" + str(hero_sprites.get(char_id, "hero_inky.png"))
+	if speaker_id == "neris":
+		return "res://assets/sprites/story/neris_portrait.png"
+	if speaker_id in ["whisper", "blank_page"] or speaker_id.begins_with("boss_"):
+		return "res://assets/sprites/upgrade_v2/boss_void_curator.png"
+	if speaker_id == "shadow_double":
+		return "res://assets/sprites/upgrade_v1/hero_shadow_scribe.png"
+	return ""
+
+func _advance_story_panel() -> void:
+	if not _story_active:
+		return
+	if _story_panel_index >= 4:
+		_finish_story_intermission()
+		return
+	_story_panel_index += 1
+	_render_story_panel()
+	_story_overlay.modulate.a = 0.0
+	var reveal := create_tween()
+	reveal.tween_property(_story_overlay, "modulate:a", 1.0, 0.18)
+
+func _finish_story_intermission() -> void:
+	if not _story_active:
+		return
+	var episodes: Array = _story_data.get("characters", {}).get(StatsManager.selected_character, {}).get("episodes", [])
+	if _story_episode_index >= 0 and _story_episode_index < episodes.size():
+		var episode: Dictionary = episodes[_story_episode_index]
+		var reward: Variant = episode.get("boss_reward", null)
+		if reward is Dictionary and reward.get("type") == "relic":
+			StatsManager.grant_story_relic(reward)
+	_story_active = false
+	_story_overlay.hide()
+	story_continued.emit()
+
+func _input(event: InputEvent) -> void:
+	if _story_active and event is InputEventKey and event.pressed and not event.echo:
+		if event.keycode in [KEY_ENTER, KEY_KP_ENTER, KEY_SPACE, KEY_RIGHT]:
+			_advance_story_panel()
+		elif event.keycode == KEY_ESCAPE:
+			_finish_story_intermission()
+		get_viewport().set_input_as_handled()
+		return
+	if event is InputEventKey and event.pressed and not event.echo and inventory_open:
+		if event.keycode in [KEY_ESCAPE, KEY_I, KEY_TAB]:
+			set_inventory_open(false)
+			get_viewport().set_input_as_handled()
+
+func play_story_intermission(wave: int) -> void:
+	if _story_data.is_empty():
+		_load_story_arc()
+	if _story_data.is_empty():
+		return
+	_story_pending_wave = wave
+	_story_episode_index = clampi(wave / 5 - 1, 0, 19)
+	_story_panel_index = 0
+	_story_active = true
+	_render_story_panel()
+	_story_overlay.show()
+	_story_overlay.modulate.a = 0.0
+	_story_overlay.scale = Vector2(0.985, 0.985)
+	var reveal := create_tween().set_parallel(true)
+	reveal.tween_property(_story_overlay, "modulate:a", 1.0, 0.35)
+	reveal.tween_property(_story_overlay, "scale", Vector2.ONE, 0.45).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
+	while _story_active:
+		await story_continued
+
 func get_touch_move_vector() -> Vector2:
 	return touch_stick.vector if touch_stick.visible else Vector2.ZERO
 
 func toggle_inventory() -> void:
 	set_inventory_open(not inventory_open)
-
-func _input(event: InputEvent) -> void:
-	if event is InputEventKey and event.pressed and not event.echo and inventory_open:
-		if event.keycode in [KEY_ESCAPE, KEY_I, KEY_TAB]:
-			set_inventory_open(false)
-			get_viewport().set_input_as_handled()
 
 func set_inventory_open(open: bool) -> void:
 	if open and get_tree().paused and not inventory_open:

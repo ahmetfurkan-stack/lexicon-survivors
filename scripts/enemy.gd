@@ -7,6 +7,14 @@ const HEALTH_SCROLL_SCENE: PackedScene = preload("res://scenes/health_scroll.tsc
 @export var speed: float = 85.0
 @export var damage_to_player: float = 8.0
 @export var ink_reward: int = 1
+@export var is_milestone_boss: bool = false
+@export var boss_custom_name: String = ""
+@export var boss_custom_sprite_path: String = ""
+@export var boss_skill_id: String = "judgment"
+@export var boss_custom_color: Color = Color("#d85c58")
+@export var boss_health_override: float = 0.0
+@export var boss_damage_override: float = 0.0
+@export var boss_reward_override: int = 0
 
 var health: float
 var target_player: Node2D = null
@@ -30,6 +38,15 @@ var burn_timer: float = 0.0
 var burn_tick_timer: float = 0.0
 var burn_damage: float = 0.0
 var burn_stacks: int = 0
+var boss_phase: int = 1
+var boss_skill_cooldown: float = 2.8
+var boss_skill_interval: float = 6.8
+var boss_telegraph_timer: float = 0.0
+var boss_target_position: Vector2 = Vector2.ZERO
+var boss_attack_angle: float = 0.0
+var boss_charge_timer: float = 0.0
+var boss_overtime: int = 0
+var boss_phase_tint: Color = Color.WHITE
 
 @onready var sprite = $Sprite2D
 @onready var label = $Label
@@ -291,6 +308,34 @@ func setup_type():
 		if label:
 			label.text = "LEXICON DRAGON OVERLORD"
 			
+	if is_milestone_boss:
+		if boss_health_override > 0.0:
+			max_health = boss_health_override
+		if boss_damage_override > 0.0:
+			damage_to_player = boss_damage_override
+		if boss_reward_override > 0:
+			ink_reward = boss_reward_override
+		if sprite and not boss_custom_sprite_path.is_empty():
+			var custom_path := "res://assets/sprites/" + boss_custom_sprite_path
+			if ResourceLoader.exists(custom_path):
+				sprite.texture = load(custom_path)
+				var target_size := 142.0 if StatsManager.current_wave < 100 else 164.0
+				var texture_size: float = maxf(float(sprite.texture.get_width()), float(sprite.texture.get_height()))
+				sprite.scale = Vector2.ONE * target_size / maxf(texture_size, 1.0)
+				boss_phase_tint = boss_custom_color.lightened(0.42)
+				sprite.modulate = boss_phase_tint
+			if label and not boss_custom_name.is_empty():
+				label.text = boss_custom_name
+				label.position = Vector2(-105.0, -96.0)
+				label.size = Vector2(210.0, 24.0)
+				label.add_theme_font_size_override("font_size", 13)
+				label.add_theme_color_override("font_color", boss_custom_color.lightened(0.34))
+			var collision_shape := get_node_or_null("CollisionShape2D") as CollisionShape2D
+			if collision_shape and collision_shape.shape is CircleShape2D:
+				collision_shape.shape = collision_shape.shape.duplicate()
+				(collision_shape.shape as CircleShape2D).radius = 37.0 if StatsManager.current_wave < 100 else 42.0
+		boss_skill_interval = maxf(4.1, 6.8 - float(StatsManager.current_wave) * 0.017)
+	ink_reward = boss_reward_override if is_milestone_boss and boss_reward_override > 0 else StatsManager.get_enemy_ink_reward(enemy_type, ink_reward)
 	health = max_health
 
 func _physics_process(delta: float):
@@ -318,7 +363,7 @@ func _physics_process(delta: float):
 	if flash_timer > 0:
 		flash_timer -= delta
 		if flash_timer <= 0:
-			modulate = Color.WHITE
+			modulate = boss_phase_tint if is_milestone_boss else Color.WHITE
 			
 	if attack_cooldown > 0:
 		attack_cooldown -= delta
@@ -343,7 +388,9 @@ func _physics_process(delta: float):
 		if sprite and dir.x != 0:
 			sprite.flip_h = dir.x < 0
 
-		if enemy_type == "Homophone Harpy":
+		if is_milestone_boss:
+			desired_velocity = _milestone_boss_movement(delta, dir, distance_to_player)
+		elif enemy_type == "Homophone Harpy":
 			desired_velocity = _harpy_movement(delta, dir, distance_to_player)
 		elif enemy_type == "Run-on Reaper":
 			desired_velocity = _reaper_movement(delta, dir)
@@ -474,37 +521,195 @@ func _phantom_movement(dir: Vector2, distance_to_player: float) -> Vector2:
 		return Vector2.ZERO
 	return dir * speed * 0.82
 
+func _milestone_boss_movement(delta: float, dir: Vector2, distance_to_player: float) -> Vector2:
+	if health <= max_health * 0.66 and boss_phase == 1:
+		boss_phase = 2
+		boss_skill_interval *= 0.88
+		speed *= 1.08
+		boss_phase_tint = boss_custom_color.lightened(0.22)
+		modulate = boss_phase_tint
+		queue_redraw()
+	elif health <= max_health * 0.32 and boss_phase == 2:
+		boss_phase = 3
+		boss_skill_interval *= 0.78
+		speed *= 1.12
+		boss_phase_tint = boss_custom_color.lightened(0.42)
+		modulate = boss_phase_tint
+		queue_redraw()
+	if boss_charge_timer > 0.0:
+		boss_charge_timer = maxf(0.0, boss_charge_timer - delta)
+		if boss_charge_timer == 0.0:
+			recovery_timer = 0.7
+		return Vector2(cos(boss_attack_angle), sin(boss_attack_angle)) * speed * (3.2 if boss_phase == 3 else 2.8)
+	if recovery_timer > 0.0:
+		return Vector2.ZERO
+	if boss_telegraph_timer > 0.0:
+		boss_telegraph_timer = maxf(0.0, boss_telegraph_timer - delta)
+		queue_redraw()
+		if boss_telegraph_timer == 0.0:
+			_perform_boss_skill()
+		return Vector2.ZERO
+	boss_skill_cooldown = maxf(0.0, boss_skill_cooldown - delta)
+	if boss_skill_cooldown <= 0.0:
+		boss_attack_angle = dir.angle()
+		boss_target_position = target_player.global_position + target_player.velocity * 0.28
+		boss_telegraph_timer = 0.98 if boss_phase == 1 else 0.82
+		boss_skill_cooldown = boss_skill_interval
+		if label:
+			label.text = _boss_skill_label()
+		queue_redraw()
+		return Vector2.ZERO
+	# Heavy bosses close in deliberately; ranged archetypes circle at a readable distance.
+	if boss_skill_id in ["fan", "crossfire", "shards"]:
+		if distance_to_player < 250.0:
+			return -dir * speed * 0.6
+		if distance_to_player > 400.0:
+			return dir * speed * 0.65
+		return Vector2(-dir.y, dir.x) * speed * 0.38
+	return dir * speed * (0.78 if boss_phase == 1 else 0.9)
+
+func _boss_skill_label() -> String:
+	var labels := {"judgment":"YARGI ÇİZGİSİ", "quake":"TAŞ HALKASI", "nova":"MÜHÜR PATLAMASI", "fan":"KIRIK TÜYLER", "orbit":"YAZI ÇEMBERİ", "charge":"HÜKÜM ATILIMI", "mirror":"AYNA KIRILMASI", "gravity":"BOŞLUK ÇEKİMİ", "crossfire":"ÇAPRAZ BASKI", "rift":"YARIK SIÇRAMASI", "return":"GERİ DÖNEN İZ", "echo":"YANKI SALVOSU", "snare":"MÜREKKEP TUZAĞI", "shards":"SÖZCÜK KIRINTILARI", "embers":"KOR İŞARETLERİ", "sever":"KESİK SATIR", "split":"İKİYE AYRILAN CÜMLE", "eclipse":"TUTULMA MÜHRÜ", "void_bloom":"BOŞLUK ÇİÇEĞİ", "finale":"SON SATIR"}
+	return str(labels.get(boss_skill_id, "BOSS SALDIRISI"))
+
+func _perform_boss_skill() -> void:
+	if not is_instance_valid(target_player):
+		return
+	attack_direction = Vector2(cos(boss_attack_angle), sin(boss_attack_angle))
+	var count := 5 if boss_phase == 1 else (7 if boss_phase == 2 else 9)
+	match boss_skill_id:
+		"judgment", "charge":
+			if boss_skill_id == "charge":
+				boss_charge_timer = 0.54
+			else:
+				_fire_boss_fan(3 if boss_phase == 1 else count, 0.28 if boss_phase == 1 else 0.44)
+		"quake", "nova", "orbit", "gravity", "snare", "embers":
+			var center := global_position if boss_skill_id in ["quake", "orbit"] else boss_target_position
+			var radius := 138.0 if boss_skill_id == "nova" else (210.0 if boss_skill_id in ["quake", "gravity"] else 170.0)
+			if center.distance_to(target_player.global_position) <= radius and not target_player.is_dashing:
+				target_player.take_damage(damage_to_player * (0.48 if boss_phase < 3 else 0.62))
+				if boss_skill_id == "gravity" and target_player.has_method("apply_slow"):
+					target_player.apply_slow(0.9, 0.56)
+			if boss_skill_id == "snare":
+				_spawn_ink_puddle(center)
+			elif boss_skill_id == "embers":
+				_spawn_ink_puddle(center + Vector2(96.0, 0.0).rotated(boss_attack_angle))
+				_spawn_ink_puddle(center + Vector2(-96.0, 0.0).rotated(boss_attack_angle))
+			elif boss_skill_id == "orbit":
+				_fire_boss_ring(8 if boss_phase == 1 else 12, 0.34)
+			elif boss_skill_id == "gravity":
+				for bolt_index in range(4 if boss_phase == 1 else 6):
+					_fire_boss_bolt(boss_attack_angle + float(bolt_index) * TAU / float(4 if boss_phase == 1 else 6), 0.32)
+		"eclipse", "void_bloom":
+			var center := boss_target_position if boss_skill_id == "eclipse" else global_position
+			var radius := 188.0 if boss_phase == 1 else 224.0
+			if center.distance_to(target_player.global_position) <= radius and not target_player.is_dashing:
+				target_player.take_damage(damage_to_player * (0.52 if boss_phase < 3 else 0.66))
+			_fire_boss_ring(10 if boss_phase == 1 else 14, 0.30)
+			if boss_skill_id == "void_bloom":
+				_spawn_ink_puddle(center + Vector2(104.0, 0.0).rotated(boss_attack_angle))
+				_spawn_ink_puddle(center + Vector2(-104.0, 0.0).rotated(boss_attack_angle))
+		"fan", "shards":
+			_fire_boss_fan(count, 0.92 if boss_skill_id == "fan" else 0.62)
+		"sever":
+			for offset in [-0.10, 0.0, 0.10]:
+				_fire_boss_bolt(boss_attack_angle + offset, 0.52 if boss_phase > 1 else 0.42)
+		"split":
+			_fire_boss_fan(3 if boss_phase == 1 else 5, 0.38)
+			var opposite_angle := boss_attack_angle + PI
+			for offset in [-0.2, 0.0, 0.2]:
+				_fire_boss_bolt(opposite_angle + offset, 0.32)
+		"mirror", "echo", "return":
+			_fire_boss_fan(3 if boss_skill_id == "mirror" else count, 0.5)
+			if boss_skill_id == "return":
+				_fire_boss_bolt(boss_attack_angle + PI, 0.4)
+			elif boss_skill_id == "echo" and boss_phase > 1:
+				_fire_boss_fan(3, 0.28)
+		"crossfire", "finale":
+			_fire_boss_bolt(boss_attack_angle + PI * 0.25, 0.45)
+			_fire_boss_bolt(boss_attack_angle - PI * 0.25, 0.45)
+			if boss_skill_id == "finale":
+				_fire_boss_ring(12 if boss_phase < 3 else 18, 0.4)
+		"rift":
+			var offset := Vector2(155.0, 0.0).rotated(boss_attack_angle + PI)
+			global_position = target_player.global_position + offset
+			global_position.x = clampf(global_position.x, -1140.0, 1140.0)
+			global_position.y = clampf(global_position.y, -840.0, 840.0)
+			_fire_boss_fan(5 if boss_phase == 1 else 7, 0.58)
+	if label and not boss_custom_name.is_empty():
+		label.text = boss_custom_name
+	if boss_skill_id != "charge":
+		recovery_timer = 0.5 if boss_phase == 1 else 0.35
+	queue_redraw()
+
+func _fire_boss_bolt(angle: float, damage_factor: float) -> void:
+	if not is_inside_tree():
+		return
+	var bolt = HarpyBolt.new(Vector2(cos(angle), sin(angle)), damage_to_player * damage_factor)
+	bolt.speed = 240.0 + float(boss_phase) * 36.0
+	get_tree().current_scene.add_child(bolt)
+	bolt.global_position = global_position + Vector2(cos(angle), sin(angle)) * 28.0
+
+func _fire_boss_fan(count: int, spread: float) -> void:
+	for index in range(count):
+		var t := 0.0 if count <= 1 else float(index) / float(count - 1)
+		_fire_boss_bolt(boss_attack_angle - spread * 0.5 + spread * t, 0.34 if boss_phase == 1 else 0.42)
+
+func _fire_boss_ring(count: int, damage_factor: float) -> void:
+	for index in range(count):
+		_fire_boss_bolt(float(index) * TAU / float(count), damage_factor)
+
+func enrage_boss(overtime_level: int) -> void:
+	boss_overtime = overtime_level
+	speed *= 1.08
+	damage_to_player *= 1.06
+	boss_skill_interval = maxf(2.7, boss_skill_interval * 0.88)
+	if sprite:
+		boss_phase_tint = boss_custom_color.lightened(minf(0.72, 0.22 + 0.16 * float(overtime_level)))
+		sprite.modulate = boss_phase_tint
+	queue_redraw()
+
 func _update_readable_motion() -> void:
 	if not sprite:
 		return
 	var phase := float(Time.get_ticks_msec()) * 0.012
 	var motion := Vector2.ONE
-	match enemy_type:
-		"Homophone Harpy":
-			motion = Vector2(1.0 + sin(phase * 1.7) * 0.09, 1.0 - sin(phase * 1.7) * 0.09)
-			if telegraph_timer > 0.0:
-				motion = Vector2(1.24, 0.76)
-		"Run-on Reaper":
-			if telegraph_timer > 0.0:
-				motion = Vector2(1.18, 0.68)
-			elif charge_timer > 0.0:
-				motion = Vector2(1.38, 0.76)
-			elif recovery_timer > 0.0:
-				motion = Vector2(0.78, 1.2)
-		"Idiom Imp":
-			if telegraph_timer > 0.0:
-				motion = Vector2(0.84, 1.16)
-		"Oxymoron Ogre":
-			if telegraph_timer > 0.0:
-				motion = Vector2(1.2, 0.82)
-			elif recovery_timer > 0.0:
-				motion = Vector2(0.82, 1.18)
-		"Punctuation Phantom":
-			motion = Vector2.ONE * (1.0 + sin(phase) * 0.035)
-			if telegraph_timer > 0.0:
-				motion = Vector2(0.72, 1.18)
-			elif charge_timer > 0.0:
-				motion = Vector2(1.3, 0.82)
+	if is_milestone_boss:
+		var breath := sin(phase * (1.2 if boss_phase < 3 else 1.8))
+		motion = Vector2(1.0 + breath * 0.035, 1.0 - breath * 0.026)
+		if boss_telegraph_timer > 0.0:
+			var windup := clampf(1.0 - boss_telegraph_timer, 0.0, 1.0)
+			motion *= Vector2(1.0 + windup * 0.13, 1.0 - windup * 0.09)
+		elif boss_phase == 3:
+			motion *= 1.0 + 0.035 * absf(breath)
+		sprite.rotation = sin(phase * 0.55) * 0.022
+	else:
+		match enemy_type:
+			"Homophone Harpy":
+				motion = Vector2(1.0 + sin(phase * 1.7) * 0.09, 1.0 - sin(phase * 1.7) * 0.09)
+				if telegraph_timer > 0.0:
+					motion = Vector2(1.24, 0.76)
+			"Run-on Reaper":
+				if telegraph_timer > 0.0:
+					motion = Vector2(1.18, 0.68)
+				elif charge_timer > 0.0:
+					motion = Vector2(1.38, 0.76)
+				elif recovery_timer > 0.0:
+					motion = Vector2(0.78, 1.2)
+			"Idiom Imp":
+				if telegraph_timer > 0.0:
+					motion = Vector2(0.84, 1.16)
+			"Oxymoron Ogre":
+				if telegraph_timer > 0.0:
+					motion = Vector2(1.2, 0.82)
+				elif recovery_timer > 0.0:
+					motion = Vector2(0.82, 1.18)
+			"Punctuation Phantom":
+				motion = Vector2.ONE * (1.0 + sin(phase) * 0.035)
+				if telegraph_timer > 0.0:
+					motion = Vector2(0.72, 1.18)
+				elif charge_timer > 0.0:
+					motion = Vector2(1.3, 0.82)
 	if hit_squash_timer > 0.0:
 		var squash := clampf(hit_squash_timer / 0.11, 0.0, 1.0)
 		motion *= Vector2(1.0 + 0.13 * squash, 1.0 - 0.10 * squash)
@@ -518,6 +723,9 @@ func fire_harpy_bolt():
 	bolt.global_position = global_position + attack_direction * 24.0
 
 func _draw():
+	if is_milestone_boss:
+		_draw_milestone_boss()
+		return
 	if telegraph_timer <= 0.0 and recovery_timer <= 0.0:
 		return
 	var is_harpy = enemy_type == "Homophone Harpy"
@@ -553,10 +761,48 @@ func _draw():
 	if threat_seal:
 		draw_texture_rect(threat_seal, Rect2(endpoint - Vector2(18.0, 18.0), Vector2(36.0, 36.0)), false, tint)
 
+func _draw_milestone_boss() -> void:
+	var bar_width := 142.0 if StatsManager.current_wave < 100 else 168.0
+	var bar_rect := Rect2(Vector2(-bar_width * 0.5, -75.0), Vector2(bar_width, 8.0))
+	draw_rect(bar_rect, Color(0.055, 0.06, 0.055, 0.95), true)
+	var health_ratio := clampf(health / maxf(max_health, 1.0), 0.0, 1.0)
+	draw_rect(Rect2(bar_rect.position, Vector2(bar_width * health_ratio, bar_rect.size.y)), boss_custom_color, true)
+	draw_rect(bar_rect, Color(0.91, 0.84, 0.65, 0.92), false, 1.4)
+	draw_line(Vector2(-bar_width * 0.5, -61.0), Vector2(bar_width * 0.5, -61.0), Color(boss_custom_color, 0.32), 1.0)
+	if boss_telegraph_timer <= 0.0:
+		return
+	var pulse := 1.0 + 0.07 * sin(Time.get_ticks_msec() * 0.024)
+	var mark := boss_target_position - global_position
+	var color := Color(boss_custom_color, 0.62 + 0.24 * absf(sin(Time.get_ticks_msec() * 0.019)))
+	if boss_skill_id in ["quake", "orbit"]:
+		mark = Vector2.ZERO
+	if boss_skill_id == "void_bloom":
+		mark = Vector2.ZERO
+	if boss_skill_id in ["nova", "quake", "orbit", "gravity", "snare", "embers", "eclipse", "void_bloom"]:
+		var radius := 188.0 if boss_skill_id == "eclipse" else (224.0 if boss_skill_id == "void_bloom" else (138.0 if boss_skill_id == "nova" else (210.0 if boss_skill_id in ["quake", "gravity"] else 170.0)))
+		draw_circle(mark, radius * pulse, Color(boss_custom_color, 0.10))
+		draw_arc(mark, radius * pulse, 0.0, TAU, 52, color, 4.0, true)
+		draw_arc(mark, radius * 0.82, 0.0, TAU, 52, Color(boss_custom_color, 0.4), 1.4, true)
+	elif boss_skill_id == "rift":
+		draw_arc(mark, 36.0 * pulse, 0.0, TAU, 36, color, 4.0, true)
+	else:
+		var angle_offset := 0.0
+		if boss_skill_id == "crossfire": angle_offset = PI * 0.25
+		var direction := Vector2(cos(boss_attack_angle + angle_offset), sin(boss_attack_angle + angle_offset))
+		draw_line(Vector2.ZERO, direction * 1050.0, color, 5.0, true)
+		draw_arc(direction * 1050.0, 18.0, 0.0, TAU, 24, Color.WHITE, 2.0, true)
+		if boss_skill_id in ["crossfire", "finale", "split"]:
+			var cross := Vector2(cos(boss_attack_angle - PI * 0.25), sin(boss_attack_angle - PI * 0.25))
+			draw_line(Vector2.ZERO, cross * 1050.0, Color(boss_custom_color, 0.35), 3.0, true)
+
 func take_damage(amount: float, knock_dir: Vector2, impact_profile: String = "ink", is_critical: bool = false):
 	amount *= StatsManager.get_relic_damage_multiplier(self)
+	if is_milestone_boss and recovery_timer > 0.0:
+		amount *= 1.25
 	StatsManager.relic_on_enemy_hit(self)
 	health -= amount
+	if is_milestone_boss:
+		queue_redraw()
 	if is_inside_tree() and get_tree().current_scene:
 		var audio = get_tree().current_scene.get_node_or_null("AudioManager")
 		if audio and audio.has_method("play_effect"):
@@ -564,7 +810,7 @@ func take_damage(amount: float, knock_dir: Vector2, impact_profile: String = "in
 	flash_timer = 0.11 if is_critical else 0.09
 	hit_squash_timer = 0.11 if is_critical else 0.075
 	modulate = Color(2.5, 2.5, 2.5) if is_critical else Color(1.9, 1.9, 1.9)
-	var push_strength := 205.0 if is_critical else 150.0
+	var push_strength := 0.0 if is_milestone_boss else (205.0 if is_critical else 150.0)
 	knockback = knock_dir.normalized() * push_strength
 	spawn_hit_effect("critical" if is_critical else impact_profile, knock_dir, is_critical)
 	
@@ -599,6 +845,8 @@ func spawn_hit_effect(impact_profile: String, knock_dir: Vector2, is_critical: b
 	tween.chain().tween_callback(effect_sprite.queue_free)
 
 func apply_stun(duration: float) -> void:
+	if is_milestone_boss:
+		duration *= 0.25
 	stun_timer = maxf(stun_timer, duration)
 	telegraph_timer = 0.0
 	charge_timer = 0.0

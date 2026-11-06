@@ -65,16 +65,20 @@
     assert(source.includes("p.run_phase += dashSpd * dt / 17"), "web dash movement should keep the stride animation clock advancing");
     for (const key of ["inky", "quillmaster", "word_knight", "rune_sorceress", "alchemist", "shadow_scribe"]) {
       for (let frame = 0; frame < 8; frame++) {
-        const asset = path.join(root, `build/web/assets/sprites/upgrade_v1/animations/${key}_run_${frame}.png`);
-        assert(fs.existsSync(asset), `${key} run animation needs all eight web frames`);
+        const asset = path.join(root, `build/web/assets/sprites/upgrade_v1/animations/${key}_run_v2_${frame}.png`);
+        assert(fs.existsSync(asset), `${key} run animation needs all eight v2 gait frames`);
         const image = fs.readFileSync(asset);
         assert(image.readUInt32BE(16) === 64 && image.readUInt32BE(20) === 64, `${key} run frame ${frame} must use the shared 64px canvas`);
+      }
+      for (const kind of ["ranged", "attack"]) for (let frame = 0; frame < 4; frame++) {
+        const asset = path.join(root, `build/web/assets/sprites/upgrade_v1/animations/${key}_${kind}_v2_${frame}.png`);
+        assert(fs.existsSync(asset), `${key} ${kind} animation needs four authored v2 frames`);
       }
     }
     assert(source.includes("getShotRecoilOffset"), "web ranged fire must add an aim-relative body recoil layer");
     assert(source.includes("function loadWeaponArchetypes"), "archetype schema must be loaded before a run");
     assert(source.includes("function resolveWeaponSignature"), "weapon behavior must route through archetype signature logic");
-    assert(source.includes("function getHeroActionDirection"), "hero orientation should momentarily follow the active weapon aim without stopping the run cycle");
+    assert(source.includes("function getHeroActionDirection"), "hero orientation should momentarily follow the active weapon aim");
     assert(/function requestAttackPose\(weaponId, actionKind, aim\)[\s\S]*?getWeaponArchetype\(weaponId\)[\s\S]*?rhythm/.test(source), "weapon action poses should follow the shared per-weapon rhythm data");
     assert(native.weapons.dictionary_blade.limits.parry_radius >= 100 && native.weapons.dictionary_blade.limits.parry_window > 0, "guard blade must define a readable projectile-parry radius and active frame");
     assert(native.weapons.crossword_crossbow.economy.damage < native.weapons.grammar_sniper.economy.damage
@@ -87,6 +91,8 @@
     const api = window.weaponArchetypeTestApi;
     assert(api, "web archetype test API is ready");
     assert(api.snapshot().status === "ready", "archetypes should load before a run");
+    assert(Math.abs(api.inkMultiplier("lexicon_alchemist", "normal")
+      / api.inkMultiplier("inky", "normal") - 1.4) < 1e-8, "Alchemist's 40% ink passive must apply only to that character");
     assert(api.runFrameIndex(4, 4) === 2 && api.runFrameIndex(4, 8) === 4, "four-frame and eight-frame heroes must match at the same gait phase");
     assert(api.runFrameIndex(8, 4) === 0 && api.runFrameIndex(8, 8) === 0, "all web run cycles must loop on the same footfall");
     ["inky", "quillmaster", "word_knight", "rune_sorceress", "lexicon_alchemist", "shadow_lexicographer"].forEach(id =>
@@ -95,7 +101,7 @@
       shot_recoil_timer: 0.2, last_aim: { x: 1, y: 0 }, vx: 0, vy: 0 });
     assert(dashDirection.x === 0 && dashDirection.y === -1, "a dash pose must face the actual dash direction");
     const rangedPose = api.rangedPoseContract("grammar_sniper", { x: 100, y: 0 });
-    assert(rangedPose.attackTimer === 0 && rangedPose.recoil.x < -2, "heavy ranged fire must add a visible backward body recoil while preserving its run cycle");
+    assert(rangedPose.attackTimer >= 0.29 && rangedPose.attackFrame === 0 && rangedPose.recoil.x < -2, "heavy ranged fire must show a deliberate brace/release pose with visible backward body recoil");
     assert(rangedPose.bodyDirection.x === 1 && rangedPose.facingLeft === false, "ranged recoil should briefly align body facing with the weapon aim while preserving the locomotion animation");
     assert(Math.hypot(rangedPose.recoil.x, rangedPose.recoil.y) <= 6.5, "large target vectors must be normalized before body recoil is applied");
     ids.forEach(id => {

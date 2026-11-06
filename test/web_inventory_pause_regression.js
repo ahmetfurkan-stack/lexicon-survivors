@@ -142,7 +142,10 @@
     const milestoneBossSpawnedAfterResume = state.enemies.some((enemy) => enemy.is_boss);
 
     endWave();
-    assert(document.getElementById("shop-screen").style.display !== "none", "test should enter the between-wave shop");
+    assert(document.getElementById("story-intermission").hidden === false, "every fifth cleared wave should enter the story intermission");
+    assert(document.getElementById("shop-screen").style.display === "none", "shop should wait until the story intermission is acknowledged");
+    document.getElementById("story-next").click();
+    assert(document.getElementById("shop-screen").style.display !== "none", "acknowledging the story intermission should enter the between-wave shop");
     const inventoryModal = document.getElementById("inventory-modal");
     toggleInventoryModal(true);
     assert(inventoryModal.style.display === "none", "forced open toggle opened inventory over the shop");

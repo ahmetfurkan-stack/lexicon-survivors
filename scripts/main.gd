@@ -5,6 +5,7 @@ extends Node2D
 @onready var shop_ui = $ShopLayer/ShopUI
 @onready var game_over_layer = $GameOverLayer
 @onready var game_over_panel = $GameOverLayer/GameOverPanel
+@onready var game_over_title: Label = $GameOverLayer/GameOverPanel/Title
 @onready var game_over_summary = $GameOverLayer/GameOverPanel/SummaryLabel
 @onready var restart_button = $GameOverLayer/GameOverPanel/RestartButton
 @onready var title_layer = $TitleLayer
@@ -77,7 +78,35 @@ func _on_wave_started(wave_number: int):
 func _on_wave_finished():
 	if is_inside_tree():
 		get_tree().paused = true
-	shop_ui.open_shop()
+	var wave_number := StatsManager.current_wave
+	if wave_number % 5 == 0:
+		if audio_manager and audio_manager.has_method("play_effect"):
+			audio_manager.play_effect("chapter_transition")
+		await hud.play_story_intermission(wave_number)
+	if wave_number >= StatsManager.max_waves:
+		_on_run_victory()
+	else:
+		shop_ui.open_shop()
+
+func _on_run_victory() -> void:
+	if is_inside_tree():
+		get_tree().paused = true
+	shop_ui.hide()
+	game_over_title.text = "ARŞİVİN YENİ SONU"
+	var elapsed := maxi(1000, Time.get_ticks_msec() - _run_started_at_msec)
+	_latest_run_result = {
+		"submissionId": LeaderboardClient.create_submission_id(),
+		"alias": LeaderboardClient.get_saved_alias(),
+		"wavesCleared": StatsManager.max_waves,
+		"kills": StatsManager.kill_count,
+		"elapsedMs": elapsed,
+		"characterId": StatsManager.selected_character,
+		"difficultyId": StatsManager.difficulty
+	}
+	var alias := str(_latest_run_result.get("alias", "Oyuncu"))
+	LeaderboardClient.save_local_result(_latest_run_result, alias if not alias.is_empty() else "Oyuncu")
+	game_over_summary.text = "100 DALGA TAMAMLANDI\n\n" + str(StatsManager.characters.get(StatsManager.selected_character, {}).get("name", "Kâşif")) + " kendi sonunu seçti.\n" + str(StatsManager.kill_count) + " boss ve yaratık yenildi."
+	game_over_layer.show()
 
 func _on_shop_closed():
 	if is_inside_tree():
@@ -87,6 +116,7 @@ func _on_shop_closed():
 func _on_player_died():
 	if game_over_layer.visible:
 		return
+	game_over_title.text = "KİTAP KAPANDI"
 	if is_inside_tree():
 		get_tree().paused = true
 	game_over_layer.show()

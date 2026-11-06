@@ -14,6 +14,20 @@ func _run() -> void:
 	await process_frame
 	paused = false
 	main.start_game()
+	var original_character: String = stats_manager.selected_character
+	stats_manager.selected_character = "lexicon_alchemist"
+	stats_manager.reset()
+	var alchemist_ink_before: int = stats_manager.ink_count
+	stats_manager.add_ink(10)
+	var normal_ink_multiplier: float = stats_manager.difficulties.normal.ink_bonus_mult
+	assert(stats_manager.ink_count == alchemist_ink_before + ceili(10.0 * normal_ink_multiplier * 1.4), "Alchemist's advertised 40% ink gain must affect every collected reward")
+	stats_manager.selected_character = "inky"
+	stats_manager.reset()
+	var inky_ink_before: int = stats_manager.ink_count
+	stats_manager.add_ink(10)
+	assert(stats_manager.ink_count == inky_ink_before + ceili(10.0 * normal_ink_multiplier), "The Alchemist passive must not leak into other characters")
+	stats_manager.selected_character = original_character
+	stats_manager.reset()
 
 	# The native utility catalog must hydrate from the shared versioned source,
 	# normalize old gadget keys, and keep purchases/cooldowns/slots bounded.
@@ -50,6 +64,8 @@ func _run() -> void:
 	assert(stats_manager.buy_gadget("ink_bomb") and stats_manager.active_gadget == "ink_cataclysm", "Legacy gadget purchases must buy and equip their canonical item exactly once")
 	var bought_ink: int = stats_manager.ink_count
 	assert(not stats_manager.buy_gadget("ink_cataclysm") and stats_manager.ink_count == bought_ink, "Owned gadgets cannot be purchased or charged twice")
+	assert(main.player.resolve_gadget_direction(Vector2.ZERO, Vector2.UP, Vector2.RIGHT) == Vector2.UP, "Touch-stick direction must drive directional gadgets when no keyboard input is present")
+	assert(main.player.resolve_gadget_direction(Vector2.LEFT, Vector2.UP, Vector2.RIGHT) == Vector2.LEFT, "Keyboard direction must keep priority when both inputs are present")
 	main.player.gadget_timer = 0.0
 	main.player.activate_active_gadget(Vector2.RIGHT)
 	assert(is_equal_approx(main.player.gadget_cooldown, 12.0) and main.player.gadget_timer > 0.0, "Canonical purchase must activate with its catalog cooldown")
@@ -477,12 +493,16 @@ func _run() -> void:
 	var running_animation_before_shots: String = player.current_hero_animation
 	player.request_attack_pose("quill_blaster", "ranged", Vector2(100.0, 0.0))
 	assert(player.has_method("get_shot_recoil_offset"), "Ranged attacks must expose their separate recoil response")
+	assert(player.attack_anim_timer > 0.0 and player.attack_anim_duration <= 0.20, "Rapid shots must show a short release pose while preserving most of each run stride")
+	player._update_hero_animation()
+	assert(player.current_hero_animation == "ranged", "Rapid ranged shots must visibly use an authored weapon-ready pose instead of recoil-only movement")
 	if player.has_method("get_shot_recoil_offset"):
 		assert(is_equal_approx(player.last_aim_direction.length(), 1.0), "Ranged target vectors must normalize before they drive hero pose and recoil")
 		assert(player.get_shot_recoil_offset().x < 0.0 and player.get_shot_recoil_offset().length() <= 6.5, "A rightward rifle shot must kick the hero body backward within its weapon recoil limit")
 	player._advance_run_phase(0.18)
+	player.attack_anim_timer = 0.0
 	player._update_hero_animation()
-	assert(player.current_hero_animation == running_animation_before_shots and player.attack_anim_timer <= 0.0, "Automatic ranged fire must not interrupt the run cycle")
+	assert(player.current_hero_animation == "run" and player.attack_anim_timer <= 0.0 and player.current_hero_animation == running_animation_before_shots, "The short ranged release pose must return to the run cycle")
 	player.velocity = Vector2.LEFT * stats_manager.move_speed
 	player._update_hero_animation()
 	assert(not player.sprite.flip_h and player.sprite.rotation < 0.08 and player.sprite.rotation > -0.08, "Brief ranged recoil must turn the body toward its rightward target while preserving the run cycle")
@@ -709,6 +729,9 @@ func _run() -> void:
 	var measured_visual_half_extent := Vector2.ZERO
 	for frame_file in DirAccess.get_files_at("res://assets/sprites/upgrade_v1/animations"):
 		if not frame_file.ends_with(".png"):
+			continue
+		var is_live_animation := "_idle_" in frame_file or "_v2_" in frame_file
+		if not is_live_animation:
 			continue
 		var frame_texture := load("res://assets/sprites/upgrade_v1/animations/" + frame_file) as Texture2D
 		var frame_image := frame_texture.get_image()
