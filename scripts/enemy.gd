@@ -1,6 +1,15 @@
 extends CharacterBody2D
+class_name Enemy
 
 const HEALTH_SCROLL_SCENE: PackedScene = preload("res://scenes/health_scroll.tscn")
+static var _active_enemies: Array[Node2D] = []
+static var _active_enemy_count: int = 0
+
+static func get_active_enemies() -> Array[Node2D]:
+	return _active_enemies
+
+static func get_active_enemy_count() -> int:
+	return _active_enemy_count
 
 @export var enemy_type: String = "Typo Slime"
 @export var max_health: float = 25.0
@@ -132,11 +141,18 @@ class EnemyInkPuddle extends Area2D:
 
 func _ready():
 	add_to_group("enemies")
+	_active_enemies.append(self)
+	_active_enemy_count += 1
 	if ResourceLoader.exists("res://assets/sprites/upgrade_v1/threat_seal.png"):
 		threat_seal = load("res://assets/sprites/upgrade_v1/threat_seal.png")
 	setup_type()
 	if sprite:
 		base_sprite_scale = sprite.scale
+
+func _exit_tree() -> void:
+	if _active_enemies.has(self):
+		_active_enemies.erase(self)
+		_active_enemy_count = maxi(0, _active_enemy_count - 1)
 
 func setup_type():
 	var diff_data = StatsManager.difficulties.get(StatsManager.difficulty, StatsManager.difficulties["normal"])
@@ -891,7 +907,7 @@ func die():
 			health_scroll.global_position = global_position
 			get_tree().current_scene.call_deferred("add_child", health_scroll)
 		if StatsManager.selected_character == "rune_sorceress":
-			for nearby in get_tree().get_nodes_in_group("enemies"):
+			for nearby in Enemy.get_active_enemies():
 				if nearby != self and is_instance_valid(nearby) and global_position.distance_to(nearby.global_position) <= 118.0:
 					var burst_direction = (nearby.global_position - global_position).normalized()
 					nearby.take_damage(34.0 * StatsManager.damage_mult, burst_direction * 220.0)

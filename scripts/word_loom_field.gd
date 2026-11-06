@@ -28,7 +28,7 @@ func _process(delta: float) -> void:
 	queue_redraw()
 	if tick_timer <= 0.0:
 		tick_timer = tick_seconds
-		for enemy in get_tree().get_nodes_in_group("enemies"):
+		for enemy in Enemy.get_active_enemies():
 			if not is_instance_valid(enemy) or enemy.is_queued_for_deletion() or global_position.distance_to(enemy.global_position) > radius:
 				continue
 			if enemy.has_method("take_damage"):

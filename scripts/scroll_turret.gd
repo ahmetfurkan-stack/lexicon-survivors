@@ -56,7 +56,7 @@ func _process(delta: float) -> void:
 func _find_target() -> Node2D:
 	var closest: Node2D = null
 	var min_distance := 520.0
-	for enemy in get_tree().get_nodes_in_group("enemies"):
+	for enemy in Enemy.get_active_enemies():
 		if not is_instance_valid(enemy):
 			continue
 		var distance := global_position.distance_to(enemy.global_position)

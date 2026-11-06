@@ -180,7 +180,7 @@ func _apply_signature_hit(body: Node2D) -> void:
 func _spawn_echo_projectile(marked_enemy: Node2D, damage_factor: float = 0.32) -> void:
 	var nearest: Node2D = null
 	var distance := 230.0
-	for enemy in get_tree().get_nodes_in_group("enemies"):
+	for enemy in Enemy.get_active_enemies():
 		if enemy == marked_enemy or not is_instance_valid(enemy):
 			continue
 		var candidate_distance := global_position.distance_to(enemy.global_position)
@@ -196,7 +196,7 @@ func _spawn_echo_projectile(marked_enemy: Node2D, damage_factor: float = 0.32) -
 
 func _spawn_beam_split(origin: Vector2) -> void:
 	var neighbors: Array[Node2D] = []
-	for enemy in get_tree().get_nodes_in_group("enemies"):
+	for enemy in Enemy.get_active_enemies():
 		if not is_instance_valid(enemy) or enemy in hit_enemies:
 			continue
 		if origin.distance_to(enemy.global_position) <= 120.0:
@@ -219,7 +219,7 @@ func _spawn_rocket_clusters(origin: Vector2) -> void:
 
 func _spawn_rune_final_pulse(origin: Vector2) -> void:
 	var radius := 82.0 if weapon_tier < 4 else 120.0
-	for enemy in get_tree().get_nodes_in_group("enemies"):
+	for enemy in Enemy.get_active_enemies():
 		if not is_instance_valid(enemy) or origin.distance_to(enemy.global_position) > radius:
 			continue
 		if enemy.has_method("take_damage"):
@@ -229,7 +229,7 @@ func _spawn_rune_final_pulse(origin: Vector2) -> void:
 
 func _spawn_sniper_chain(direct_target: Node2D) -> void:
 	var candidates: Array[Node2D] = []
-	for enemy in get_tree().get_nodes_in_group("enemies"):
+	for enemy in Enemy.get_active_enemies():
 		if enemy == direct_target or not is_instance_valid(enemy) or enemy in hit_enemies:
 			continue
 		if direct_target.global_position.distance_to(enemy.global_position) <= 180.0:
@@ -250,7 +250,7 @@ func _spawn_crossword_shards(origin: Vector2, shard_count: int) -> void:
 
 func _spawn_rocket_splash(origin: Vector2, direct_target: Node2D) -> void:
 	var splash_radius := 140.0 * (1.16 if weapon_tier >= 2 else 1.0)
-	for enemy in get_tree().get_nodes_in_group("enemies"):
+	for enemy in Enemy.get_active_enemies():
 		if enemy == direct_target or not is_instance_valid(enemy):
 			continue
 		var distance := origin.distance_to(enemy.global_position)
@@ -263,7 +263,7 @@ func _spawn_rocket_splash(origin: Vector2, direct_target: Node2D) -> void:
 func _find_nearest_unhit_enemy() -> Node2D:
 	var closest: Node2D = null
 	var min_distance := 480.0
-	for enemy in get_tree().get_nodes_in_group("enemies"):
+	for enemy in Enemy.get_active_enemies():
 		if not is_instance_valid(enemy) or enemy in hit_enemies:
 			continue
 		var distance := global_position.distance_to(enemy.global_position)

@@ -95,11 +95,7 @@ func _process(delta: float):
 			spawn_enemy()
 
 func _active_enemy_count() -> int:
-	var count = 0
-	for enemy in get_tree().get_nodes_in_group("enemies"):
-		if is_instance_valid(enemy) and not enemy.is_queued_for_deletion():
-			count += 1
-	return count
+	return Enemy.get_active_enemy_count()
 
 func _get_wave_enemy_cap() -> int:
 	# Early waves keep readable space around the player; later waves build into
@@ -216,7 +212,7 @@ func end_wave():
 	boss_wave_active = false
 	milestone_boss = null
 	# Remove survivors without treating a timed wave transition as player kills.
-	var enemies = get_tree().get_nodes_in_group("enemies")
+	var enemies := Enemy.get_active_enemies()
 	for e in enemies:
 		if is_instance_valid(e):
 			if e.has_method("despawn_without_rewards"):
