@@ -4,14 +4,14 @@
     "quill_blaster": {
       "role": "sidearm",
       "draw_size": 34,
-      "art_angle_deg": -45,
+      "art_angle_deg": -178.36342,
       "grip": [
-        0.17,
-        0.83
+        0.78,
+        0.78
       ],
       "muzzle": [
-        0.86,
-        0.14
+        0.08,
+        0.76
       ],
       "mount_active": [
         8,
@@ -28,14 +28,14 @@
     "syllable_shotgun": {
       "role": "longarm",
       "draw_size": 38,
-      "art_angle_deg": -45,
+      "art_angle_deg": -160.23283,
       "grip": [
-        0.18,
-        0.82
+        0.82,
+        0.78
       ],
       "muzzle": [
-        0.87,
-        0.16
+        0.18,
+        0.55
       ],
       "mount_active": [
         7,
@@ -124,14 +124,14 @@
     "crossword_crossbow": {
       "role": "grid_bolt",
       "draw_size": 43,
-      "art_angle_deg": -90,
+      "art_angle_deg": -45.41821,
       "grip": [
-        0.5,
+        0.18,
         0.83
       ],
       "muzzle": [
-        0.5,
-        0.08
+        0.86,
+        0.14
       ],
       "mount_active": [
         8,
@@ -172,14 +172,14 @@
     "ink_flamethrower": {
       "role": "flame",
       "draw_size": 37,
-      "art_angle_deg": 0,
+      "art_angle_deg": -41.63354,
       "grip": [
         0.16,
-        0.5
+        0.82
       ],
       "muzzle": [
-        0.92,
-        0.5
+        0.88,
+        0.18
       ],
       "mount_active": [
         8,
@@ -196,14 +196,14 @@
     "thesaurus_rocket": {
       "role": "heavy",
       "draw_size": 41,
-      "art_angle_deg": -90,
+      "art_angle_deg": -45.83032,
       "grip": [
-        0.5,
-        0.89
+        0.2,
+        0.82
       ],
       "muzzle": [
-        0.5,
-        0.08
+        0.88,
+        0.12
       ],
       "mount_active": [
         8,
@@ -220,14 +220,14 @@
     "quote_pistols": {
       "role": "paired_sidearms",
       "draw_size": 41,
-      "art_angle_deg": -59.3,
+      "art_angle_deg": -52.25319,
       "grip": [
-        0.47,
-        0.78
+        0.32,
+        0.82
       ],
       "muzzle": [
-        0.82,
-        0.19
+        0.8,
+        0.2
       ],
       "mount_active": [
         8,
@@ -268,14 +268,14 @@
     "scroll_turret": {
       "role": "deployable",
       "draw_size": 34,
-      "art_angle_deg": -90,
+      "art_angle_deg": -47.32782,
       "grip": [
-        0.5,
-        0.88
+        0.25,
+        0.82
       ],
       "muzzle": [
-        0.5,
-        0.1
+        0.84,
+        0.18
       ],
       "mount_active": [
         7,
@@ -336,6 +336,30 @@
       "recoil_px": 7.0,
       "impact": "piercing",
       "sprite": "assets/sprites/weapons/grammar_sniper.png"
+    },
+    "word_loom": {
+      "role": "control_tool",
+      "draw_size": 40,
+      "art_angle_deg": 0,
+      "grip": [
+        0.5,
+        0.5
+      ],
+      "muzzle": [
+        0.5,
+        0.5
+      ],
+      "mount_active": [
+        8,
+        1
+      ],
+      "mount_holstered": [
+        5,
+        8
+      ],
+      "recoil_px": 2.6,
+      "impact": "rune",
+      "sprite": "assets/sprites/weapons/word_loom.png"
     }
   }
 }

@@ -165,8 +165,28 @@ function getHorizontalFacing(aimAngle, fallbackLeft = false) {
   return Math.abs(horizontal) > 0.05 ? horizontal < 0 : fallbackLeft;
 }
 
+function getHeroActionDirection(player) {
+  if (player.is_dashing && player.dash_dir) return player.dash_dir;
+  if (player.attack_anim_timer > 0 || player.shot_recoil_timer > 0) {
+    const aim = player.last_aim || { x: 1, y: 0 };
+    const length = Math.hypot(aim.x, aim.y) || 1;
+    return { x: aim.x / length, y: aim.y / length };
+  }
+  const speed = Math.hypot(player.vx, player.vy);
+  return speed > 30 ? { x: player.vx / speed, y: player.vy / speed } : (player.last_aim || { x: 1, y: 0 });
+}
+
+function getAttackAnimationFrame(player) {
+  const elapsed = Math.max(0, player.attack_anim_duration - player.attack_anim_timer);
+  const windup = Math.max(0, player.attack_anim_windup || 0);
+  const activeEnd = windup + Math.max(0, player.attack_anim_active || 0);
+  if (windup > 0 && elapsed < windup) return elapsed < windup * 0.55 ? 0 : 1;
+  if (elapsed < activeEnd) return 2;
+  return 3;
+}
+
 function selectWeaponTarget(weapon, enemies = state.enemies, origin = state.player) {
-  // A single pass replaces per-weapon filtering, full-array sorting and repeated sqrt.
+  // Keep the shipped 60fps targeting path: one pass and squared distances.
   const favorElites = weapon?.id === "grammar_sniper" || state.artifacts_owned.includes("archivist_compass");
   let nearest = null, bestDistSq = Infinity, bestIsElite = false;
   for (const enemy of enemies) {
@@ -467,15 +487,45 @@ function getLocomotionBob(runPhase) {
   return Math.round(2 * Math.abs(Math.sin(stridePhase * Math.PI / 4)));
 }
 
+function getHeroRunFrameIndex(runPhase, frameCount) {
+  const count = Math.max(1, Math.floor(frameCount));
+  const stridePhase = ((runPhase % 8) + 8) % 8;
+  return Math.floor(stridePhase * count / 8) % count;
+}
+
+const HERO_RUN_FRAME_COUNTS = Object.freeze({
+  inky: 8, quillmaster: 8, word_knight: 8, rune_sorceress: 8,
+  lexicon_alchemist: 8, shadow_lexicographer: 8
+});
+function getHeroRunFrameCount(characterId) {
+  return HERO_RUN_FRAME_COUNTS[characterId] || HERO_RUN_FRAME_COUNTS.inky;
+}
+
+function getShotRecoilOffset(player) {
+  const timer = Number(player?.shot_recoil_timer || 0);
+  const pixels = Number(player?.shot_recoil_pixels || 0);
+  if (timer <= 0 || pixels <= 0) return { x: 0, y: 0 };
+  const direction = player.shot_recoil_direction || { x: 0, y: 0 };
+  const recovery = Math.max(0, Math.min(1, timer / Math.max(0.01, Number(player.shot_recoil_duration || 0.14))));
+  const falloff = Math.pow(recovery, 1.65);
+  return {
+    x: Math.round(-direction.x * pixels * falloff),
+    y: Math.round(-direction.y * pixels * falloff)
+  };
+}
+
 function getLocomotionPoseOffset(player) {
   const speed = Math.hypot(player.vx, player.vy);
   let x = 0;
   let y = 0;
-  if (!player.is_dashing && !state.is_inventory_open && player.attack_anim_timer <= 0 && speed > 20) {
+  if (!player.is_dashing && !state.is_inventory_open && player.attack_anim_timer <= 0 && speed > 30) {
     const bob = getLocomotionBob(player.run_phase);
     x = player.vx > 20 ? 1 : player.vx < -20 ? -1 : 0;
     y = -bob;
   }
+  const recoil = getShotRecoilOffset(player);
+  x += recoil.x;
+  y += recoil.y;
   const minX = -PLAYER_CENTER_LIMIT_X - player.x;
   const maxX = PLAYER_CENTER_LIMIT_X - player.x;
   const minY = PLAYER_CENTER_MIN_Y - player.y;
@@ -490,9 +540,6 @@ class SoundManager {
   constructor() {
     this.ctx = null;
     this.assetVoices = [];
-    // Reuse sound elements; spawning an Audio element per enemy death causes mobile stutter.
-    this.assetPools = new Map();
-    this.assetLastPlayed = new Map();
     this.music = null;
     this.assetPaths = {
       quill_blaster: "weapon_quill_blaster_v1", syllable_shotgun: "weapon_syllable_shotgun_v1",
@@ -501,7 +548,7 @@ class SoundManager {
       hyphen_boomerang: "weapon_hyphen_boomerang", ink_flamethrower: "weapon_ink_flamethrower",
       thesaurus_rocket: "weapon_thesaurus_rocket_launch", quote_pistols: "weapon_quote_pistols_v1",
       calligraphy_katana: "weapon_calligraphy_katana_v1", scroll_turret: "weapon_scroll_turret_deploy",
-      rune_orb: "weapon_rune_orb", grammar_sniper: "weapon_grammar_sniper",
+      rune_orb: "weapon_rune_orb", grammar_sniper: "weapon_grammar_sniper", word_loom: "weapon_rune_orb",
       hit: "enemy_hit_light", death: "enemy_defeat", pickup: "ink_pickup", wave: "wave_start",
       gadget: "gadget_eraser_dash", mine: "weapon_punctuation_mine_detonation", rocket: "weapon_thesaurus_rocket_impact"
     };
@@ -509,28 +556,14 @@ class SoundManager {
   playAsset(key, volume = 0.72) {
     const asset = this.assetPaths[key];
     if (!asset) return false;
-    const now = performance.now();
-    const minGap = (key === "death" || key === "hit" || key === "pickup") ? 85
-      : (key === "ink_flamethrower" ? 100 : 40);
-    if (now - (this.assetLastPlayed.get(key) ?? -Infinity) < minGap) return true;
-    this.assetLastPlayed.set(key, now);
     try {
-      let pool = this.assetPools.get(key);
-      if (!pool) { pool = []; this.assetPools.set(key, pool); }
-      let voice = pool.find(item => item.paused || item.ended);
-      if (!voice && pool.length < 3) {
-        const category = key === "gadget" ? "abilities"
-          : (key === "hit" || key === "death" || key === "pickup" || key === "wave") ? "gameplay" : "weapons";
-        voice = new Audio(`assets/audio/${category}/${asset}.wav`);
-        voice.preload = "auto";
-        pool.push(voice);
-      }
-      if (!voice) return true; // Bound simultaneous voices during heavy combat.
+      const voice = new Audio(`assets/audio/${key === "gadget" ? "abilities" : key === "hit" || key === "death" || key === "pickup" || key === "wave" ? "gameplay" : "weapons"}/${asset}.wav`);
       voice.volume = volume;
-      if (voice.readyState > 0) voice.currentTime = 0;
       voice.play().catch(() => {});
+      this.assetVoices.push(voice);
+      if (this.assetVoices.length > 24) this.assetVoices.splice(0, this.assetVoices.length - 24);
       return true;
-    } catch (_) { return true; }
+    } catch (_) { return false; }
   }
   startMusic() {
     if (!this.music) { this.music = new Audio("assets/audio/music/main_theme.mp3"); this.music.loop = true; this.music.volume = 0.24; }
@@ -597,6 +630,9 @@ class SoundManager {
         break;
       case "rune_orb":
         this.playTone(740, "sine", 0.12, 0.18);
+        break;
+      case "word_loom":
+        this.playTone(610, "sine", 0.18, 0.16);
         break;
       default:
         this.playTone(420, "triangle", 0.08, 0.12);
@@ -1088,93 +1124,99 @@ const DIFFICULTIES = {
 };
 
 // =========================================
-// 3. 14 WEAPONS CATALOG & TIERS
+// 3. 15 WEAPONS CATALOG & TIERS
 // =========================================
 const WEAPONS_CATALOG = {
   quill_blaster: {
     id: "quill_blaster",
     name: "İğne Ucu Kalem",
-    desc: "Aynı hedefi işaretler; işaretli rakipte yankı iğnesi üretir.",
-    cost: 10, cooldown: 0.48, damage: 26.0, sprite: "weapons/quill_blaster.png"
+    desc: "Uzun işaret hedefi sabitler; gelişince yankı iğnesi iki yakındaki rakibe sıçrar.",
+    cost: 12, cooldown: 0.50, damage: 24.0, sprite: "weapons/quill_blaster.png"
   },
   syllable_shotgun: {
     id: "syllable_shotgun",
     name: "Hece Saçması",
-    desc: "Pompalanan konik saçma yakında sersemletir.",
-    cost: 14, cooldown: 0.95, damage: 18.0, sprite: "weapons/syllable_shotgun.png"
+    desc: "Altı saçmayı dar bir yelpazede toplar; yakındaki hedefleri sendeletir.",
+    cost: 16, cooldown: 0.92, damage: 17.0, sprite: "weapons/syllable_shotgun.png"
   },
   lexicon_beam: {
     id: "lexicon_beam",
-    name: "Sözlük Işını",
-    desc: "Kısa şarjdan sonra sıradaki hedefleri delen çizgiyi süpürür.",
-    cost: 18, cooldown: 0.40, damage: 22.0, sprite: "weapons/lexicon_beam.png"
+    name: "Prizma Işını",
+    desc: "Kısa şarjdan sonra geniş satır ışınıyla düşman hattını süpürür.",
+    cost: 19, cooldown: 0.46, damage: 23.0, sprite: "weapons/lexicon_beam.png"
   },
   punctuation_bomb: {
     id: "punctuation_bomb",
     name: "Ünlem Mayını",
-    desc: "Görünen fitili bitince patlar ve kısa süre alanı kapatır.",
-    cost: 16, cooldown: 1.10, damage: 56.0, sprite: "weapons/punctuation_bomb.png"
+    desc: "Kısa fitilli mayın geniş alanda patlar ve zeminde mürekkep tehlikesi bırakır.",
+    cost: 17, cooldown: 1.18, damage: 60.0, sprite: "weapons/punctuation_bomb.png"
   },
   dictionary_blade: {
     id: "dictionary_blade",
-    name: "Koruyucu Kenar",
-    desc: "Aktif karede yakın düşman mermilerini savuşturur; gelişince geri sektirir.",
-    cost: 16, cooldown: 0.60, damage: 40.0, sprite: "weapons/dictionary_blade.png"
+    name: "Sözlük Muhafızı",
+    desc: "Geniş savunma yayı mermileri savuşturur; zamanlı savuşturma karşı vuruş açar.",
+    cost: 18, cooldown: 0.68, damage: 34.0, sprite: "weapons/dictionary_blade.png"
   },
   crossword_crossbow: {
     id: "crossword_crossbow",
-    name: "Izgara Delicisi",
-    desc: "Ağır oku hedefe çiviler; gelişince çarpma noktasında ızgara parçaları saçar.",
-    cost: 22, cooldown: 0.90, damage: 32.0, sprite: "weapons/crossword_crossbow.png"
+    name: "Bulmaca Balistası",
+    desc: "Delen ağır ok hedefi daha uzun sabitler; gelişince çarpma noktasında ızgara parçaları saçar.",
+    cost: 21, cooldown: 0.88, damage: 34.0, sprite: "weapons/crossword_crossbow.png"
   },
   hyphen_boomerang: {
     id: "hyphen_boomerang",
-    name: "Dönen Tire",
-    desc: "Gidiş ve dönüş yolunda her hedefi birer kez biçer.",
-    cost: 20, cooldown: 1.05, damage: 26.0, sprite: "weapons/hyphen_boomerang.png"
+    name: "Tire Yörüngesi",
+    desc: "Uzun kavisle çıkar, dönüş yolunda yeniden vurur ve gelişince kısa süre yörüngede kalır.",
+    cost: 20, cooldown: 1.12, damage: 28.0, sprite: "weapons/hyphen_boomerang.png"
   },
   ink_flamethrower: {
     id: "ink_flamethrower",
     name: "Mürekkep Ocağı",
-    desc: "Kısa konik alev püskürtür, sonra soğuyup yeniden yüklenir.",
-    cost: 24, cooldown: 0.12, damage: 9.0, sprite: "weapons/ink_flamethrower.png"
+    desc: "Geniş alev yelpazesiyle yakar; soğuma arasında yanık etkisi sürer.",
+    cost: 24, cooldown: 0.13, damage: 9.5, sprite: "weapons/ink_flamethrower.png"
   },
   thesaurus_rocket: {
     id: "thesaurus_rocket",
-    name: "Eşanlamlı Avcısı",
-    desc: "Hedefe yönelen ağır roket kümeye çarpınca geri savurur.",
-    cost: 26, cooldown: 1.55, damage: 68.0, sprite: "weapons/thesaurus_rocket.png"
+    name: "Eşanlamlı Harcı",
+    desc: "Hedefe daha sıkı kilitlenen roket, geniş küme patlamasıyla çevresini geri savurur.",
+    cost: 27, cooldown: 1.70, damage: 74.0, sprite: "weapons/thesaurus_rocket.png"
   },
   quote_pistols: {
     id: "quote_pistols",
-    name: "Aç-Kapa Tabancalar",
-    desc: "İki eli sırayla konuşturan kısa ve isabetli salvo atar.",
-    cost: 22, cooldown: 0.26, damage: 16.0, sprite: "weapons/quote_pistols.png"
+    name: "Tırnak Salvosu",
+    desc: "İki tabanca seri dönüşümlü salvo atar; gelişince üçüncü atış ve işaretli sekme eklenir.",
+    cost: 23, cooldown: 0.28, damage: 14.5, sprite: "weapons/quote_pistols.png"
   },
   // 4 New Weapons
   calligraphy_katana: {
     id: "calligraphy_katana",
-    name: "Hilal Hattatı",
-    desc: "Geri çekilip öne doğru mürekkep hilali savurur.",
-    cost: 25, cooldown: 0.65, damage: 42.0, sprite: "weapons/calligraphy_katana.png"
+    name: "Kalem Hilali",
+    desc: "Geniş hazırlıkla ileri hilal keser; gelişince işaretli hedefe son vuruş uygular.",
+    cost: 26, cooldown: 0.72, damage: 40.0, sprite: "weapons/calligraphy_katana.png"
   },
   scroll_turret: {
     id: "scroll_turret",
-    name: "Fihrist Bekçisi",
-    desc: "Yere yerleşen tomar sabitlenip en yakın hedefe odaklanır.",
-    cost: 26, cooldown: 2.20, damage: 20.0, sprite: "weapons/scroll_turret.png"
+    name: "Raf Bekçisi",
+    desc: "On dört saniye kalan tomar tareti, seri atışlarını tek hedefe odaklar.",
+    cost: 28, cooldown: 2.40, damage: 22.0, sprite: "weapons/scroll_turret.png"
   },
   rune_orb: {
     id: "rune_orb",
-    name: "Zincir Rünü",
-    desc: "Rün küresi hedefler arasında sıçrar ve son vuruşta parlar.",
-    cost: 24, cooldown: 0.85, damage: 25.0, sprite: "weapons/rune_orb.png"
+    name: "Atıf Küresi",
+    desc: "Rün dört hedefe kadar sıçrar; son sıçrama küçük bir patlama bırakır.",
+    cost: 24, cooldown: 0.90, damage: 23.0, sprite: "weapons/rune_orb.png"
   },
   grammar_sniper: {
     id: "grammar_sniper",
-    name: "Sözdizimi Ray-Tüfeği",
-    desc: "Yavaş ve ağır tek atış; liderlerin zayıf noktasına öncelik verip zırhı deler.",
-    cost: 28, cooldown: 1.45, damage: 82.0, sprite: "weapons/grammar_sniper.png"
+    name: "Zayıf Nokta Rayı",
+    desc: "Zırh delen atış liderleri iki kat cezalandırır; gelişince üç hedefe kadar zincirlenir.",
+    cost: 30, cooldown: 1.70, damage: 90.0, sprite: "weapons/grammar_sniper.png"
+  },
+  word_loom: {
+    id: "word_loom",
+    name: "Dipnot Tezgâhı",
+    desc: "Hedef noktaya mürekkep ipliği kurar; alandaki düşmanları yavaşlatıp aralıklarla yaralar.",
+    cost: 25, cooldown: 2.10, damage: 20.0, sprite: "weapons/word_loom.png"
   }
 };
 
@@ -1383,6 +1425,12 @@ const state = {
     dash_hit_ids: new Set(),
     attack_anim_timer: 0,
     attack_anim_duration: 0.28,
+    attack_anim_windup: 0.08,
+    attack_anim_active: 0.08,
+    shot_recoil_timer: 0,
+    shot_recoil_duration: 0.14,
+    shot_recoil_direction: { x: 1, y: 0 },
+    shot_recoil_pixels: 0,
     run_phase: 0,
     slow_timer: 0
   },
@@ -1474,10 +1522,10 @@ const spriteList = [
   "upgrade_v1/hero_word_knight.png", "upgrade_v1/hero_rune_sorceress.png",
   "upgrade_v1/hero_alchemist.png", "upgrade_v1/hero_shadow_scribe.png",
   "upgrade_v1/animations/inky_idle_0.png", "upgrade_v1/animations/inky_idle_1.png", "upgrade_v1/animations/inky_idle_2.png", "upgrade_v1/animations/inky_idle_3.png", "upgrade_v1/animations/inky_run_0.png", "upgrade_v1/animations/inky_run_1.png", "upgrade_v1/animations/inky_run_2.png", "upgrade_v1/animations/inky_run_3.png", "upgrade_v1/animations/inky_run_4.png", "upgrade_v1/animations/inky_run_5.png", "upgrade_v1/animations/inky_run_6.png", "upgrade_v1/animations/inky_run_7.png", "upgrade_v1/animations/inky_attack_0.png", "upgrade_v1/animations/inky_attack_1.png", "upgrade_v1/animations/inky_attack_2.png", "upgrade_v1/animations/inky_attack_3.png",
-  "upgrade_v1/animations/word_knight_idle_0.png", "upgrade_v1/animations/word_knight_idle_1.png", "upgrade_v1/animations/word_knight_idle_2.png", "upgrade_v1/animations/word_knight_idle_3.png", "upgrade_v1/animations/word_knight_run_0.png", "upgrade_v1/animations/word_knight_run_1.png", "upgrade_v1/animations/word_knight_run_2.png", "upgrade_v1/animations/word_knight_run_3.png", "upgrade_v1/animations/word_knight_attack_0.png", "upgrade_v1/animations/word_knight_attack_1.png", "upgrade_v1/animations/word_knight_attack_2.png", "upgrade_v1/animations/word_knight_attack_3.png", "upgrade_v1/animations/shadow_scribe_idle_0.png", "upgrade_v1/animations/shadow_scribe_idle_1.png", "upgrade_v1/animations/shadow_scribe_idle_2.png", "upgrade_v1/animations/shadow_scribe_idle_3.png", "upgrade_v1/animations/shadow_scribe_run_0.png", "upgrade_v1/animations/shadow_scribe_run_1.png", "upgrade_v1/animations/shadow_scribe_run_2.png", "upgrade_v1/animations/shadow_scribe_run_3.png", "upgrade_v1/animations/shadow_scribe_attack_0.png", "upgrade_v1/animations/shadow_scribe_attack_1.png", "upgrade_v1/animations/shadow_scribe_attack_2.png", "upgrade_v1/animations/shadow_scribe_attack_3.png",
-  "upgrade_v1/animations/quillmaster_idle_0.png", "upgrade_v1/animations/quillmaster_idle_1.png", "upgrade_v1/animations/quillmaster_idle_2.png", "upgrade_v1/animations/quillmaster_idle_3.png", "upgrade_v1/animations/quillmaster_run_0.png", "upgrade_v1/animations/quillmaster_run_1.png", "upgrade_v1/animations/quillmaster_run_2.png", "upgrade_v1/animations/quillmaster_run_3.png", "upgrade_v1/animations/quillmaster_attack_0.png", "upgrade_v1/animations/quillmaster_attack_1.png", "upgrade_v1/animations/quillmaster_attack_2.png", "upgrade_v1/animations/quillmaster_attack_3.png",
-  "upgrade_v1/animations/rune_sorceress_idle_0.png", "upgrade_v1/animations/rune_sorceress_idle_1.png", "upgrade_v1/animations/rune_sorceress_idle_2.png", "upgrade_v1/animations/rune_sorceress_idle_3.png", "upgrade_v1/animations/rune_sorceress_run_0.png", "upgrade_v1/animations/rune_sorceress_run_1.png", "upgrade_v1/animations/rune_sorceress_run_2.png", "upgrade_v1/animations/rune_sorceress_run_3.png", "upgrade_v1/animations/rune_sorceress_attack_0.png", "upgrade_v1/animations/rune_sorceress_attack_1.png", "upgrade_v1/animations/rune_sorceress_attack_2.png", "upgrade_v1/animations/rune_sorceress_attack_3.png",
-  "upgrade_v1/animations/alchemist_idle_0.png", "upgrade_v1/animations/alchemist_idle_1.png", "upgrade_v1/animations/alchemist_idle_2.png", "upgrade_v1/animations/alchemist_idle_3.png", "upgrade_v1/animations/alchemist_run_0.png", "upgrade_v1/animations/alchemist_run_1.png", "upgrade_v1/animations/alchemist_run_2.png", "upgrade_v1/animations/alchemist_run_3.png", "upgrade_v1/animations/alchemist_attack_0.png", "upgrade_v1/animations/alchemist_attack_1.png", "upgrade_v1/animations/alchemist_attack_2.png", "upgrade_v1/animations/alchemist_attack_3.png",
+  "upgrade_v1/animations/word_knight_idle_0.png", "upgrade_v1/animations/word_knight_idle_1.png", "upgrade_v1/animations/word_knight_idle_2.png", "upgrade_v1/animations/word_knight_idle_3.png", "upgrade_v1/animations/word_knight_run_0.png", "upgrade_v1/animations/word_knight_run_1.png", "upgrade_v1/animations/word_knight_run_2.png", "upgrade_v1/animations/word_knight_run_3.png", "upgrade_v1/animations/word_knight_run_4.png", "upgrade_v1/animations/word_knight_run_5.png", "upgrade_v1/animations/word_knight_run_6.png", "upgrade_v1/animations/word_knight_run_7.png", "upgrade_v1/animations/word_knight_attack_0.png", "upgrade_v1/animations/word_knight_attack_1.png", "upgrade_v1/animations/word_knight_attack_2.png", "upgrade_v1/animations/word_knight_attack_3.png", "upgrade_v1/animations/shadow_scribe_idle_0.png", "upgrade_v1/animations/shadow_scribe_idle_1.png", "upgrade_v1/animations/shadow_scribe_idle_2.png", "upgrade_v1/animations/shadow_scribe_idle_3.png", "upgrade_v1/animations/shadow_scribe_run_0.png", "upgrade_v1/animations/shadow_scribe_run_1.png", "upgrade_v1/animations/shadow_scribe_run_2.png", "upgrade_v1/animations/shadow_scribe_run_3.png", "upgrade_v1/animations/shadow_scribe_run_4.png", "upgrade_v1/animations/shadow_scribe_run_5.png", "upgrade_v1/animations/shadow_scribe_run_6.png", "upgrade_v1/animations/shadow_scribe_run_7.png", "upgrade_v1/animations/shadow_scribe_attack_0.png", "upgrade_v1/animations/shadow_scribe_attack_1.png", "upgrade_v1/animations/shadow_scribe_attack_2.png", "upgrade_v1/animations/shadow_scribe_attack_3.png",
+  "upgrade_v1/animations/quillmaster_idle_0.png", "upgrade_v1/animations/quillmaster_idle_1.png", "upgrade_v1/animations/quillmaster_idle_2.png", "upgrade_v1/animations/quillmaster_idle_3.png", "upgrade_v1/animations/quillmaster_run_0.png", "upgrade_v1/animations/quillmaster_run_1.png", "upgrade_v1/animations/quillmaster_run_2.png", "upgrade_v1/animations/quillmaster_run_3.png", "upgrade_v1/animations/quillmaster_run_4.png", "upgrade_v1/animations/quillmaster_run_5.png", "upgrade_v1/animations/quillmaster_run_6.png", "upgrade_v1/animations/quillmaster_run_7.png", "upgrade_v1/animations/quillmaster_attack_0.png", "upgrade_v1/animations/quillmaster_attack_1.png", "upgrade_v1/animations/quillmaster_attack_2.png", "upgrade_v1/animations/quillmaster_attack_3.png",
+  "upgrade_v1/animations/rune_sorceress_idle_0.png", "upgrade_v1/animations/rune_sorceress_idle_1.png", "upgrade_v1/animations/rune_sorceress_idle_2.png", "upgrade_v1/animations/rune_sorceress_idle_3.png", "upgrade_v1/animations/rune_sorceress_run_0.png", "upgrade_v1/animations/rune_sorceress_run_1.png", "upgrade_v1/animations/rune_sorceress_run_2.png", "upgrade_v1/animations/rune_sorceress_run_3.png", "upgrade_v1/animations/rune_sorceress_run_4.png", "upgrade_v1/animations/rune_sorceress_run_5.png", "upgrade_v1/animations/rune_sorceress_run_6.png", "upgrade_v1/animations/rune_sorceress_run_7.png", "upgrade_v1/animations/rune_sorceress_attack_0.png", "upgrade_v1/animations/rune_sorceress_attack_1.png", "upgrade_v1/animations/rune_sorceress_attack_2.png", "upgrade_v1/animations/rune_sorceress_attack_3.png",
+  "upgrade_v1/animations/alchemist_idle_0.png", "upgrade_v1/animations/alchemist_idle_1.png", "upgrade_v1/animations/alchemist_idle_2.png", "upgrade_v1/animations/alchemist_idle_3.png", "upgrade_v1/animations/alchemist_run_0.png", "upgrade_v1/animations/alchemist_run_1.png", "upgrade_v1/animations/alchemist_run_2.png", "upgrade_v1/animations/alchemist_run_3.png", "upgrade_v1/animations/alchemist_run_4.png", "upgrade_v1/animations/alchemist_run_5.png", "upgrade_v1/animations/alchemist_run_6.png", "upgrade_v1/animations/alchemist_run_7.png", "upgrade_v1/animations/alchemist_attack_0.png", "upgrade_v1/animations/alchemist_attack_1.png", "upgrade_v1/animations/alchemist_attack_2.png", "upgrade_v1/animations/alchemist_attack_3.png",
   "upgrade_v1/monster_grammar_goblin.png", "upgrade_v1/monster_typo_slime.png",
   "upgrade_v1/monster_punctuation_phantom.png", "upgrade_v1/monster_spelling_spectre.png",
   "upgrade_v1/monster_typo_splinter.png", "upgrade_v1/monster_homophone_harpy.png",
@@ -1488,7 +1536,7 @@ const spriteList = [
   "upgrade_v1/threat_seal.png",
   "player.png", "player_quillmaster.png", "player_knight.png",
   "player_sorceress.png", "player_alchemist.png", "player_assassin.png",
-  // 14 Weapons
+  // Weapons
   "quill_blaster.png", "syllable_shotgun.png", "lexicon_beam.png",
   "punctuation_bomb.png", "punctuation_mine.png", "dictionary_blade.png",
   "crossword_crossbow.png", "hyphen_boomerang.png", "ink_flamethrower.png",
@@ -1583,15 +1631,13 @@ function resizeGameCanvas() {
     const w = container.clientWidth || window.innerWidth;
     const h = container.clientHeight || window.innerHeight;
     const isPortrait = h > w;
-    // Render fewer internal pixels on phones; CSS still fills the same screen.
-    const baseResolution = Math.min(w, h) <= 650 ? 540 : 620;
 
     if (isPortrait) {
-      canvas.width = baseResolution;
-      canvas.height = Math.round(baseResolution * (h / Math.max(1, w)));
+      canvas.width = 720;
+      canvas.height = Math.round(720 * (h / Math.max(1, w)));
     } else {
-      canvas.height = baseResolution;
-      canvas.width = Math.round(baseResolution * (w / Math.max(1, h)));
+      canvas.height = 720;
+      canvas.width = Math.round(720 * (w / Math.max(1, h)));
     }
   } else {
     canvas.width = 1280;
@@ -2673,6 +2719,10 @@ function resetStats() {
   state.player.dash_hit_ids = new Set();
   state.player.attack_anim_timer = 0;
   state.player.attack_anim_duration = 0.28;
+  state.player.attack_anim_windup = 0.08;
+  state.player.attack_anim_active = 0.08;
+  state.player.shot_recoil_timer = 0;
+  state.player.shot_recoil_pixels = 0;
   state.player.run_phase = 0;
   state.player.slow_timer = 0;
 
@@ -2952,15 +3002,26 @@ function updateGadgetEffects(dt) {
 // 10. SIMULTANEOUS WEAPONS FIRING & PLAYER LOGIC
 // =========================================
 function requestAttackPose(weaponId, actionKind, aim) {
-  if (actionKind === "ranged" || !["melee", "cast", "heavy"].includes(actionKind)) return;
   const p = state.player;
   if (aim && Math.hypot(aim.x, aim.y) > 0.01) {
-    p.last_aim = { x: aim.x, y: aim.y };
+    const aimLength = Math.hypot(aim.x, aim.y);
+    p.last_aim = { x: aim.x / aimLength, y: aim.y / aimLength };
     p.facing_left = getHorizontalFacing(Math.atan2(aim.y, aim.x), p.facing_left);
   }
-  const meleeTiming = MELEE_TIMINGS[weaponId];
-  p.attack_anim_duration = meleeTiming ? meleeTiming.windup + meleeTiming.active + meleeTiming.recovery
-    : actionKind === "heavy" ? 0.36 : actionKind === "cast" ? 0.32 : 0.28;
+  if (actionKind === "ranged") {
+    const visual = getWeaponVisual(weaponId);
+    p.shot_recoil_direction = p.last_aim || { x: 1, y: 0 };
+    p.shot_recoil_pixels = Math.max(2, Math.min(6.5, (visual?.recoil_px || 3.5) * 0.72));
+    p.shot_recoil_duration = 0.14;
+    p.shot_recoil_timer = p.shot_recoil_duration;
+    return;
+  }
+  if (!["melee", "cast", "heavy"].includes(actionKind)) return;
+  const rhythm = getWeaponArchetype(weaponId)?.rhythm || MELEE_TIMINGS[weaponId] || {};
+  p.attack_anim_windup = Math.max(0, Number(rhythm.windup) || 0);
+  p.attack_anim_active = Math.max(0, Number(rhythm.active) || 0.08);
+  const recoveryCap = actionKind === "heavy" ? 0.30 : actionKind === "melee" ? 0.18 : 0.22;
+  p.attack_anim_duration = Math.max(0.16, p.attack_anim_windup + p.attack_anim_active + Math.min(Math.max(0, Number(rhythm.recovery) || 0.12), recoveryCap));
   p.attack_anim_timer = p.attack_anim_duration;
 }
 
@@ -2972,6 +3033,7 @@ function updatePlayer(dt) {
   if (p.invuln_timer > 0) p.invuln_timer -= dt;
   if (p.slow_timer > 0) p.slow_timer -= dt;
   if (p.attack_anim_timer > 0) p.attack_anim_timer = Math.max(0, p.attack_anim_timer - dt);
+  if (p.shot_recoil_timer > 0) p.shot_recoil_timer = Math.max(0, p.shot_recoil_timer - dt);
 
   const effectiveSpeed = p.slow_timer > 0 ? state.move_speed * 0.72 : state.move_speed;
 
@@ -2980,6 +3042,7 @@ function updatePlayer(dt) {
     const dashSpd = effectiveSpeed * 3.0 + 280;
     p.x += p.dash_dir.x * dashSpd * dt;
     p.y += p.dash_dir.y * dashSpd * dt;
+    p.run_phase += dashSpd * dt / 17;
 
     const eraseDmg = 65.0 * state.damage_mult;
     state.enemies.forEach(e => {
@@ -3201,6 +3264,8 @@ function updatePlayer(dt) {
             synchronized_focus: w.tier >= 4
           });
         }
+      } else if (w.id === "word_loom") {
+        placeWordLoomField(w, nearest);
       } else if (w.id === "punctuation_bomb") {
         dropPunctuationMine(w, nearest, idx);
       } else if (nearest) {
@@ -3258,10 +3323,47 @@ function updateWeaponFields(dt) {
       if (!enemy.dead && dx * dx + dy * dy <= radiusSq) {
         enemy.hp -= field.damage;
         applyHitFeedback(enemy, { x: enemy.x - field.x, y: enemy.y - field.y }, field.impact || "heavy", false, true, 80);
+        if (field.weapon_id === "word_loom") {
+          enemy.slow_timer = Math.max(enemy.slow_timer || 0, field.slow_seconds || 0.6);
+          enemy.slow_factor = Math.min(enemy.slow_factor || 1, field.slow_factor || 0.46);
+          if (field.mark_targets && field.tier >= 3) enemy.quill_mark_timer = Math.max(enemy.quill_mark_timer || 0, 1.8);
+        }
       }
     });
   });
   state.weapon_fields = state.weapon_fields.filter(field => field.lifetime > 0);
+}
+
+function placeWordLoomField(weapon, target) {
+  if (!target) return;
+  const limits = getWeaponArchetype(weapon.id)?.limits || {};
+  const cap = limits.field_cap || 3;
+  const current = state.weapon_fields.filter(field => field.weapon_id === "word_loom");
+  const reservedSlots = weapon.tier >= 4 ? 2 : 1;
+  while (current.length > cap - reservedSlots) {
+    const oldest = current.shift();
+    state.weapon_fields = state.weapon_fields.filter(field => field !== oldest);
+  }
+  state.weapon_fields.push({
+    x: target.x, y: target.y,
+    radius: (limits.radius || 108) * (weapon.tier >= 2 ? 1.2 : 1) * (weapon.tier >= 4 ? 1.25 : 1),
+    lifetime: limits.lifetime || 2.8, tick_timer: 0, tick_seconds: limits.tick_seconds || 0.35,
+    damage: weapon.data.damage * (weapon.tier_data.damage || 1) * state.damage_mult * 0.24,
+    impact: "rune", weapon_id: "word_loom", slow_factor: limits.slow_factor || 0.46,
+    slow_seconds: limits.slow_seconds || 0.6, mark_targets: weapon.tier >= 3, tier: weapon.tier
+  });
+  if (weapon.tier >= 4 && state.weapon_fields.filter(field => field.weapon_id === "word_loom").length < cap) {
+    const linked = state.enemies.filter(enemy => enemy !== target && !enemy.dead)
+      .map(enemy => ({ enemy, distance: Math.hypot(enemy.x - target.x, enemy.y - target.y) }))
+      .filter(row => row.distance <= 260).sort((a, b) => a.distance - b.distance)[0]?.enemy;
+    if (linked) {
+      const primary = state.weapon_fields[state.weapon_fields.length - 1];
+      state.weapon_fields.push({ ...primary, x: linked.x, y: linked.y, radius: primary.radius * 0.82,
+        damage: primary.damage * 0.75, tick_timer: 0.05 });
+    }
+  }
+  sounds.shoot("rune_orb");
+  requestAttackPose(weapon.id, "cast", { x: target.x - state.player.x, y: target.y - state.player.y });
 }
 
 function dropPunctuationMine(w, target, weaponIndex = state.weapons.indexOf(w)) {
@@ -3346,7 +3448,7 @@ function weaponPistolFireNow(weapon) {
 }
 
 // =========================================
-// 11. PROJECTILES (14 WEAPONS)
+// 11. PROJECTILES & AREA WEAPONS
 // =========================================
 function shootWeapon(w, target, weaponIndex = state.weapons.indexOf(w)) {
   const visual = getWeaponVisual(w.id);
@@ -3578,7 +3680,8 @@ function applyWeaponHitSignature(projectile, enemy, effectiveDamage) {
       enemy.quill_echo_cooldown = 2.2;
       const next = selectWeaponTarget({ id: "quill_blaster" }, state.enemies.filter(target => target !== enemy && !projectile.hitEnemies.has(target)), enemy);
       if (next) {
-        const followups = tier >= 4 ? selectWeaponTarget({ id: "quill_blaster" }, state.enemies.filter(target => target !== enemy && target !== next && !projectile.hitEnemies.has(target)), enemy) : null;
+        const echoCount = tier >= 4 ? Math.max(1, row?.limits?.echo_targets || 1) : 1;
+        const followups = echoCount > 1 ? selectWeaponTarget({ id: "quill_blaster" }, state.enemies.filter(target => target !== enemy && target !== next && !projectile.hitEnemies.has(target)), enemy) : null;
         [next, followups].filter(Boolean).forEach(target => {
           const angle = Math.atan2(target.y - enemy.y, target.x - enemy.x);
           spawnProjectile({ type: "quill_echo", x: enemy.x, y: enemy.y,
@@ -3615,7 +3718,7 @@ function applyWeaponHitSignature(projectile, enemy, effectiveDamage) {
   }
 }
 
-// Broad-phase spatial hash: checks only nearby enemies while preserving hit order.
+// Broad-phase spatial hash: heavy waves test only enemies near each projectile.
 const COLLISION_CELL_SIZE = 160;
 function buildEnemyCollisionGrid(enemies) {
   const buckets = new Map();
@@ -3626,7 +3729,7 @@ function buildEnemyCollisionGrid(enemies) {
     maxEnemyHalfSize = Math.max(maxEnemyHalfSize, (enemy.size || 34) / 2);
     const cellX = Math.floor(enemy.x / COLLISION_CELL_SIZE);
     const cellY = Math.floor(enemy.y / COLLISION_CELL_SIZE);
-    const key = cellX + "," + cellY;
+    const key = `${cellX},${cellY}`;
     let bucket = buckets.get(key);
     if (!bucket) { bucket = []; buckets.set(key, bucket); }
     bucket.push(index);
@@ -3642,11 +3745,11 @@ function getNearbyEnemyIndices(grid, x, y, projectileHalfSize) {
   const result = [];
   for (let cy = minY; cy <= maxY; cy++) {
     for (let cx = minX; cx <= maxX; cx++) {
-      const bucket = grid.buckets.get(cx + "," + cy);
-      if (bucket) for (let i = 0; i < bucket.length; i++) result.push(bucket[i]);
+      const bucket = grid.buckets.get(`${cx},${cy}`);
+      if (bucket) result.push(...bucket);
     }
   }
-  result.sort((a, b) => a - b); // Retain original enemy hit/pierce priority.
+  result.sort((a, b) => a - b);
   return result;
 }
 
@@ -3711,25 +3814,20 @@ function updateProjectiles(dt) {
       pr.y += pr.dy * pr.spd * dt;
     }
 
-    // Rune chains can teleport the same projectile mid-collision iteration,
-    // so retain the full scan for that weapon to preserve chain mechanics.
+    // Rune chains can move a projectile during collision iteration; keep their original full scan.
     const useGrid = spatialGrid && pr.weapon_id !== "rune_orb";
     const collisionCandidates = useGrid
       ? getNearbyEnemyIndices(spatialGrid, pr.x, pr.y, (pr.size || 18) / 2)
       : state.enemies;
     collisionCandidates.forEach(candidate => {
       const e = useGrid ? state.enemies[candidate] : candidate;
-      if (e.dead || pr.pierce <= 0 || skipCollisionThisFrame || (pr.chain_target && e !== pr.chain_target)) return;
-      // Cheap broad-phase: reject distant enemies before Set lookups and sqrt.
-      const range = (pr.size || 18) / 2 + (e.size || 34) / 2;
-      if (Math.abs(e.x - pr.x) >= range || Math.abs(e.y - pr.y) >= range) return;
+      if (skipCollisionThisFrame || (pr.chain_target && e !== pr.chain_target)) return;
       if (pr.sharedHitTargets?.has(e)) return;
       const passSet = (pr.type === "boomerang" || pr.type === "boomerang_orbit")
         ? (pr.hitEnemiesByPass[pr.pass] || (pr.hitEnemiesByPass[pr.pass] = new Set())) : pr.hitEnemies;
       if (pr.pierce > 0 && !passSet.has(e)) {
         const hitDist = (pr.size || 18) / 2 + (e.size || 34) / 2;
-        const deltaX = e.x - pr.x, deltaY = e.y - pr.y;
-        if (deltaX * deltaX + deltaY * deltaY < hitDist * hitDist) {
+        if (Math.hypot(e.x - pr.x, e.y - pr.y) < hitDist) {
           passSet.add(e);
           pr.hitEnemies.add(e);
           if (pr.sharedHitTargets) pr.sharedHitTargets.add(e);
@@ -3770,7 +3868,7 @@ function updateProjectiles(dt) {
           }
           if (pr.weapon_id === "rune_orb" && !shieldDeflect) {
             pr.chain_hits = (pr.chain_hits || 0) + 1;
-            const maxTargets = (getWeaponArchetype("rune_orb")?.limits?.bounce_targets || 3) + (pr.tier >= 2 ? 2 : 0);
+            const maxTargets = (getWeaponArchetype("rune_orb")?.limits?.bounce_targets || 3) + (pr.tier >= 2 ? 1 : 0);
             const next = pr.chain_hits < maxTargets
               ? pickRuneChainTargets({ x: e.x, y: e.y }, state.enemies.filter(target => target !== e && !pr.hitEnemies.has(target)), 1)[0]
               : null;
@@ -3833,7 +3931,8 @@ function updateProjectiles(dt) {
             }
             if (pr.tier >= 4) addWeaponField({ x: pr.x, y: pr.y, radius: 72, lifetime: 2.0, tick_timer: 0, tick_seconds: 0.5, damage: pr.dmg * 0.16, impact: "heavy" });
           }
-          if (pr.weapon_id === "grammar_sniper" && pr.tier >= 4 && e.hp <= 0 && (pr.sniper_chain_count || 0) < 2) {
+          if (pr.weapon_id === "grammar_sniper" && pr.tier >= 4 && e.hp <= 0
+            && (pr.sniper_chain_count || 0) < (getWeaponArchetype("grammar_sniper")?.limits?.continuation_targets || 2)) {
             const next = selectWeaponTarget({ id: "grammar_sniper" }, state.enemies.filter(target => target !== e && !target.dead && !pr.hitEnemies.has(target)), e);
             if (next) {
               const angle = Math.atan2(next.y - e.y, next.x - e.x);
@@ -4035,8 +4134,7 @@ function updateEnemies(dt) {
   state.enemies.forEach(e => {
     if (e.affix === "commander" && !e.dead) {
       state.enemies.forEach(other => {
-        const dx = other.x - e.x, dy = other.y - e.y;
-        if (other !== e && dx * dx + dy * dy < 160 * 160) {
+        if (other !== e && Math.hypot(other.x - e.x, other.y - e.y) < 160) {
           other.is_buffed = true;
         }
       });
@@ -5703,7 +5801,10 @@ function updateHUD() {
   if (hpFill.style.width !== hpWidth) hpFill.style.width = hpWidth;
   setHUDText("hp-text", `${Math.round(state.hp)} / ${Math.round(state.max_hp)} HP`);
   const biomeName = state.current_wave < 26 ? "KÜTÜPHANE" : state.current_wave < 51 ? "DEHLİZ" : state.current_wave < 76 ? "GÖZLEMEVİ" : "SON SAYFA";
-  setHUDText("timer-badge", `${biomeName} · ${state.current_wave} / 100 · ${Math.ceil(state.wave_time_left)}s`);
+  const compactHud = window.innerWidth <= 700;
+  setHUDText("timer-badge", compactHud
+    ? `TUR ${state.current_wave} / 100 · ${Math.ceil(state.wave_time_left)}s`
+    : `${biomeName} · ${state.current_wave} / 100 · ${Math.ceil(state.wave_time_left)}s`);
   setHUDText("ink-value", state.ink_count);
   setHUDText("kill-value", state.kill_count);
 
@@ -5713,11 +5814,11 @@ function updateHUD() {
 
   // Slotted weapons preview
   const weaponsEl = document.getElementById("weapons-info");
-  const weaponSignature = state.equipped_weapons.map(item => `${item.id}:${item.tier}`).join("|") + ":" + state.active_weapon_index;
-  if (weaponsEl.dataset.renderSignature !== weaponSignature) {
-    weaponsEl.dataset.renderSignature = weaponSignature;
-    weaponsEl.innerHTML = "";
-    state.equipped_weapons.forEach((item, idx) => {
+  const weaponRenderKey = state.equipped_weapons.map((item, idx) => `${item.id}:${item.tier}:${idx === state.active_weapon_index ? 1 : 0}`).join("|");
+  if (weaponsEl.dataset.renderKey !== weaponRenderKey) {
+  weaponsEl.dataset.renderKey = weaponRenderKey;
+  weaponsEl.innerHTML = "";
+  state.equipped_weapons.forEach((item, idx) => {
     const isAct = (idx === state.active_weapon_index);
     const w = WEAPONS_CATALOG[item.id] || { name: item.id };
     const t = TIER_MULTIPLIERS[item.tier] || TIER_MULTIPLIERS[1];
@@ -5750,7 +5851,7 @@ function updateHUD() {
       selectWeaponIndex(idx);
     };
     weaponsEl.appendChild(badge);
-    });
+  });
   }
 
   // Gadget badge
@@ -5774,8 +5875,6 @@ function updateHUD() {
 // =========================================
 // 16. RENDERING
 // =========================================
-let vignetteGradient = null;
-let vignetteCanvasWidth = 0, vignetteCanvasHeight = 0;
 function render() {
   ctx.clearRect(0, 0, canvas.width, canvas.height);
   ctx.imageSmoothingEnabled = false;
@@ -5800,13 +5899,6 @@ function render() {
   if (zoom !== 1.0) {
     ctx.scale(zoom, zoom);
   }
-  // World-space visibility limits; do not draw entities beyond the camera.
-  const viewLeft = p.x - cx / zoom - 170;
-  const viewRight = p.x + cx / zoom + 170;
-  const viewTop = p.y - cy / zoom - 170;
-  const viewBottom = p.y + cy / zoom + 170;
-  const outsideView = entity => entity.x < viewLeft || entity.x > viewRight
-    || entity.y < viewTop || entity.y > viewBottom;
   ctx.translate(-p.x, -p.y);
 
   // 4 Dynamic Biomes based on progression across 100 Waves
@@ -5982,7 +6074,6 @@ function render() {
 
   // Ink drops
   state.ink_drops.forEach(drop => {
-    if (outsideView(drop)) return;
     if (images["ink_drop.png"]) {
       ctx.drawImage(images["ink_drop.png"], drop.x - 10, drop.y - 10, 20, 20);
     } else {
@@ -6039,10 +6130,16 @@ function render() {
   state.weapon_fields.forEach(field => {
     ctx.save();
     const rune = field.impact === "rune";
-    ctx.strokeStyle = rune ? "rgba(244,114,182,0.8)" : "rgba(255,151,76,0.7)";
-    ctx.fillStyle = rune ? "rgba(244,114,182,0.10)" : "rgba(255,151,76,0.08)";
+    const tether = field.weapon_id === "word_loom";
+    ctx.strokeStyle = tether ? "rgba(123,205,220,0.88)" : rune ? "rgba(244,114,182,0.8)" : "rgba(255,151,76,0.7)";
+    ctx.fillStyle = tether ? "rgba(112,93,172,0.13)" : rune ? "rgba(244,114,182,0.10)" : "rgba(255,151,76,0.08)";
     ctx.lineWidth = 2;
     ctx.beginPath(); ctx.arc(field.x, field.y, field.radius, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+    if (tether) {
+      ctx.setLineDash([5, 7]); ctx.globalAlpha = 0.62;
+      ctx.beginPath(); ctx.moveTo(state.player.x, state.player.y); ctx.lineTo(field.x, field.y); ctx.stroke();
+      ctx.setLineDash([]); ctx.globalAlpha = 1;
+    }
     ctx.restore();
   });
 
@@ -6062,7 +6159,6 @@ function render() {
 
   // Enemy Projectiles
   state.enemy_projectiles.forEach(ep => {
-    if (outsideView(ep)) return;
     ctx.save();
     ctx.translate(ep.x, ep.y);
     const spr = images["bullet_enemy_red.png"];
@@ -6079,7 +6175,6 @@ function render() {
 
   // Enemies
   state.enemies.forEach(e => {
-    if (e.dead || outsideView(e)) return;
     if (e.behavior_phase === "windup" && (e.type === "Homophone Harpy" || e.type === "Run-on Reaper")) {
       const length = e.type === "Homophone Harpy" ? 340 : 280;
       const color = e.type === "Homophone Harpy" ? "rgba(255, 191, 71, 0.9)" : "rgba(248, 72, 76, 0.9)";
@@ -6220,7 +6315,6 @@ function render() {
 
   // Projectiles
   state.projectiles.forEach(pr => {
-    if (outsideView(pr)) return;
     ctx.save();
     ctx.translate(pr.x, pr.y);
     ctx.rotate(Math.atan2(pr.dy, pr.dx));
@@ -6287,18 +6381,21 @@ function render() {
     ctx.strokeStyle = "#38bdf8"; ctx.lineWidth = 3;
     ctx.beginPath(); ctx.arc(0, 0, 32, 0, Math.PI * 2); ctx.stroke();
   }
-  if (p.facing_left) ctx.scale(-1, 1);
+  const aimDirection = getHeroActionDirection(p);
+  const renderFacingLeft = p.is_dashing || p.shot_recoil_timer > 0
+    ? getHorizontalFacing(Math.atan2(aimDirection.y, aimDirection.x), p.facing_left)
+    : p.facing_left;
+  if (renderFacingLeft) ctx.scale(-1, 1);
 
   const cData = CHARACTERS[state.selected_char];
-  const isMoving = Math.hypot(p.vx, p.vy) > 20;
+  const isMoving = p.is_dashing || Math.hypot(p.vx, p.vy) > 30;
   const action = p.attack_anim_timer > 0 ? "attack" : isMoving ? "run" : "idle";
-  const bodyDirection = action === "attack" ? p.last_aim : isMoving
-    ? { x: p.vx / Math.hypot(p.vx, p.vy), y: p.vy / Math.hypot(p.vx, p.vy) } : p.last_aim;
+  const bodyDirection = aimDirection;
   const bodyTilt = Math.max(-0.38, Math.min(0.38, (bodyDirection?.y || 0) * 0.38));
   ctx.rotate(bodyTilt);
   const frame = action === "attack"
-    ? Math.min(3, Math.floor((p.attack_anim_duration - p.attack_anim_timer) / (p.attack_anim_duration / 4)))
-    : action === "run" ? Math.floor(p.run_phase) % (state.selected_char === "inky" ? 8 : 4) : Math.floor(performance.now() / 240) % 4;
+    ? getAttackAnimationFrame(p)
+    : action === "run" ? getHeroRunFrameIndex(p.run_phase, getHeroRunFrameCount(state.selected_char)) : Math.floor(performance.now() / 240) % 4;
   const animationKey = state.selected_char === "inky" ? "inky"
     : state.selected_char === "quillmaster" ? "quillmaster"
     : state.selected_char === "word_knight" ? "word_knight"
@@ -6406,35 +6503,18 @@ function render() {
   ctx.restore();
 
   // Dynamic Atmospheric Player Radial Lighting & Dark Academia Vignette
-  if (!vignetteGradient || canvas.width !== vignetteCanvasWidth || canvas.height !== vignetteCanvasHeight) {
-    vignetteCanvasWidth = canvas.width; vignetteCanvasHeight = canvas.height;
-    vignetteGradient = ctx.createRadialGradient(cx, cy, 140, cx, cy, 680);
-    vignetteGradient.addColorStop(0, "rgba(0, 0, 0, 0)");
-    vignetteGradient.addColorStop(0.65, "rgba(8, 4, 3, 0.20)");
-    vignetteGradient.addColorStop(1, "rgba(4, 2, 2, 0.72)");
-  }
-  ctx.fillStyle = vignetteGradient;
+  const lightGrad = ctx.createRadialGradient(cx, cy, 140, cx, cy, 680);
+  lightGrad.addColorStop(0, "rgba(0, 0, 0, 0)");
+  lightGrad.addColorStop(0.65, "rgba(8, 4, 3, 0.20)");
+  lightGrad.addColorStop(1, "rgba(4, 2, 2, 0.72)");
+  ctx.fillStyle = lightGrad;
   ctx.fillRect(0, 0, canvas.width, canvas.height);
 }
 
 // =========================================
 // 17. MAIN GAME LOOP
 // =========================================
-let lastRenderedAt = 0;
 function gameLoop(now) {
-  // Reduce expensive full-canvas draws on phones and under menu overlays.
-  // Game dt still follows elapsed wall time; gameplay speed is unchanged.
-  const activePlay = state.is_wave_active && !state.is_inventory_open;
-  const phoneOrTablet = window.innerWidth <= 1080 && window.matchMedia("(pointer: coarse)").matches;
-  const frameInterval = activePlay ? (phoneOrTablet ? 30 : 1000 / 60) : 50;
-  const elapsed = now - lastRenderedAt;
-  if (elapsed + 0.6 < frameInterval) {
-    requestAnimationFrame(gameLoop);
-    return;
-  }
-  // Advance a stable frame schedule: 120/144 Hz monitors maintain ~60 FPS
-  // without the drift that occurs when resetting the clock at every callback.
-  lastRenderedAt = elapsed > frameInterval * 3 ? now : lastRenderedAt + frameInterval;
   const rawDt = Math.min(0.1, (now - lastTime) / 1000);
   lastTime = now;
   const dt = rawDt * (state.game_speed || 1.0);
@@ -6523,6 +6603,32 @@ function runMineHazardRuntimeContract() {
   }
 }
 
+function runWordLoomRuntimeContract() {
+  const old = { player: state.player, enemies: state.enemies, fields: state.weapon_fields,
+    weapons: state.weapons, effects: state.hit_effects, shoot: sounds.shoot, damage: state.damage_mult,
+    shake: state.screen_shake, shakeIntensity: state.shake_intensity, shakeCooldown: state.hit_feedback_shake_cooldown };
+  try {
+    state.player = { ...state.player, x: 0, y: 0, vx: 0, vy: 0, last_aim: { x: 1, y: 0 }, attack_anim_timer: 0 };
+    state.weapon_fields = []; state.hit_effects = []; state.enemies = [];
+    sounds.shoot = () => {};
+    const enemy = { x: 70, y: 0, hp: 50, max_hp: 50, size: 32, dead: false, vx: 0, vy: 0, slow_timer: 0, slow_factor: 1 };
+    state.enemies.push(enemy);
+    const weapon = { id: "word_loom", tier: 1, tier_data: { damage: 1 }, data: WEAPONS_CATALOG.word_loom, rotation: 0 };
+    placeWordLoomField(weapon, enemy);
+    updateWeaponFields(0.05);
+    const linkedEnemy = { x: 150, y: 0, hp: 50, max_hp: 50, size: 32, dead: false, vx: 0, vy: 0, slow_timer: 0, slow_factor: 1 };
+    state.enemies.push(linkedEnemy); state.weapon_fields = []; weapon.tier = 4;
+    placeWordLoomField(weapon, enemy);
+    return { fieldCount: state.weapon_fields.filter(field => field.weapon_id === "word_loom").length,
+      hp: enemy.hp, slowFactor: enemy.slow_factor,
+      linkedCount: state.weapon_fields.filter(field => field.weapon_id === "word_loom").length };
+  } finally {
+    state.player = old.player; state.enemies = old.enemies; state.weapon_fields = old.fields;
+    state.weapons = old.weapons; state.hit_effects = old.effects; sounds.shoot = old.shoot; state.damage_mult = old.damage;
+    state.screen_shake = old.shake; state.shake_intensity = old.shakeIntensity; state.hit_feedback_shake_cooldown = old.shakeCooldown;
+  }
+}
+
 function runKatanaSharedHitContract() {
   const old = { player: state.player, enemies: state.enemies, weapons: state.weapons, projectiles: state.projectiles,
     effects: state.hit_effects, texts: state.floating_texts };
@@ -6583,9 +6689,25 @@ window.weaponArchetypeTestApi = Object.freeze({
   nextPistolSide: getNextPistolSide,
   canPlaceTurret,
   pickRuneChainTargets,
+  runFrameIndex: getHeroRunFrameIndex,
+  runFrameCount: getHeroRunFrameCount,
+  heroActionDirection: getHeroActionDirection,
+  rangedPoseContract: (weaponId, aim) => {
+    const p = state.player;
+    const old = { ...p };
+    p.x = 0; p.y = 0; p.vx = 180; p.vy = 0; p.run_phase = 2; p.is_dashing = false; p.attack_anim_timer = 0;
+    const before = getLocomotionPoseOffset(p);
+    requestAttackPose(weaponId, "ranged", aim);
+    const direction = getHeroActionDirection(p);
+    const result = { attackTimer: p.attack_anim_timer, recoil: getShotRecoilOffset(p), before, after: getLocomotionPoseOffset(p),
+      bodyDirection: direction, facingLeft: getHorizontalFacing(Math.atan2(direction.y, direction.x), p.facing_left) };
+    Object.assign(p, old);
+    return result;
+  },
   getMeleePhase: getWeaponMeleePhase,
   sniperDamage: getSniperDamage,
   mineRuntimeContract: runMineHazardRuntimeContract,
+  wordLoomRuntimeContract: runWordLoomRuntimeContract,
   katanaSharedHitContract: runKatanaSharedHitContract,
   guardParryContract: runGuardParryRuntimeContract,
   signsTurretAndRuneConsistently: () => getWeaponSignature("scroll_turret") === "place_focus_turret"
@@ -6612,6 +6734,7 @@ window.render_game_to_text = () => JSON.stringify({
   wave: state.current_wave,
   wave_time_left: Number(state.wave_time_left.toFixed(1)),
   milestone_boss_delay: Number(state.milestone_boss_delay.toFixed(1)),
+  weapon_fields: state.weapon_fields.map(field => ({ weapon_id: field.weapon_id || "", x: Math.round(field.x), y: Math.round(field.y), radius: Math.round(field.radius), lifetime: Number(field.lifetime.toFixed(1)) })),
   inventory_open: state.is_inventory_open,
   character: state.selected_char,
   player: {
@@ -6619,9 +6742,10 @@ window.render_game_to_text = () => JSON.stringify({
     vx: Math.round(state.player.vx), vy: Math.round(state.player.vy),
     hp: Math.round(state.hp), max_hp: Math.round(state.max_hp),
     animation: state.player.attack_anim_timer > 0 ? "attack" : Math.hypot(state.player.vx, state.player.vy) > 20 ? "run" : "idle",
-    animation_phase: Number((state.player.run_phase % (state.selected_char === "inky" ? 8 : 4)).toFixed(2)),
+    animation_phase: Number((state.player.run_phase % 8).toFixed(2)),
     body_tilt: Number(Math.max(-0.38, Math.min(0.38, ((state.player.attack_anim_timer > 0 ? state.player.last_aim?.y : state.player.vy) || 0) * 0.38)).toFixed(3)),
     locomotion_pose_offset: getLocomotionPoseOffset(state.player),
+    body_recoil: getShotRecoilOffset(state.player),
     action_recovery: Number(state.player.attack_anim_timer.toFixed(2)),
     dashing: state.player.is_dashing, gadget_cooldown: Number(state.gadget_timer.toFixed(1))
   },

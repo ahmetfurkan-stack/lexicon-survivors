@@ -6,9 +6,9 @@
       "signature": "mark_echo",
       "hit_profile": "needle",
       "economy": {
-        "cost": 10,
-        "cooldown": 0.48,
-        "damage": 26.0
+        "cost": 12,
+        "cooldown": 0.5,
+        "damage": 24.0
       },
       "rhythm": {
         "windup": 0.0,
@@ -16,8 +16,8 @@
         "recovery": 0.14
       },
       "limits": {
-        "mark_seconds": 2.2,
-        "echo_targets": 1
+        "mark_seconds": 2.8,
+        "echo_targets": 2
       },
       "evolutions": {
         "2": "longer_mark",
@@ -30,9 +30,9 @@
       "signature": "pump_fan",
       "hit_profile": "pellet_stagger",
       "economy": {
-        "cost": 14,
-        "cooldown": 0.95,
-        "damage": 18.0
+        "cost": 16,
+        "cooldown": 0.92,
+        "damage": 17.0
       },
       "rhythm": {
         "windup": 0.16,
@@ -40,9 +40,9 @@
         "recovery": 0.48
       },
       "limits": {
-        "pellets": 5,
-        "spread_radians": 0.42,
-        "stagger_range": 112
+        "pellets": 6,
+        "spread_radians": 0.36,
+        "stagger_range": 126
       },
       "evolutions": {
         "2": "denser_fan",
@@ -55,9 +55,9 @@
       "signature": "charged_line",
       "hit_profile": "piercing_ticks",
       "economy": {
-        "cost": 18,
-        "cooldown": 0.4,
-        "damage": 22.0
+        "cost": 19,
+        "cooldown": 0.46,
+        "damage": 23.0
       },
       "rhythm": {
         "windup": 0.18,
@@ -66,8 +66,8 @@
       },
       "limits": {
         "tick_seconds": 0.1,
-        "line_width": 13,
-        "max_targets": 6
+        "line_width": 16,
+        "max_targets": 7
       },
       "evolutions": {
         "2": "longer_sweep",
@@ -80,9 +80,9 @@
       "signature": "fuse_mine",
       "hit_profile": "delayed_area",
       "economy": {
-        "cost": 16,
-        "cooldown": 1.1,
-        "damage": 56.0
+        "cost": 17,
+        "cooldown": 1.18,
+        "damage": 60.0
       },
       "rhythm": {
         "windup": 0.12,
@@ -90,10 +90,10 @@
         "recovery": 0.68
       },
       "limits": {
-        "fuse_seconds": 1.05,
-        "hazard_seconds": 2.2,
+        "fuse_seconds": 0.92,
+        "hazard_seconds": 2.5,
         "mine_cap": 3,
-        "blast_radius": 125
+        "blast_radius": 138
       },
       "evolutions": {
         "2": "larger_mine",
@@ -116,10 +116,10 @@
         "recovery": 0.15
       },
       "limits": {
-        "radius": 132,
-        "parry_window": 0.14,
+        "radius": 144,
+        "parry_window": 0.18,
         "targets": 8,
-        "parry_radius": 132,
+        "parry_radius": 144,
         "counter_damage": 0.65
       },
       "evolutions": {
@@ -133,9 +133,9 @@
       "signature": "measured_pin",
       "hit_profile": "pin_split",
       "economy": {
-        "cost": 20,
-        "cooldown": 0.82,
-        "damage": 28.0
+        "cost": 21,
+        "cooldown": 0.88,
+        "damage": 34.0
       },
       "rhythm": {
         "windup": 0.18,
@@ -143,9 +143,9 @@
         "recovery": 0.46
       },
       "limits": {
-        "pin_seconds": 0.24,
-        "pierce_base": 1,
-        "split_shards": 4
+        "pin_seconds": 0.3,
+        "pierce_base": 2,
+        "split_shards": 5
       },
       "evolutions": {
         "2": "piercing_bolt",
@@ -159,8 +159,8 @@
       "hit_profile": "two_pass_curve",
       "economy": {
         "cost": 20,
-        "cooldown": 1.05,
-        "damage": 26.0
+        "cooldown": 1.12,
+        "damage": 28.0
       },
       "rhythm": {
         "windup": 0.08,
@@ -168,9 +168,9 @@
         "recovery": 0.3
       },
       "limits": {
-        "return_seconds": 0.6,
+        "return_seconds": 0.72,
         "hits_per_target": 2,
-        "orbit_seconds": 1.4
+        "orbit_seconds": 1.6
       },
       "evolutions": {
         "2": "longer_path",
@@ -184,8 +184,8 @@
       "hit_profile": "burn_cone",
       "economy": {
         "cost": 24,
-        "cooldown": 0.12,
-        "damage": 9.0
+        "cooldown": 0.13,
+        "damage": 9.5
       },
       "rhythm": {
         "windup": 0.04,
@@ -193,8 +193,8 @@
         "recovery": 0.48
       },
       "limits": {
-        "cone_radians": 0.48,
-        "burn_seconds": 1.1,
+        "cone_radians": 0.54,
+        "burn_seconds": 1.3,
         "burn_stack_cap": 2
       },
       "evolutions": {
@@ -208,9 +208,9 @@
       "signature": "lock_cluster",
       "hit_profile": "splash_knockback",
       "economy": {
-        "cost": 26,
-        "cooldown": 1.55,
-        "damage": 68.0
+        "cost": 27,
+        "cooldown": 1.7,
+        "damage": 74.0
       },
       "rhythm": {
         "windup": 0.24,
@@ -218,8 +218,8 @@
         "recovery": 0.72
       },
       "limits": {
-        "homing_strength": 0.55,
-        "blast_radius": 140,
+        "homing_strength": 0.68,
+        "blast_radius": 148,
         "cluster_rockets": 3
       },
       "evolutions": {
@@ -233,9 +233,9 @@
       "signature": "two_tap_reload",
       "hit_profile": "twin_lanes",
       "economy": {
-        "cost": 22,
-        "cooldown": 0.26,
-        "damage": 16.0
+        "cost": 23,
+        "cooldown": 0.28,
+        "damage": 14.5
       },
       "rhythm": {
         "windup": 0.02,
@@ -244,9 +244,9 @@
       },
       "limits": {
         "shots_per_burst": 2,
-        "shot_gap": 0.1,
+        "shot_gap": 0.09,
         "reload_seconds": 0.34,
-        "ricochet_targets": 2
+        "ricochet_targets": 3
       },
       "evolutions": {
         "2": "faster_pair",
@@ -259,9 +259,9 @@
       "signature": "windup_crescent",
       "hit_profile": "forward_crescent",
       "economy": {
-        "cost": 25,
-        "cooldown": 0.65,
-        "damage": 42.0
+        "cost": 26,
+        "cooldown": 0.72,
+        "damage": 40.0
       },
       "rhythm": {
         "windup": 0.16,
@@ -269,8 +269,8 @@
         "recovery": 0.22
       },
       "limits": {
-        "range": 178,
-        "arc_radians": 1.15,
+        "range": 188,
+        "arc_radians": 1.25,
         "targets": 7
       },
       "evolutions": {
@@ -284,9 +284,9 @@
       "signature": "place_focus_turret",
       "hit_profile": "focused_autofire",
       "economy": {
-        "cost": 26,
-        "cooldown": 2.2,
-        "damage": 20.0
+        "cost": 28,
+        "cooldown": 2.4,
+        "damage": 22.0
       },
       "rhythm": {
         "windup": 0.2,
@@ -294,9 +294,9 @@
         "recovery": 1.1
       },
       "limits": {
-        "turret_seconds": 12.0,
+        "turret_seconds": 14.0,
         "turret_cap": 2,
-        "fire_seconds": 0.82
+        "fire_seconds": 0.74
       },
       "evolutions": {
         "2": "longer_uptime",
@@ -310,8 +310,8 @@
       "hit_profile": "unique_chain",
       "economy": {
         "cost": 24,
-        "cooldown": 0.85,
-        "damage": 25.0
+        "cooldown": 0.9,
+        "damage": 23.0
       },
       "rhythm": {
         "windup": 0.22,
@@ -319,8 +319,8 @@
         "recovery": 0.58
       },
       "limits": {
-        "bounce_targets": 3,
-        "pulse_seconds": 0.14,
+        "bounce_targets": 4,
+        "pulse_seconds": 0.16,
         "trap_seconds": 1.5
       },
       "evolutions": {
@@ -334,9 +334,9 @@
       "signature": "weakpoint_rail",
       "hit_profile": "armor_piercing",
       "economy": {
-        "cost": 29,
-        "cooldown": 1.55,
-        "damage": 82.0
+        "cost": 30,
+        "cooldown": 1.7,
+        "damage": 90.0
       },
       "rhythm": {
         "windup": 0.24,
@@ -345,13 +345,41 @@
       },
       "limits": {
         "pierce_base": 999,
-        "elite_bonus": 1.8,
-        "continuation_targets": 2
+        "elite_bonus": 2.0,
+        "continuation_targets": 3
       },
       "evolutions": {
         "2": "armor_break",
         "3": "kill_through",
         "4": "weakpoint_chain"
+      }
+    },
+    "word_loom": {
+      "role": "zone_control",
+      "signature": "tether_zone",
+      "hit_profile": "slow_field",
+      "economy": {
+        "cost": 25,
+        "cooldown": 2.1,
+        "damage": 20.0
+      },
+      "rhythm": {
+        "windup": 0.22,
+        "active": 2.8,
+        "recovery": 0.9
+      },
+      "limits": {
+        "radius": 108,
+        "lifetime": 2.8,
+        "tick_seconds": 0.35,
+        "slow_factor": 0.46,
+        "slow_seconds": 0.6,
+        "field_cap": 3
+      },
+      "evolutions": {
+        "2": "wide_margin",
+        "3": "marked_footnotes",
+        "4": "linked_margins"
       }
     }
   }
