@@ -3037,14 +3037,15 @@ function renderStoryPanel() {
   const heroSpeakerIds = new Set([state.selected_char, "hero", "rune_sorceress", "lexicon_alchemist", "shadow_lexicographer"]);
   const bossRosterEntry = MILESTONE_BOSS_ROSTER?.[storyEpisodeIndex];
   const isBossVoice = speakerId.startsWith("boss_");
+  const resolvePortraitPath = path => path.startsWith("assets/sprites/") ? path : `assets/sprites/${path}`;
   const portraitPaths = {
-    hero: `assets/sprites/${CHARACTERS[state.selected_char].sprite}`,
-    neris: "assets/sprites/story/neris_portrait.png",
-    whisper: "assets/sprites/upgrade_v2/boss_void_curator.png",
+    hero: CHARACTERS[state.selected_char].sprite,
+    neris: "story/neris_portrait.png",
+    whisper: "upgrade_v2/boss_void_curator.png",
     narrator: "",
     mother_echo: "",
     lio_echo: "",
-    shadow_double: `assets/sprites/${CHARACTERS[state.selected_char].sprite}`
+    shadow_double: CHARACTERS[state.selected_char].sprite
   };
   document.getElementById("story-kicker").textContent = `ARŞİV ARASI · DALGA ${String(episode.wave).padStart(2, "0")} · ${String(storyEpisodeIndex + 1).padStart(2, "0")} / 20`;
   document.getElementById("story-title").textContent = episode.title;
@@ -3064,7 +3065,7 @@ function renderStoryPanel() {
   portrait.hidden = !speakerPath;
   if (speakerPath) {
     portrait.dataset.kind = isBossVoice ? "boss" : speakerId;
-    portrait.src = `assets/sprites/${speakerPath}`;
+    portrait.src = resolvePortraitPath(speakerPath);
     portrait.alt = speakerName;
   }
   const memory = document.getElementById("story-boss-memory");

@@ -5,7 +5,11 @@ const assert = require('node:assert/strict');
 
 const data = JSON.parse(fs.readFileSync('assets/data/story_arc.json', 'utf8'));
 const webData = JSON.parse(fs.readFileSync('build/web/assets/data/story_arc.json', 'utf8'));
+const webGame = fs.readFileSync('build/web/game.js', 'utf8');
 assert.deepEqual(webData, data, 'Godot and web use the same story payload');
+assert.match(webGame, /const resolvePortraitPath = path => path\.startsWith\("assets\/sprites\/"\) \? path : `assets\/sprites\/\$\{path\}`/,
+  'story portrait paths must accept both root-relative and sprite-relative entries without duplicating assets/sprites');
+assert.match(webGame, /portrait\.src = resolvePortraitPath\(speakerPath\)/, 'comic speaker portraits must use the shared sprite path resolver');
 assert.equal(data.version, 2);
 assert.equal(data.panel_count, 5);
 assert.equal(Object.keys(data.characters).length, 6);
