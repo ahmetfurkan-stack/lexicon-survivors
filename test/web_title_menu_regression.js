@@ -4,6 +4,14 @@
   };
 
   window.runTitleMenuRegression = () => {
+    assert(document.querySelector("#title-screen .title-dossier"), "the title menu should use its authored archive dossier layout");
+    assert(document.querySelector("#title-screen .title-cover"), "the title menu needs a dedicated illustrated cover");
+    assert(document.querySelector("#title-screen .title-select-panel"), "character and run choices should sit in a readable catalog panel");
+    assert(document.querySelector("#title-screen .title-actions"), "start and leaderboard actions should have their own clear footer");
+    assert(document.getElementById("title-hero-feature"), "the selected hero should be featured in the archive cover");
+    assert(document.getElementById("title-hero-feature")?.src.includes("hero_inky.png"), "the default hero cover art should match the selected hero");
+    assert(document.getElementById("title-hero-name")?.textContent === CHARACTERS.inky.name, "the cover should identify the selected hero");
+
     const cards = [...document.querySelectorAll("#char-selection-grid [data-hero]")];
     assert(cards.length === 6, `expected six playable character cards, got ${cards.length}`);
     assert(new Set(cards.map((card) => card.dataset.hero)).size === 6, "character IDs must be unique");
@@ -18,6 +26,8 @@
     assert(state.selected_char === "shadow_lexicographer", "Enter should select the focused hero");
     assert(document.querySelector('#char-selection-grid [data-hero="shadow_lexicographer"]')?.getAttribute("aria-pressed") === "true",
       "keyboard selection must update its announced state");
+    assert(document.getElementById("title-hero-feature")?.src.includes("hero_shadow_scribe.png"), "featured cover art must follow keyboard selection");
+    assert(document.getElementById("title-hero-name")?.textContent === CHARACTERS.shadow_lexicographer.name, "featured cover name must follow keyboard selection");
 
     const difficultyButtons = [...document.querySelectorAll("#diff-selection-container button")];
     assert(difficultyButtons.length === 3, `expected three difficulty choices, got ${difficultyButtons.length}`);

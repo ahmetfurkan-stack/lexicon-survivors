@@ -1437,6 +1437,20 @@ function getBossWaveReward(wave) {
 }
 
 let STORY_ARC_DATA = null;
+let STORY_EXPANSION_DATA = null;
+const storyExpansionReady = fetch("assets/data/story_expansion.json", { cache: "no-store" }).then(response => {
+  if (!response.ok) throw new Error(`Story expansion HTTP ${response.status}`);
+  return response.json();
+}).then(data => {
+  if (data.version !== 1 || data.boss_encounters?.length !== 20) throw new Error("Story expansion data is incomplete");
+  for (const [index, boss] of data.boss_encounters.entries()) {
+    if (boss.wave !== (index + 1) * 5 || !boss.id || !boss.title || !boss.dialogue || !boss.portrait_sprite) {
+      throw new Error(`Invalid boss story at wave ${boss.wave}`);
+    }
+  }
+  STORY_EXPANSION_DATA = data;
+  return true;
+}).catch(error => { console.error("Boss story unavailable", error); return false; });
 const storyArcReady = fetch("assets/data/story_arc.json", { cache: "no-store" }).then(response => {
   if (!response.ok) throw new Error(`Story arc HTTP ${response.status}`);
   return response.json();
@@ -2823,6 +2837,16 @@ function initTitleScreen() {
   });
 
   document.getElementById("diff-desc").textContent = DIFFICULTIES[state.difficulty].desc;
+  const featuredHero = CHARACTERS[state.selected_char];
+  const featuredImage = document.getElementById("title-hero-feature");
+  const featuredPanel = document.getElementById("title-feature");
+  if (featuredHero && featuredImage && featuredPanel) {
+    featuredPanel.dataset.hero = state.selected_char;
+    featuredImage.src = `assets/sprites/${featuredHero.sprite}`;
+    featuredImage.alt = `${featuredHero.name} · ${featuredHero.title}`;
+    document.getElementById("title-hero-name").textContent = featuredHero.name;
+    document.getElementById("title-hero-motive").textContent = featuredHero.selectionHook;
+  }
   updateAutoTurUI();
   updateAutoRunUI();
   setGameSpeed(state.game_speed || 1.0);
@@ -3042,14 +3066,22 @@ function renderStoryPanel() {
   const characterArc = STORY_ARC_DATA.characters[state.selected_char];
   const episode = characterArc.episodes[storyEpisodeIndex];
   const beat = episode.beats[storyPanelIndex];
-  const speakerId = beat[0];
+  const bossAtWave = STORY_EXPANSION_DATA?.boss_encounters?.find(boss => boss.wave === episode.wave);
+  let speakerId = beat[0];
+  let dialogueText = beat[1];
+  if (storyPanelIndex === 0 && bossAtWave) {
+    speakerId = bossAtWave.id;
+    dialogueText = bossAtWave.dialogue;
+  }
   const speaker = document.getElementById("story-speaker");
   const portrait = document.getElementById("story-speaker-portrait");
   const sceneImage = document.getElementById("story-scene-image");
   const dialogue = document.querySelector(".story-dialogue-frame");
   const heroSpeakerIds = new Set([state.selected_char, "hero", "rune_sorceress", "lexicon_alchemist", "shadow_lexicographer"]);
-  const bossRosterEntry = MILESTONE_BOSS_ROSTER?.[storyEpisodeIndex];
   const isBossVoice = speakerId.startsWith("boss_");
+  const speakerBoss = isBossVoice
+    ? (bossAtWave?.id === speakerId ? bossAtWave : STORY_EXPANSION_DATA?.boss_encounters?.find(boss => boss.id === speakerId))
+    : null;
   const resolvePortraitPath = path => path.startsWith("assets/sprites/") ? path : `assets/sprites/${path}`;
   const portraitPaths = {
     hero: CHARACTERS[state.selected_char].sprite,
@@ -3063,17 +3095,17 @@ function renderStoryPanel() {
   document.getElementById("story-kicker").textContent = `ARŞİV ARASI · DALGA ${String(episode.wave).padStart(2, "0")} · ${String(storyEpisodeIndex + 1).padStart(2, "0")} / 20`;
   document.getElementById("story-title").textContent = episode.title;
   document.getElementById("story-location").textContent = episode.location;
-  document.getElementById("story-copy").textContent = beat[1];
+  document.getElementById("story-copy").textContent = dialogueText;
   document.getElementById("story-scene-caption").textContent = episode.scene;
   document.getElementById("story-counter").textContent = `${storyPanelIndex + 1} / ${STORY_ARC_DATA.panel_count}`;
   sceneImage.src = `assets/sprites/story/${episode.backdrop}`;
   sceneImage.alt = `${episode.scene} · ${episode.location}`;
-  const chosenBossSprite = isBossVoice && bossRosterEntry ? bossRosterEntry[1] : "";
+  const chosenBossSprite = speakerBoss?.portrait_sprite || (isBossVoice ? MILESTONE_BOSS_ROSTER?.[storyEpisodeIndex]?.[1] : "");
   const speakerPath = heroSpeakerIds.has(speakerId) ? portraitPaths.hero
     : (chosenBossSprite || portraitPaths[speakerId] || "");
   const speakerName = heroSpeakerIds.has(speakerId) ? CHARACTERS[state.selected_char].name
     : speakerId === "narrator" ? "SAHNE"
-      : isBossVoice && bossRosterEntry ? bossRosterEntry[2] : storySpeakerNames[speakerId] || speakerId.replaceAll("_", " ").toLocaleUpperCase("tr-TR");
+      : speakerBoss?.title || (isBossVoice ? MILESTONE_BOSS_ROSTER?.[storyEpisodeIndex]?.[2] : "") || storySpeakerNames[speakerId] || speakerId.replaceAll("_", " ").toLocaleUpperCase("tr-TR");
   speaker.textContent = speakerName;
   portrait.hidden = !speakerPath;
   if (speakerPath) {
@@ -3100,8 +3132,9 @@ function renderStoryPanel() {
     : "ENTER · SONRAKİ KARE";
 }
 
-function showStoryIntermission(wave) {
+async function showStoryIntermission(wave) {
   if (!STORY_ARC_DATA) return openShop();
+  await Promise.all([storyArcReady, storyExpansionReady]);
   storyEpisodeIndex = STORY_ARC_DATA.episodes.findIndex(episode => episode.wave === wave);
   if (storyEpisodeIndex < 0) return openShop();
   storyWavePending = wave;

@@ -320,3 +320,12 @@ Original prompt: https://github.com/yasinkaya701/lexicon-survivors — bunu ince
 - Sahne açılışında iki kez bağlanan floating-text sinyali ve kayan yazı Label'ında geçersiz tema erişimi bulundu ve düzeltildi. Düşman boss öfke lazeri hedefi önceden kilitliyor; saldırı kaçılabilir.
 - Doğrulama: Godot port özellik testi (6/6), sahne kurulumu, v2 özellik testi, boss Godot regresyonu, oynanış regresyonu (köşe erişimi dahil); Node boss, ekonomi ve hikâye regresyonları geçti. Headless test kapanışında bazı ObjectDB/resource sızıntı uyarıları sürüyor; test çıktılarında kalan davranış hatası yok.
 - Birleşim dalı origin'e gönderildi. 600 sahnelik sanat dalında 600 benzersiz brief hazır, ancak 0 görsel insan onayı aldı; AI/artist katkısı PR ile yapılabilir ve yalnızca onaylı, hash'i doğrulanmış WebP'ler runtime'a girer. Bu nedenle üretim deploy'u hâlâ bekliyor.
+
+
+## Boss itirafları ve arşiv menüsü yayını — 2026-11-07
+
+- Altı karakter için 20 bölüm/karakterlik, birbirinden ayrışan anlatı ve her 5. turda yalnız boss savaşı akışı birleştirildi. Her bossun Türkçe birinci tekil şahıs itirafı kendi portresiyle beş panelli çizgi roman sahnesinin ilk karesinde gösteriliyor; sahne geçişi Enter ile panel panel ilerliyor ve son panel dükkânı açıyor.
+- Godot ve Web `story_expansion.json` verisini yükleyip dalgaya göre konuşmacı/portre çözüyor. Godot sahne testinde seçili karakter Inky sabitlenerek yeni “Ters Akan Fiş” bölümünün başlığı, boss diyaloğu/portresi ve sahne görseli doğrulanıyor.
+- Başlık menüsü iki kolonlu arşiv kapağı/katalog düzenine geçti: seçili kahramanın portresi, adı ve kişisel hikâye kancası eşleşiyor; 6 karakter, CEFR zorluk, müzik, run tercihleri ve net bir alt aksiyon şeridi korunuyor.
+- Tarayıcıda başlık menü regresyonu geçti; 6 kahraman × 20 bossun tüm 120 birleşiminde konuşmacı, itiraf, portre ve `1 / 5` sayacı doğrulandı. Godot sahne kurulumu, oynanış/köşe erişimi, boss, v2, hikâye, silah ve ekonomi regresyonları geçti; tarayıcı konsol hatası yok. Godot test kapanışında önceden görülen ObjectDB/resource sızıntı uyarıları devam ediyor.
+- Bu revizyon `codex/integrate-main-godot-port` üzerinde hazırlanıyor. Pages kaynağı `gh-pages`; deploy sonrasında canlı sayfa ve asset URL'leri kontrol edilmeli. Sanatçı/AI tarafından üretilecek 600 ayrı yüksek çözünürlüklü sahne görseli hâlâ ayrı üretim/inceleme işi; mevcut runtime'da sahne başına hazırlanmış görseller kullanılıyor.

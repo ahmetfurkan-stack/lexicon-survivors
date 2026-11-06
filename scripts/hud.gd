@@ -67,6 +67,7 @@ var _story_memory_icon: TextureRect
 var _story_next_button: Button
 var _story_skip_button: Button
 var _story_data: Dictionary = {}
+var _story_expansion: Dictionary = {}
 var _story_active: bool = false
 var _story_episode_index: int = -1
 var _story_panel_index: int = 0
@@ -338,6 +339,15 @@ func _load_story_arc() -> void:
 			push_error("Story arc has missing episodes for %s" % char_id)
 			return
 	_story_data = parsed
+	var expansion_file := FileAccess.open("res://assets/data/story_expansion.json", FileAccess.READ)
+	if expansion_file != null:
+		var expansion_data: Variant = JSON.parse_string(expansion_file.get_as_text())
+		if expansion_data is Dictionary and int(expansion_data.get("version", 0)) == 1 and expansion_data.get("boss_encounters", []) is Array and expansion_data.boss_encounters.size() == 20:
+			_story_expansion = expansion_data
+		else:
+			push_error("Boss story data is invalid: res://assets/data/story_expansion.json")
+	else:
+		push_error("Boss story data is missing: res://assets/data/story_expansion.json")
 
 func _render_story_panel() -> void:
 	if _story_episode_index < 0 or _story_data.is_empty():
@@ -353,6 +363,11 @@ func _render_story_panel() -> void:
 		return
 	var beat: Array = beats[_story_panel_index]
 	var speaker_id := str(beat[0])
+	var dialogue_text := str(beat[1])
+	var boss_encounter := _get_story_boss(_story_pending_wave)
+	if _story_panel_index == 0 and not boss_encounter.is_empty():
+		speaker_id = str(boss_encounter.get("id", "boss_testimony"))
+		dialogue_text = str(boss_encounter.get("dialogue", dialogue_text))
 	var actor_path := _get_story_actor_path(speaker_id, char_id)
 	_story_actor.texture = load(actor_path) if not actor_path.is_empty() else null
 	_story_actor.visible = _story_actor.texture != null
@@ -361,7 +376,7 @@ func _render_story_panel() -> void:
 	_story_title.text = str(episode.get("title", "Kayıp kayıt"))
 	_story_scene_caption.text = str(episode.get("scene", ""))
 	_story_speaker.text = _get_story_speaker_name(speaker_id, char_id)
-	_story_copy.text = str(beat[1])
+	_story_copy.text = dialogue_text
 	_story_counter.text = "%d / 5" % [_story_panel_index + 1]
 	_story_scene_image.texture = load("res://assets/sprites/story/" + str(episode.get("backdrop", "story_library.png")))
 	var reward: Dictionary = episode.get("boss_reward", {}) if episode.get("boss_reward", null) is Dictionary else {}
@@ -378,6 +393,12 @@ func _get_story_speaker_name(speaker_id: String, char_id: String) -> String:
 	if speaker_id in [char_id, "hero", "rune_sorceress", "lexicon_alchemist", "shadow_lexicographer", "quillmaster", "word_knight"]:
 		return str(StatsManager.characters.get(char_id, {}).get("name", "Kâşif"))
 	var names := {"caption": "SAHNE", "narrator": "SAHNE", "neris": "NERİS", "whisper": "BOŞ SAYFA", "blank_page": "BOŞ SAYFA", "mother_echo": "LALE'NİN YANKISI", "lio_echo": "LIO'NUN YANKISI", "shadow_double": "GÖLGE"}
+	var wave_boss := _get_story_boss(_story_pending_wave)
+	if str(wave_boss.get("id", "")) == speaker_id:
+		return str(wave_boss.get("title", "BOSS"))
+	for boss in _story_expansion.get("boss_encounters", []):
+		if str(boss.get("id", "")) == speaker_id:
+			return str(boss.get("title", "BOSS"))
 	return str(names.get(speaker_id, speaker_id.replace("_", " ").to_upper()))
 
 func _get_story_actor_path(speaker_id: String, char_id: String) -> String:
@@ -386,11 +407,24 @@ func _get_story_actor_path(speaker_id: String, char_id: String) -> String:
 		return "res://assets/sprites/upgrade_v1/" + str(hero_sprites.get(char_id, "hero_inky.png"))
 	if speaker_id == "neris":
 		return "res://assets/sprites/story/neris_portrait.png"
-	if speaker_id in ["whisper", "blank_page"] or speaker_id.begins_with("boss_"):
+	if speaker_id.begins_with("boss_"):
+		for boss in _story_expansion.get("boss_encounters", []):
+			if str(boss.get("id", "")) == speaker_id:
+				var portrait := str(boss.get("portrait_sprite", ""))
+				if not portrait.is_empty():
+					return "res://assets/sprites/" + portrait
+		return "res://assets/sprites/upgrade_v2/boss_void_curator.png"
+	if speaker_id in ["whisper", "blank_page"]:
 		return "res://assets/sprites/upgrade_v2/boss_void_curator.png"
 	if speaker_id == "shadow_double":
 		return "res://assets/sprites/upgrade_v1/hero_shadow_scribe.png"
 	return ""
+
+func _get_story_boss(wave: int) -> Dictionary:
+	for boss in _story_expansion.get("boss_encounters", []):
+		if int(boss.get("wave", -1)) == wave:
+			return boss
+	return {}
 
 func _advance_story_panel() -> void:
 	if not _story_active:
