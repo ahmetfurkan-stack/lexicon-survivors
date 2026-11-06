@@ -302,3 +302,9 @@ Original prompt: https://github.com/yasinkaya701/lexicon-survivors — bunu ince
 - Render her karede parçacık dizisini `filter()` ile yeniden oluşturuyordu. Yerinde kararlı sıkıştırmaya geçildi; aktif halkalar aynı dizide tutuluyor ve ölü halkalar çıkarılıyor.
 - Halka yarıçapı ve opaklığı artık geçen gerçek zamana göre ilerliyor; 30 FPS ve 60 FPS aynı duvar saati süresinde aynı boyut/fade durumuna ulaşır. Oyun hız çarpanı parçacık zamanlamasını etkilemez.
 - Doğrulama: 60/30 FPS parçacık zamanlama regresyonu, web script sözdizimi, arena sınırları, ekonomi ve silah arketipi testleri geçti. Playwright mobil koşusunda wave 1 açık kaldı, oyuncu koşu animasyonu ve 5 düşman durumu temizdi; tarayıcı hata kaydı yok.
+
+## Portre yön ipucu kapatma davranışı — 2026-11-06
+
+- 390×844 ekran denetiminde “yatay tutabilirsiniz · Kapat” ipucunun kapatılmadığı görüldü: portre CSS'i `display:block!important` ile inline `display:none` eylemini eziyordu.
+- Kapatma artık `hidden` durumunu ayarlıyor ve mobil CSS gizli öğeye öncelik tanıyor. HUD menü sağ kenarı x=383/390, gadget altı y=768/844 sınırında; ekran içine sığıyor.
+- Doğrulama: yön ipucu kaynak kontratı ve tam mobil inventory/gadget/boss pause regresyonu geçti. Dokunma emülasyonunda envanter dalga/HP/konum/gadget sayacını dondurdu; kapatınca joystick ve gadget devam etti, boss sayacı duraklayıp sürdü, hikâye paneli/dükkân ve dükkânda envanter kilidi çalıştı. Console error yok.

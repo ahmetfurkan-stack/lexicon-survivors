@@ -15,6 +15,13 @@
         `mobile menu button must fit inside viewport (right=${menuBounds?.right}, width=${window.innerWidth})`);
       assert(/^TUR\s+\d+\s*\/\s*100\s*·\s*\d+s$/.test(document.getElementById("timer-badge")?.textContent || ""),
         "mobile HUD must keep the round count and remaining seconds in its compact timer");
+      const orientationHint = document.getElementById("orientation-hint");
+      if (window.innerHeight > window.innerWidth) {
+        assert(getComputedStyle(orientationHint).display !== "none", "portrait mode should offer the optional landscape hint");
+        orientationHint.click();
+        assert(orientationHint.hidden && getComputedStyle(orientationHint).display === "none",
+          "the landscape hint close action must hide it on touch screens");
+      }
     }
 
     document.getElementById("touch-gadget-btn").click();

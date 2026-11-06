@@ -1001,6 +1001,7 @@
       box-shadow: 0 4px 15px rgba(0,0,0,0.8);
       cursor: pointer;
     }
+    #orientation-hint[hidden] { display: none !important; }
 
     /* Responsive for small screens & phones & iPads */
     @media (max-width: 1080px), (max-height: 720px), (pointer: coarse), (hover: none) {
@@ -1910,7 +1911,7 @@
 </head>
 <body>
   <div id="game-container">
-    <div id="orientation-hint" onclick="this.style.display='none'">
+    <div id="orientation-hint" onclick="this.hidden=true">
       Daha geniş arena görünümü için ekranı <strong>yatay</strong> tutabilirsiniz · Kapat
     </div>
     <!-- SPEED TOAST NOTIFICATION -->
@@ -2403,6 +2404,6 @@
       window.startArchiveIntro();
     })();
   </script>
-  <script src="game.js?v=gameplay-20261106-10"></script>
+  <script src="game.js?v=gameplay-20261106-11"></script>
 </body>
 </html>
