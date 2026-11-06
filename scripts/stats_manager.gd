@@ -416,6 +416,10 @@ func load_game_economy() -> bool:
 	if not rewards is Dictionary or rewards.size() != 18:
 		push_error("Shared game economy must define all 18 enemy rewards")
 		return false
+	var boss_reward: Variant = parsed.get("boss_wave_reward", {})
+	if not boss_reward is Dictionary or float(boss_reward.get("base", -1.0)) < 0.0 or float(boss_reward.get("per_wave", -1.0)) < 0.0:
+		push_error("Shared game economy must define a valid boss wave reward")
+		return false
 	for enemy_type in rewards:
 		if int(rewards[enemy_type]) <= 0:
 			push_error("Enemy %s has an invalid ink reward" % enemy_type)
@@ -426,6 +430,10 @@ func load_game_economy() -> bool:
 func get_enemy_ink_reward(enemy_type: String, fallback: int = 1) -> int:
 	var rewards: Dictionary = game_economy.get("enemy_ink_rewards", {})
 	return int(rewards.get(enemy_type, fallback))
+
+func get_boss_wave_reward(wave: int) -> int:
+	var reward: Dictionary = game_economy.get("boss_wave_reward", {})
+	return roundi(float(reward.get("base", 55.0)) + float(reward.get("per_wave", 1.0)) * float(wave))
 
 func load_weapon_economy() -> bool:
 	var file := FileAccess.open("res://assets/data/weapon_archetypes.json", FileAccess.READ)

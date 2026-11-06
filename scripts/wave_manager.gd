@@ -200,7 +200,7 @@ func spawn_milestone_boss() -> void:
 	if StatsManager.difficulty == "easy": hp_scale *= 0.82
 	boss.boss_health_override = (1750.0 + float(wave) * 145.0) * hp_scale
 	boss.boss_damage_override = (42.0 + float(wave) * 0.58) * (1.15 if StatsManager.difficulty == "hard" else 1.0)
-	boss.boss_reward_override = 55 + wave
+	boss.boss_reward_override = StatsManager.get_boss_wave_reward(wave)
 	var angle := randf() * TAU
 	boss.global_position = get_arena_spawn_position(player_ref.global_position, 590.0, angle)
 	boss_spawned = true

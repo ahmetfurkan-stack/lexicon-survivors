@@ -25,6 +25,8 @@ func _run() -> void:
 	assert(boss != null and boss.is_milestone_boss, "Spawned combatant must be flagged as a milestone boss")
 	assert(boss.boss_custom_name == "KIRMIZI MÜFETTİŞ", "Wave 5 must select its authored boss identity")
 	assert(boss.boss_skill_id == "judgment", "Wave 5 must have its own tell-driven skill")
+	assert(boss.ink_reward == 60, "Wave 5 boss payout must match the shared economy table")
+	assert(stats.get_boss_wave_reward(100) == 155, "Final boss payout must grow from shared economy data")
 	boss.health = 1.0
 	boss.take_damage(10.0, Vector2.ZERO)
 	await process_frame

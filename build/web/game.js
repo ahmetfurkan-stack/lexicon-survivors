@@ -1385,9 +1385,12 @@ async function loadGameEconomy() {
   if (!response.ok) throw new Error(`Game economy HTTP ${response.status}`);
   const data = await response.json();
   const rewards = data?.enemy_ink_rewards;
+  const bossReward = data?.boss_wave_reward;
   if (data.version !== 1 || !Number.isInteger(data.starting_ink) || data.starting_ink < 0
     || !rewards || Object.keys(rewards).length !== 18
-    || Object.entries(rewards).some(([name, amount]) => !name || !Number.isInteger(amount) || amount <= 0)) {
+    || Object.entries(rewards).some(([name, amount]) => !name || !Number.isInteger(amount) || amount <= 0)
+    || !Number.isFinite(bossReward?.base) || bossReward.base < 0
+    || !Number.isFinite(bossReward?.per_wave) || bossReward.per_wave < 0) {
     throw new Error("Shared game economy data is invalid");
   }
   GAME_ECONOMY = data;
@@ -1396,6 +1399,10 @@ async function loadGameEconomy() {
 const gameEconomyReady = loadGameEconomy().catch(error => { console.error("Shared game economy unavailable", error); return false; });
 function getEnemyInkReward(enemyType, fallback = 1) {
   return GAME_ECONOMY?.enemy_ink_rewards?.[enemyType] ?? fallback;
+}
+function getBossWaveReward(wave) {
+  const reward = GAME_ECONOMY?.boss_wave_reward;
+  return Math.round((reward?.base ?? 55) + (reward?.per_wave ?? 1) * wave);
 }
 
 let STORY_ARC_DATA = null;
@@ -5232,7 +5239,7 @@ function spawnMilestoneBoss(wave) {
     type, sprite, x: point.x, y: point.y, vx: 0, vy: 0,
     hp, max_hp: hp, speed: (54 + Math.min(28, wave * 0.16)) * difficulty.enemy_speed_mult,
     damage: (26 + wave * 1.15) * difficulty.enemy_damage_mult,
-    ink_reward: Math.round(32 + wave * 1.4), label: name.toUpperCase(),
+    ink_reward: getBossWaveReward(wave), label: name.toUpperCase(),
     size: wave >= 100 ? 108 : (68 + Math.min(20, wave * 0.16)),
     is_elite: true, is_boss: true, boss_color: color, boss_skill: skill,
     boss_skill_cooldown: 4.2, boss_skill_interval: Math.max(4.3, 7.2 - wave * 0.018),
