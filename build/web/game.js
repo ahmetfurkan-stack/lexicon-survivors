@@ -6304,7 +6304,14 @@ function updateHUD() {
 // =========================================
 // 16. RENDERING
 // =========================================
-function render() {
+function advanceShockwaveParticle(particle, dt) {
+  const elapsed = Math.max(0, Math.min(0.1, Number.isFinite(dt) ? dt : 1 / 60));
+  particle.radius += 330 * elapsed;
+  particle.alpha -= 3 * elapsed;
+  return particle.alpha > 0;
+}
+
+function render(dt = 1 / 60) {
   ctx.clearRect(0, 0, canvas.width, canvas.height);
   ctx.imageSmoothingEnabled = false;
 
@@ -6593,18 +6600,18 @@ function render() {
   });
 
   // Shockwaves
-  state.particles.forEach(pt => {
-    pt.radius += 5.5;
-    pt.alpha -= 0.05;
-    if (pt.alpha > 0) {
-      ctx.save();
-      ctx.strokeStyle = pt.color + Math.max(0, pt.alpha) + ")";
-      ctx.lineWidth = 3;
-      ctx.beginPath(); ctx.arc(pt.x, pt.y, pt.radius, 0, Math.PI * 2); ctx.stroke();
-      ctx.restore();
-    }
-  });
-  state.particles = state.particles.filter(pt => pt.alpha > 0);
+  let activeParticleCount = 0;
+  for (let index = 0; index < state.particles.length; index++) {
+    const particle = state.particles[index];
+    if (!advanceShockwaveParticle(particle, dt)) continue;
+    ctx.save();
+    ctx.strokeStyle = particle.color + Math.max(0, particle.alpha) + ")";
+    ctx.lineWidth = 3;
+    ctx.beginPath(); ctx.arc(particle.x, particle.y, particle.radius, 0, Math.PI * 2); ctx.stroke();
+    ctx.restore();
+    state.particles[activeParticleCount++] = particle;
+  }
+  state.particles.length = activeParticleCount;
 
   // Enemy Projectiles
   state.enemy_projectiles.forEach(ep => {
@@ -7001,7 +7008,7 @@ function gameLoop(now) {
   const dt = rawDt * (state.game_speed || 1.0);
 
   updateGame(dt);
-  render();
+  render(rawDt);
   requestAnimationFrame(gameLoop);
 }
 

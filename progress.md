@@ -296,3 +296,9 @@ Original prompt: https://github.com/yasinkaya701/lexicon-survivors — bunu ince
 - Web Playwright gerçek oyun döngüsünde sağa hareket sırasında atış zamanlayıcısı `0.18s` iken animasyon `run`, hız `115`, can `140`, düşman öldürme `2` oldu. Sprite/silah görselleri yüklü. Görüntü `output/web-game/attack-locomotion-final/shot-0.png`, durum dökümü aynı klasörde.
 - Doğrulama: web animasyon/kaynak, mobil karakter kopyası/scroll, arena parity, ekonomi parity, silah kataloğu testleri ve Godot gameplay regression geçti. Godot kapanışında bilinen 2 ObjectDB ve 1 resource uyarısı sürüyor.
 - Bu çalışma hâlâ yerel `codex/gameplay-performance` dalında; Pages `gameplay-20261106-3` ve Worker loopback CORS durumu değişmedi. Yayın öncesi mobil ve attack animasyonu gerçek device/preview testleriyle, ardından Pages+Worker birlikte kontrol edilmeli.
+
+## Şok dalgası kare hızı ve render tahsisi — 2026-11-06
+
+- Render her karede parçacık dizisini `filter()` ile yeniden oluşturuyordu. Yerinde kararlı sıkıştırmaya geçildi; aktif halkalar aynı dizide tutuluyor ve ölü halkalar çıkarılıyor.
+- Halka yarıçapı ve opaklığı artık geçen gerçek zamana göre ilerliyor; 30 FPS ve 60 FPS aynı duvar saati süresinde aynı boyut/fade durumuna ulaşır. Oyun hız çarpanı parçacık zamanlamasını etkilemez.
+- Doğrulama: 60/30 FPS parçacık zamanlama regresyonu, web script sözdizimi, arena sınırları, ekonomi ve silah arketipi testleri geçti. Playwright mobil koşusunda wave 1 açık kaldı, oyuncu koşu animasyonu ve 5 düşman durumu temizdi; tarayıcı hata kaydı yok.
