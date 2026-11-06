@@ -12,7 +12,9 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 STORY_PATH = ROOT / "assets/data/story_arc.json"
+EXPANSION_PATH = ROOT / "assets/data/story_expansion.json"
 OUTPUT_PATH = ROOT / "assets/data/story_art_600_manifest.json"
+MASTER_ART_PROMPT = "docs/story-art-600/master-art-prompt.md"
 
 CHARACTERS = {
     "inky": {
@@ -232,8 +234,12 @@ def speaker_anchor(speaker: str, hero_id: str) -> str:
 
 def build_manifest() -> dict:
     story = json.loads(STORY_PATH.read_text(encoding="utf-8"))
+    expansion = json.loads(EXPANSION_PATH.read_text(encoding="utf-8"))
+    boss_story_by_wave = {int(item["wave"]): item for item in expansion["boss_encounters"]}
     if story.get("version") != 2 or story.get("panel_count") != 5 or len(story.get("characters", {})) != 6:
         raise ValueError("story_arc.json must remain six character arcs with five panels per episode")
+    if len(boss_story_by_wave) != 20 or set(boss_story_by_wave) != {int(item[0]) for item in BOSS_ROSTER}:
+        raise ValueError("story_expansion.json must describe all 20 existing solo boss waves")
 
     images: list[dict] = []
     for character_id, arc in story["characters"].items():
@@ -245,6 +251,7 @@ def build_manifest() -> dict:
                 raise ValueError(f"{character_id} wave {episode['wave']} needs exactly five beats")
             act, act_summary = act_for_wave(int(episode["wave"]))
             boss = BOSS_BY_WAVE[int(episode["wave"])]
+            boss_story = boss_story_by_wave[int(episode["wave"])]
             for panel_index, beat in enumerate(episode["beats"], start=1):
                 speaker, dialogue = beat
                 asset_id = f"story_{character_id}_wave_{int(episode['wave']):03d}_panel_{panel_index:02d}"
@@ -252,6 +259,10 @@ def build_manifest() -> dict:
                 # Keep the web destination explicit and stable for later wiring.
                 web_path = f"build/web/assets/sprites/story/panels_600/{character_id}/wave_{int(episode['wave']):03d}_panel_{panel_index:02d}.webp"
                 anchor = speaker_anchor(str(speaker), character_id)
+                supporting_story_id = str(speaker)
+                if supporting_story_id in ("whisper", "mother_echo", "lio_echo"):
+                    supporting_story_id = {"whisper": "blank_page", "mother_echo": "lale", "lio_echo": "lio"}[supporting_story_id]
+                supporting_story = expansion["supporting_cast"].get(supporting_story_id)
                 speaker_reference_image = NPC_STORY_IMAGES.get(str(speaker))
                 if speaker_reference_image is None:
                     normalized_speaker = {"whisper": "blank_page", "mother_echo": "lale", "lio_echo": "lio"}.get(str(speaker))
@@ -277,19 +288,26 @@ def build_manifest() -> dict:
                     f"EPISODE {episode['wave']} — {episode['title']}. LOCATION: {episode['location']}.\n"
                     f"SCENE CANON: {episode.get('scene', '')}\n"
                     f"THIS PANEL'S DIALOGUE (context only; never draw or letter it): {speaker}: {dialogue}\n\n"
+                    f"BOSS STORY CANON: {boss_story['title']}; motive: {boss_story['motive']} "
+                    f"Combat metaphor: {boss_story['combat_story']} Reveal after defeat: {boss_story['reveal']} "
+                    f"Keepsake: {boss_story['keepsake']} Do not depict the preceding fight again unless the current panel's scene canon explicitly shows a memory.\n"
+                    + (f"SUPPORTING CHARACTER CANON: {supporting_story['role']} Desire: {supporting_story['desire']} Boundary: {supporting_story['boundary']} " if supporting_story else "")
+                    + "\n"
                     f"CHARACTER MODEL LOCK: {anchor}\n"
                     f"HERO MODEL LOCK: {profile['identity_lock']}\n"
                     f"PANEL COMPOSITION: {PANEL_STAGING[panel_index]} Compose this frame around the exact speaker and physical action above. "
-                    "Make the background architecture and prop arrangement specific to this episode. Use a fresh camera angle, silhouette grouping, "
-                    "lighting pattern and focal object that has not appeared in the other 599 panels. Make the emotional beat readable even at thumbnail size.\n\n"
+                    "Make the background architecture and prop arrangement specific to this episode. Enrich the room with story-relevant shelves, stairways, "
+                    "stained glass, maps, bound books, lamps, worked wood, worn cloth, brass fittings, dust and shaped light. Every prop must support the scene; "
+                    "do not add ornamental noise. Use a fresh camera angle, silhouette grouping, lighting pattern and focal object unlike the other 599 panels. "
+                    "Make the emotional beat readable even at thumbnail size.\n\n"
                     "ART DIRECTION: premium, visibly hand-authored pixel art matching the attached actual in-game reference sprite exactly in silhouette, "
-                    f"with a richer {', '.join(profile['palette'])} palette, deliberate pixel clusters, clean stepped contours, "
-                    "subtle material texture and carefully controlled highlights. Draw a more detailed, expressive version of the same model, "
+                    f"with a richer {', '.join(profile['palette'])} palette, deliberate pixel clusters, crisp stepped contours, "
+                    "distinct pixel texture for each material, controlled light and shadow, and expressive eyes and hands. Draw a more detailed, expressive version of the same model, "
                     "preserving costume, signature prop, apparent age, gender presentation and proportions. Compose at 640x360 logical pixels "
                     "then enlarge exactly 2x with nearest-neighbor to 1280x720. Keep a consistent pixel-cluster scale and crisp stepped edges. "
-                    "Dark-fantasy library atmosphere, expressive posing, composed light; it should look like skilled pixel-artist work, "
-                    "not a filtered-upscaled sprite or generic AI fantasy art. No blur, airbrush, photorealism, vector gradients, "
-                    "painterly smearing, random noise or AI artifacts. "
+                    "Mysterious dark-fantasy library atmosphere with readable silhouettes, layered but intentional set dressing and composed light; it should look like skilled pixel-artist work, "
+                    "not a filtered-upscaled sprite, generic AI fantasy art or a pile of decorative detail. No blur, airbrush, photorealism, vector gradients, "
+                    "painterly smearing, random noise, AI artifacts, neon, excessive bloom or invented iconography. "
                     "For magical seals, use abstract geometric marks only; never imitate writing.\n\n"
                     "ABSOLUTE EXCLUSIONS: no visible writing, letters, numbers, glyph-like pseudo-text, captions, speech bubbles, watermarks, "
                     "brand marks, file icons, folder icons, emoji, HUD, interface, borders, frames or decorative symbols that resemble text. "
@@ -323,6 +341,8 @@ def build_manifest() -> dict:
                     "panel_staging": PANEL_STAGING[panel_index],
                     "continuity_reference": anchor,
                     "speaker_reference_image": speaker_reference_image,
+                    "boss_story_canon": boss_story,
+                    "supporting_character_story_canon": supporting_story,
                     "prompt": prompt,
                     "expected_source_path": output_path,
                     "expected_web_path": web_path,
@@ -353,10 +373,12 @@ def build_manifest() -> dict:
         "generated_reference_images": len(CHARACTERS) + len(NPC_STORY_IMAGES) + len({item[5] for item in BOSS_ROSTER}),
         "image_policy": "Each record is a separate image request. Do not combine prompts into atlases or reuse an image.",
         "source_story_version": story["version"],
+        "narrative_expansion_source": "assets/data/story_expansion.json",
         "panel_count_per_episode": 5,
         "character_count": 6,
         "episodes_per_character": 20,
         "style_lock": "Hand-authored high-quality pixel art that matches the exact in-game sprite identity; 640x360 logical canvas enlarged 2x nearest-neighbor to 1280x720; consistent crisp cluster scale and no in-image text/UI.",
+        "master_art_prompt": MASTER_ART_PROMPT,
         "reference_characters": CHARACTERS,
         "story_model_sheets": "docs/story-art-600/character-model-sheets.md",
         "story_character_references": {key: value["story_reference_image"] for key, value in CHARACTERS.items()},
@@ -369,6 +391,8 @@ def build_manifest() -> dict:
              "reference_sprite": f"assets/sprites/{sprite}"}
             for wave, boss_id, boss_type, boss_name, skill_id, slug, sprite in BOSS_ROSTER
         ],
+        "boss_story_arcs": expansion["boss_encounters"],
+        "supporting_cast_arcs": expansion["supporting_cast"],
         "upload_policy": {
             "source": "Keep approved lossless PNG originals in an external/source archive, not in the runtime download path.",
             "runtime_format": "After human visual approval, export a 1280x720 WebP with pixel edges preserved; target <= 300 KB each.",

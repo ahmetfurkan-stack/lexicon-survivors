@@ -205,3 +205,15 @@ Original prompt: https://github.com/yasinkaya701/lexicon-survivors — bunu ince
 - 120 kaynak görsel `assets/sprites/story/scenes/` içine; web kopyaları `build/web/assets/sprites/story/scenes/` içine eklendi. Her panelin SHA-256 değeri benzersiz, web kopyası kaynakla bayt bayt aynı. Oyunda hikâye kartları beş ayrı Enter adımıyla ilerliyor.
 - Hikâye regresyonu artık 120 benzersiz path/dosya/hash ve kaynak-web eşitliğini doğruluyor. Godot içe aktarma, Inky 5. dalga paneli ve beş Enter adımı testi geçti. Godot boss/v2, web canavar cache, silah, ekonomi ve hikâye regresyonları geçti; headless Godot kapanışında önceki ObjectDB/resource leak uyarıları sürüyor.
 - Web önizlemesi yeniden yüklendi, oyun ekranı açıldı ve Playwright konsol hata kaydı oluşmadı. Canlı Pages henüz bu 120 sahneyi ve yeni canavar sprite cache anahtarını içermiyor; geniş hedefin kalan yayın kapıları tamamlandıktan sonra deploy edilmeli.
+
+
+## Boss ve yan karakter hikâye genişletmesi — 2026-11-06
+
+- `assets/data/story_expansion.json` eklendi: mevcut 5’in katı takvimindeki 20 boss karşılaşmasının her birine ayrı motivasyon, saldırı-metafor bağı, yenilgi sonrası itiraf ve isimli kanıt/eşya tanımlandı. Boss kimlikleri ve skill ID’leri mevcut roster ile doğrulanıyor; yeni boss turu eklenmedi.
+- Aynı dosyada 14 ana/destek karakter için kişisel istek, sınır, sahne dönüm noktaları ve kendi kararlarıyla ayrılış çizgisi var. Bosslar yenilince iyi karaktere dönüşmüyor; sorumluluk ve af ayrı tutuluyor.
+- `story_arc.json` içindeki 20 boss eşiğinin replikleri arketip başına özgünleştirildi. Inky’nin son perdesinde Mira’nın kendi rotasından bıraktığı not, Quillmaster’ın mektup perdesinde Ada’nın cevap vermeye henüz hazır olmadığını kendi sözleriyle belirttiği mesaj eklendi. Lale’nin anı yankısı da Rune Sorceress’in finalinde açıkça yaşayan Lale’den ayrılıyor.
+- 600 görsel üretim manifesti yeni boss ve konuşan destek karakteri kanonunu her panel isteğine ekliyor. Kaynak ve web kopyası `story_arc.json` eşitlendi.
+- Doğrulama: `story_expansion_regression.js` (20 boss, 14 bağımsız karakter, 600 görsel isteği), `story_arc_regression.js` (6 ayrı rota, 120 benzersiz sahne görseli, 5 panelli akış) geçti. `py_compile` ve `git diff --check` temiz.
+- Görsel üretimi yapılmadı; manifest 600 ayrı görseli isteme/izleme dosyası olmaya devam ediyor.
+- Sanatçıya verilecek Türkçe ana görsel promptu ve genişletilmiş beş perdelik senaryo `docs/story-art-600/master-art-prompt.md` ile `master-scenario.md` altında ayrı teslim edildi. Manifest üreticisi 600 farklı kısa promptu bu sanat yönü ve karakter/boss kanonuyla oluşturuyor.
+- Yayın öncesi sahne dosyaları elle eklenebilsin diye üretim/yükleme ve insan inceleme adımı açık bırakıldı; bu dalda 600 panel görüntüsü yok. `python3 scripts/build_story_art_600_commission.py`, `story_expansion_regression.js`, `story_arc_regression.js` ve `git diff --check` başarılı.

@@ -1,5 +1,7 @@
 # Genişletilmiş hikâye kanonu — altı ayrı yol, tek arşiv sırrı
 
+Bossların kişisel geçmişi, dövüş fikri, yenilgi sonrası itirafı ve eşya izi için kanonik üretim kaynağı [assets/data/story_expansion.json](../../assets/data/story_expansion.json) dosyasıdır. Bu dosya 20 boss eşiğini ve 14 destek karakterinin bağımsız karar çizgisini kaydeder. 600 panel üretim manifesti bu kanonu her görsel isteğine taşır; aşağıdaki genişletilmiş anlatı bunun tasarım gerekçesini açıklar.
+
 Bu belge mevcut 6×20 hikâye yapısını değiştirmeden güçlendirme önerisidir. Her beş dalgada boss düellosu sürer; boss yenildikten sonra beş Enter adımında kısa çizgi-roman sahnesi açılır. Dalga 25/50/75/100 sonrası biyom ya da ana mekân değişir. Her kahramanın ilk yirmi bölümü kendi ilişkisi, görsel motifi, soruşturma yöntemi ve kararı etrafında ilerler. Ortak bir olay örgüsü vardır; aynı diyalog ve aynı sahne hiçbir kampanyaya kopyalanmaz.
 
 ## Yenilenen ana gizem

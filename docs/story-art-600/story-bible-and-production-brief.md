@@ -110,6 +110,10 @@ The approved full-body visual references for all seven recurring NPCs are linked
 
 ## Files
 
+- assets/data/story_expansion.json: distinct story history and combat metaphor for all 20 boss encounters, plus 14 supporting-character arcs.
+- docs/story-art-600/master-art-prompt.md: shared production prompt and image-quality lock for the 600 individually requested panels.
+- docs/story-art-600/master-scenario.md: the campaign premise, five-act story, boss cadence and six distinct hero endings.
+
 - `assets/data/story_art_600_manifest.json`: 600 unique per-panel requests, all currently `requested_not_generated`.
 - `scripts/build_story_art_600_commission.py`: rebuilds the text-only manifest from `assets/data/story_arc.json`; it creates no art.
 - `docs/story-art-600/references/`: high-resolution, full-body story model references for the six playable characters.
