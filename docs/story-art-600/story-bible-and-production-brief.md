@@ -72,16 +72,16 @@ The Scribe learns that the double is not a monster to kill or a possession to re
 
 ## Character and NPC continuity lock
 
-The low-resolution in-game sprites are identity references for silhouette, clothing and palette only. They are **not** the finish-quality target. Every commissioned panel should look like a careful pixel artist enlarged the same character model, with clean clusters, rich lighting and more readable expressions.
+The low-resolution in-game sprites are the authoritative identity references for silhouette, clothing, palette and signature props. They are **not** the finish-quality target. Open [the in-game character reference gallery](character-reference-gallery.html) or the six source PNGs listed below before drawing. Preserve the game's character design first; add detail through cloth folds, armor planes, facial expression, lighting and material texture without changing the model. Each panel should look like a professional pixel artist drew a larger, more expressive version of that exact character.
 
 | Character | Keep consistent in all 100 campaign panels |
 | --- | --- |
-| Inky | Compact blue scholar, cobalt pointed hat, sharp gold brim/quill pin, short blue cape and warm gold accents. |
-| Quillmaster | Lean duelist, wine-red coat, dark gloves, dark hair, short ivory feathered quill cap and thin quill-rapier. |
-| Word Knight | Broad silver armor, blue helmet, short red plume, deep teal cape, brass-rimmed shield and dictionary blade. |
-| Rune Sorceress | Adult woman mage, midnight-blue layered robes, pale-blue hood/crescent hat, gold trim and violet rune light. |
-| Alchemist | Adult woman, moss-green hood/mantle, warm leather belt, compact brass lens and a few glass vials. |
-| Shadow Scribe | Slim black hood and dark face, one cool-blue eye glint, one deep-red scarf accent and narrow calligraphy katana. |
+| Inky | `assets/sprites/upgrade_v1/hero_inky.png` (64×64). Compact blue scholar; cobalt pointed hat, sharp gold brim/quill pin, short blue cape and warm gold accents. Keep the same head-to-body ratio and hat outline. |
+| Quillmaster | `assets/sprites/upgrade_v1/hero_quillmaster.png` (64×64). Lean duelist; wine-red coat, dark gloves, dark hair, short ivory feathered cap and thin quill-rapier. Do not give him Inky's pointed hat. |
+| Word Knight | `assets/sprites/upgrade_v1/hero_word_knight.png` (64×64). Broad silver armor, blue helmet, short red plume, deep teal cape, brass-rimmed shield and dictionary blade. Preserve the heavy, grounded stance. |
+| Rune Sorceress | `assets/sprites/upgrade_v1/hero_rune_sorceress.png` (64×64). Clearly adult woman mage; midnight-blue layered robes, pale-blue hood/crescent hat, gold trim and violet rune light. |
+| Alchemist | `assets/sprites/upgrade_v1/hero_alchemist.png` (64×64). Adult woman; moss-green hood/mantle, warm leather belt, compact brass lens and a few glass vials. |
+| Shadow Scribe | `assets/sprites/upgrade_v1/hero_shadow_scribe.png` (64×64). Slim black hood, cool-blue eye, deep-red sash and narrow calligraphy katana. Keep the inky silhouette legible against dark scenes. |
 
 ### Recurring NPCs
 
@@ -97,10 +97,10 @@ The low-resolution in-game sprites are identity references for silhouette, cloth
 ## Image production and review contract
 
 1. Generate every manifest record as its own image request. Never generate a contact sheet, reuse an image, recolor another panel or substitute one character's scene for another.
-2. Use the existing `reference_sprite` for shape and palette. Use the written character/NPC locks for face, clothes and proportions. Art quality must be far above the tiny gameplay sprite while remaining recognizably the same person.
-3. Use hand-authored-looking high-resolution pixel art: intentional pixel clusters, stepped contours, controlled highlights, readable facial expressions, consistent limited palette and clean edges. No blur, airbrush, photorealistic rendering, vector smoothness or loose painterly texture.
+2. Use the six source sprites as exact model references, not loose inspiration. Retain each hero's silhouette, costume, signature colors, signature prop, apparent age and gender presentation in every panel. Do not redesign, swap costumes, add/remove signature gear or merge traits between characters. Keep recurring NPCs equally consistent using their written anchors.
+3. Draw polished, artist-authored pixel art with substantially more character detail than the 64×64 gameplay sprites. Work at a 640×360 logical pixel canvas and enlarge exactly 2× with nearest-neighbor to 1280×720. Keep hard pixel edges and coherent cluster scale. Add sophistication through pose, lighting, material rendering and environmental detail, not blur or smooth gradients. It should read as a skilled pixel artist's work, not a filtered-upscaled sprite or generic AI fantasy image. No airbrush, photorealism, vector smoothness, painterly smearing or random noise.
 4. Create 16:9 scene art at 1280×720. No text, pseudo-writing, letters, numbers, captions, speech bubbles, UI, file/folder/document icons, emoji, watermarks or logos inside any picture. Ordinary story props are allowed only when integrated into the environment, never as a flat app icon.
-5. Review character identity, named NPC, episode location, exact story beat, composition uniqueness and pixel edges before upload. Reject and regenerate any miss; do not silently pass low-quality frames.
+5. Review character identity against the actual 64×64 sprite, named NPC, episode location, exact story beat, composition uniqueness, pixel clusters and output sharpness before upload. Reject and regenerate any miss; do not silently pass low-quality frames.
 6. Preserve the approved lossless original outside the runtime download path. Export the game copy as sharp 1280×720 WebP, target at most 300 KB. Mirror it under `build/web/assets/` byte-for-byte.
 7. Load one current panel image and at most the next panel. Do not preload the 600-image set. Runtime code must point only to approved files that exist.
 

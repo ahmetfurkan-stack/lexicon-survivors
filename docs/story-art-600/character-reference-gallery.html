@@ -1,0 +1,45 @@
+<!doctype html>
+<html lang="tr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Lexicon Survivors — Hikâye Karakter Referansları</title>
+  <style>
+    :root { color-scheme: dark; --paper:#e9dec5; --muted:#afa58f; --gold:#d7ae62; --panel:#211f1a; --line:#4d4537; }
+    * { box-sizing:border-box }
+    body { margin:0; color:var(--paper); background:#12120f; font:16px/1.55 Georgia,serif }
+    main { width:min(1120px,calc(100% - 32px)); margin:48px auto 72px }
+    header { padding:28px 0 24px; border-bottom:1px solid var(--line) }
+    h1 { margin:0; color:#f4e5c4; font-size:clamp(27px,5vw,44px); letter-spacing:.02em }
+    header p { max-width:760px; margin:12px 0 0; color:var(--muted) }
+    .notice { margin:22px 0; padding:14px 18px; border-left:3px solid var(--gold); background:#1e1b16; color:#ded2b7 }
+    .grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(300px,1fr)); gap:16px }
+    article { display:grid; grid-template-columns:112px 1fr; gap:18px; align-items:start; padding:18px; border:1px solid var(--line); background:linear-gradient(145deg,#25221c,#191814); border-radius:7px }
+    figure { margin:0; width:112px; height:112px; display:grid; place-items:center; background:#0c0d10; border:1px solid #514938; image-rendering:pixelated }
+    figure img { width:96px; height:96px; object-fit:contain; image-rendering:pixelated }
+    h2 { margin:0 0 5px; color:#f0d79f; font-size:21px }
+    .size { color:var(--muted); font:12px/1.4 ui-monospace,monospace }
+    p { margin:9px 0 0; color:#ded5c3 }
+    a { color:#e3c47e }
+    @media(max-width:420px) { article { grid-template-columns:80px 1fr; gap:13px; padding:13px } figure { width:80px; height:80px } figure img { width:72px; height:72px } }
+  </style>
+</head>
+<body>
+<main>
+  <header>
+    <h1>Hikâye Karakter Referansları</h1>
+    <p>Oyunda kullanılan gerçek 64×64 sprite’lar. Bunlar yeni sahne çizimleri değil; 600 ayrı hikâye panelinde aynı karakter tasarımını korumak için kimlik referanslarıdır.</p>
+  </header>
+  <p class="notice">Hikâye çizimlerinde yüz, siluet, kostüm, ana renkler ve imza eşyalar burada görülen oyun tasarımına bağlı kalmalı. Ayrıntı ve duygu ifadesi artırılabilir; karakter yeniden tasarlanmamalı.</p>
+  <section class="grid" aria-label="Oyundaki karakterler">
+    <article><figure><img src="../../assets/sprites/upgrade_v1/hero_inky.png" alt="Inky oyun sprite'ı"></figure><div><h2>Inky</h2><span class="size">64×64 · hero_inky.png</span><p>Kobalt sivri şapka, altın kenar ve tüy iğnesi, kısa mavi pelerin. Küçük mavi-bakır bilgin silueti korunur.</p></div></article>
+    <article><figure><img src="../../assets/sprites/upgrade_v1/hero_quillmaster.png" alt="Quillmaster oyun sprite'ı"></figure><div><h2>Quillmaster</h2><span class="size">64×64 · hero_quillmaster.png</span><p>Bordo düellocu ceketi, koyu eldivenler, kısa açık renkli tüy şapka ve ince tüy-rapier. Inky’nin sivri şapkası kullanılmaz.</p></div></article>
+    <article><figure><img src="../../assets/sprites/upgrade_v1/hero_word_knight.png" alt="Word Knight oyun sprite'ı"></figure><div><h2>Word Knight</h2><span class="size">64×64 · hero_word_knight.png</span><p>Geniş gümüş zırh, mavi miğfer, kısa kırmızı sorguç, koyu turkuaz pelerin ve ağır sözlük kılıcı/kalkanı.</p></div></article>
+    <article><figure><img src="../../assets/sprites/upgrade_v1/hero_rune_sorceress.png" alt="Rune Sorceress oyun sprite'ı"></figure><div><h2>Rune Sorceress</h2><span class="size">64×64 · hero_rune_sorceress.png</span><p>Yetişkin kadın büyücü; gece mavisi katlı giysi, açık mavi başlık, altın ayrıntı ve mor rün odağı.</p></div></article>
+    <article><figure><img src="../../assets/sprites/upgrade_v1/hero_alchemist.png" alt="Alchemist oyun sprite'ı"></figure><div><h2>Alchemist</h2><span class="size">64×64 · hero_alchemist.png</span><p>Yetişkin kadın simyacı; yosun yeşili başlık ve pelerin, deri kemer, pirinç mercek ve birkaç cam şişe.</p></div></article>
+    <article><figure><img src="../../assets/sprites/upgrade_v1/hero_shadow_scribe.png" alt="Shadow Scribe oyun sprite'ı"></figure><div><h2>Shadow Scribe</h2><span class="size">64×64 · hero_shadow_scribe.png</span><p>İnce siyah kukuletalı siluet, soğuk mavi göz ışığı, koyu kırmızı atkı ve dar hat katanası.</p></div></article>
+  </section>
+  <p class="notice">Üretim yönergeleri: <a href="story-bible-and-production-brief.md">hikâye ve sanat brief’i</a> · <a href="character-model-sheets.md">karakter model sayfaları</a></p>
+</main>
+</body>
+</html>

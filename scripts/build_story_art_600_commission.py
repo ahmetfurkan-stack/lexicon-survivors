@@ -185,6 +185,10 @@ def build_manifest() -> dict:
                     "Create exactly ONE finished, hand-crafted high-resolution pixel-art graphic-novel panel, "
                     "16:9 landscape, for the Lexicon Survivors game. This is a single scene image, never a "
                     "contact sheet, sprite sheet, collage, UI mockup or icon.\n\n"
+                    "REFERENCE FILE: use the exact 64x64 in-game sprite at the reference_sprite path supplied with this record. "
+                    "Use docs/story-art-600/character-model-sheets.md for the expanded story drawing model and "
+                    "docs/story-art-600/character-reference-gallery.html to compare all six playable heroes. "
+                    "Treat those game files as the identity source; do not invent a replacement design.\n\n"
                     f"CAMPAIGN: {profile['display_name']} — {profile['campaign']}\n"
                     f"ACT: {act}. {act_summary}\n"
                     f"EPISODE {episode['wave']} — {episode['title']}. LOCATION: {episode['location']}.\n"
@@ -195,11 +199,14 @@ def build_manifest() -> dict:
                     f"PANEL COMPOSITION: {PANEL_STAGING[panel_index]} Compose this frame around the exact speaker and physical action above. "
                     "Make the background architecture and prop arrangement specific to this episode. Use a fresh camera angle, silhouette grouping, "
                     "lighting pattern and focal object that has not appeared in the other 599 panels. Make the emotional beat readable even at thumbnail size.\n\n"
-                    "ART DIRECTION: premium artist-drawn pixel art matching the actual in-game character silhouettes and palette, "
+                    "ART DIRECTION: premium, visibly hand-authored pixel art matching the attached actual in-game reference sprite exactly in silhouette, "
                     f"with a richer {', '.join(profile['palette'])} palette, deliberate pixel clusters, clean stepped contours, "
-                    "subtle material texture and carefully controlled highlights. Increase detail and resolution above the 64x64 game sprites "
-                    "without changing their identities. Dark-fantasy library atmosphere, expressive posing, composed light, crisp pixels, no blur, "
-                    "no airbrush, no photorealism, no vector gradients, no painterly smearing, no AI artifacts. "
+                    "subtle material texture and carefully controlled highlights. Draw a more detailed, expressive version of the same model, "
+                    "preserving costume, signature prop, apparent age, gender presentation and proportions. Compose at 640x360 logical pixels "
+                    "then enlarge exactly 2x with nearest-neighbor to 1280x720. Keep a consistent pixel-cluster scale and crisp stepped edges. "
+                    "Dark-fantasy library atmosphere, expressive posing, composed light; it should look like skilled pixel-artist work, "
+                    "not a filtered-upscaled sprite or generic AI fantasy art. No blur, airbrush, photorealism, vector gradients, "
+                    "painterly smearing, random noise or AI artifacts. "
                     "For magical seals, use abstract geometric marks only; never imitate writing.\n\n"
                     "ABSOLUTE EXCLUSIONS: no visible writing, letters, numbers, glyph-like pseudo-text, captions, speech bubbles, watermarks, "
                     "brand marks, file icons, folder icons, emoji, HUD, interface, borders, frames or decorative symbols that resemble text. "
@@ -212,6 +219,7 @@ def build_manifest() -> dict:
                     "character_id": character_id,
                     "character_name": profile["display_name"],
                     "reference_sprite": profile["sprite_reference"],
+                    "story_model_sheet": "docs/story-art-600/character-model-sheets.md",
                     "episode_index": episode_index,
                     "wave": int(episode["wave"]),
                     "episode_title": episode["title"],
@@ -253,8 +261,10 @@ def build_manifest() -> dict:
         "panel_count_per_episode": 5,
         "character_count": 6,
         "episodes_per_character": 20,
-        "style_lock": "Premium artist-drawn pixel art, recognizably matching in-game silhouettes and palette, rendered at 1280x720 with crisp stepped edges and no in-image text/UI.",
+        "style_lock": "Hand-authored high-quality pixel art that matches the exact in-game sprite identity; 640x360 logical canvas enlarged 2x nearest-neighbor to 1280x720; consistent crisp cluster scale and no in-image text/UI.",
         "reference_characters": CHARACTERS,
+        "story_model_sheets": "docs/story-art-600/character-model-sheets.md",
+        "reference_gallery": "docs/story-art-600/character-reference-gallery.html",
         "reference_npcs": NPC_REFERENCES,
         "upload_policy": {
             "source": "Keep approved lossless PNG originals in an external/source archive, not in the runtime download path.",
