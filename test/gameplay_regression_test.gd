@@ -514,9 +514,11 @@ func _run() -> void:
 	assert(is_equal_approx(walk_top_speed.length(), stats_manager.move_speed), "Locomotion response must preserve the configured top speed")
 	var walk_brake: Vector2 = player.approach_locomotion_velocity(walk_top_speed, Vector2.ZERO, 0.016)
 	assert(walk_brake.length() > 0.0 and walk_brake.length() < walk_top_speed.length(), "Movement must brake smoothly after releasing input")
-	assert(walk_top_speed.length() - walk_brake.length() < walk_accel.length(), "Braking must ease out more gently than accelerating into a run")
+	assert(walk_top_speed.length() - walk_brake.length() > walk_accel.length(), "Braking should respond faster than the initial run-up")
+	var walk_stopped: Vector2 = player.approach_locomotion_velocity(walk_top_speed, Vector2.ZERO, 0.10)
+	assert(walk_stopped.is_zero_approx(), "A short deliberate brake should stop drift within a tenth of a second")
 	var walk_reverse: Vector2 = player.approach_locomotion_velocity(walk_top_speed, Vector2.LEFT * stats_manager.move_speed, 0.016)
-	assert(walk_reverse.length() <= stats_manager.move_speed and walk_reverse.x > -stats_manager.move_speed, "Direction changes must ease through the existing speed ceiling")
+	assert(walk_reverse.length() <= stats_manager.move_speed and walk_reverse.x > 0.0, "A direction reversal must stay smooth without the old sluggish turn response")
 	player.attack_anim_timer = 0.0
 	player.run_anim_phase = 0.0
 	player.velocity = Vector2.RIGHT * stats_manager.move_speed

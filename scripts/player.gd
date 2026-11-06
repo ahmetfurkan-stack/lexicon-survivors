@@ -464,7 +464,11 @@ func _physics_process(delta: float):
 	_update_hero_animation()
 
 func approach_locomotion_velocity(current: Vector2, target: Vector2, delta: float) -> Vector2:
-	var acceleration := 1050.0 if target.length_squared() > 0.0 else 900.0
+	var current_speed := current.length()
+	var target_speed := target.length()
+	var acceleration := 2400.0 if target_speed < 0.001 else 1450.0
+	if target_speed >= 0.001 and current_speed > 0.001 and current.dot(target) < -0.15 * current_speed * target_speed:
+		acceleration = 1900.0
 	return current.move_toward(target, acceleration * delta)
 
 func _advance_run_phase(delta: float) -> void:
