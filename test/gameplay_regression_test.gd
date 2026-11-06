@@ -311,12 +311,43 @@ func _run() -> void:
 	assert(hud.get_node("TouchControls").visible, "Touch actions must be visible when touchscreen input is enabled")
 	assert(hud.get_node("TouchStick").visible, "Touch users must receive an on-screen movement stick")
 	var touch_stick: Control = hud.get_node("TouchStick")
+	await process_frame
+	var stick_press := InputEventScreenTouch.new()
+	stick_press.index = 77
+	stick_press.position = touch_stick.size * 0.5 + Vector2(touch_stick.size.x * 0.35, 0.0)
+	stick_press.pressed = true
+	touch_stick._gui_input(stick_press)
+	await process_frame
+	assert(hud.get_touch_move_vector().x > 0.9, "A screen-touch press must drive the movement stick")
+	var stick_drag := InputEventScreenDrag.new()
+	stick_drag.index = 77
+	stick_drag.position = touch_stick.size * 0.5 + Vector2(touch_stick.size.x * 0.40, 0.0)
+	touch_stick._gui_input(stick_drag)
+	await process_frame
+	assert(hud.get_touch_move_vector().x > 0.9, "A screen-touch drag must keep driving movement")
+	var stick_release := InputEventScreenTouch.new()
+	stick_release.index = 77
+	stick_release.position = stick_drag.position
+	stick_release.pressed = false
+	touch_stick._gui_input(stick_release)
+	await process_frame
+	assert(hud.get_touch_move_vector() == Vector2.ZERO, "Releasing the movement touch must immediately clear its vector")
 	touch_stick._update_from_position(Vector2(touch_stick.size.x * 0.9, touch_stick.size.y * 0.5))
 	assert(hud.get_touch_move_vector().x > 0.9 and absf(hud.get_touch_move_vector().y) < 0.01, "Dragging the touch stick must provide directional movement input")
 	touch_stick.reset()
 	for icon_button_path in ["TouchControls/ActionRow/GadgetTouchButton", "TouchControls/ActionRow/WeaponTouchButton", "TouchControls/ActionRow/InventoryTouchButton", "InventoryOverlay/InventoryPanel/InventoryLayout/InventoryTabs/WeaponsTab", "InventoryOverlay/InventoryPanel/InventoryLayout/InventoryTabs/GadgetsTab", "InventoryOverlay/InventoryPanel/InventoryLayout/InventoryHeader/InventoryCloseButton"]:
 		assert(hud.get_node(icon_button_path).icon != null, "%s must use a non-emoji UI asset" % icon_button_path)
 	var touch_controls: Control = hud.get_node("TouchControls")
+	var gadget_button: Control = hud.get_node("TouchControls/ActionRow/GadgetTouchButton")
+	main.player.gadget_timer = 0.0
+	gadget_button.pressed.emit()
+	assert(main.player.gadget_timer > 0.0, "The touch gadget button signal must activate the equipped gadget")
+	var inventory_touch_button: Control = hud.get_node("TouchControls/ActionRow/InventoryTouchButton")
+	inventory_touch_button.pressed.emit()
+	assert(hud.inventory_open and paused, "The touch inventory button signal must open the inventory and pause the wave")
+	var close_button: Control = hud.get_node("InventoryOverlay/InventoryPanel/InventoryLayout/InventoryHeader/InventoryCloseButton")
+	close_button.pressed.emit()
+	assert(not hud.inventory_open and not paused, "The touch close button signal must close inventory and resume the wave")
 	var original_control_width: float = touch_controls.offset_right - touch_controls.offset_left
 	var original_control_height: float = touch_controls.offset_bottom - touch_controls.offset_top
 	hud._apply_touch_safe_area_insets(72.0, 38.0)

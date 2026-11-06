@@ -237,3 +237,8 @@ Original prompt: https://github.com/yasinkaya701/lexicon-survivors — bunu ince
 - Worker testleri, 7 dalgayı 100 saniyede bitiren kaydı reddediyor ve aynı ilerleme için 120 saniyelik makul kaydı kabul ediyor. Tüm 28 Worker testi geçti.
 - Bu yalnızca kaba tutarlılık filtresi. Oyun hâlâ skorları istemciden alıyor; imza/otoritatif sunucu simülasyonu olmadığı için global yarışma güvenliği sağlamaz. Worker üretime gönderilmedi ve deploy sırası gelene kadar bekleyecek.
 - Ek inceleme, ilk süre kuralından bağımsız bir açığı gösterdi: ilk dalgada 100.000 öldürme bildirimi de kabul ediliyordu. Worker artık tur süresi, spawn aralığı, zorluk ve slime bölünmelerinden muhafazakâr en yüksek öldürme sayısını hesaplıyor; ilk tur için makul 120 kill sınır içinde kalırken 100.000 reddediliyor. Worker testleri 30/30 geçti.
+
+## Godot dokunmatik HUD test kapsamı — 2026-11-06
+
+- Godot gameplay regression, `TouchStick` için basma/sürükleme/bırakma dokunma olaylarını yerel `_gui_input` işleyicisine vererek yön vektörü ve bırakınca sıfırlanmayı doğruluyor. Gereç, çanta ve kapat düğmelerinin sinyalleri de gadget bekleme süresi ve envanter pause/resume davranışına kadar izleniyor.
+- Godot gameplay regression geçti. Headless viewport sentetik ekran dokunuşunu GUI hit-test üzerinden dağıtmadığı için bu kontrol gerçek cihaz/hit-test doğrulaması sayılmıyor; gerçek Godot mobil cihaz denemesi yayın kapısı olarak duruyor. Web tarafındaki gerçek Playwright touch akışı ayrı olarak geçmişti.
