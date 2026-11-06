@@ -3,6 +3,9 @@ const fs = require("node:fs");
 const expansion = JSON.parse(fs.readFileSync("assets/data/story_expansion.json", "utf8"));
 const manifest = JSON.parse(fs.readFileSync("assets/data/story_art_600_manifest.json", "utf8"));
 const story = JSON.parse(fs.readFileSync("assets/data/story_arc.json", "utf8"));
+const runtimeArt = JSON.parse(fs.readFileSync("assets/data/story_art_600_runtime.json", "utf8"));
+const webGame = fs.readFileSync("build/web/game.js", "utf8");
+const godotHud = fs.readFileSync("scripts/hud.gd", "utf8");
 
 assert.equal(expansion.boss_encounters.length, 20, "every five-wave boss encounter needs its own story arc");
 assert.deepEqual(expansion.boss_encounters.map((boss) => boss.wave), Array.from({ length: 20 }, (_, index) => (index + 1) * 5));
@@ -36,8 +39,22 @@ for (const requiredVoice of ["mira", "ada", "lale", "sera", "mara", "yel", "tavi
 }
 
 assert.equal(manifest.images.length, 600, "story expansion must preserve the unique 600-panel commission");
+assert.equal(manifest.generated_images, 0, "commission generation must not claim that images were created");
+assert.equal(runtimeArt.approved_count, 0, "requested or pending assets must not appear in the runtime index");
+assert.deepEqual(runtimeArt.panels, {}, "unreviewed story art must not be wired into gameplay");
+assert.equal(new Set(manifest.images.map((image) => image.id)).size, 600, "every image request needs a unique stable ID");
+assert.equal(new Set(manifest.images.map((image) => image.expected_source_path)).size, 600, "every image request needs its own source asset path");
+assert.equal(new Set(manifest.images.map((image) => image.expected_web_path)).size, 600, "every image request needs its own web asset path");
+assert.equal(new Set(manifest.images.map((image) => image.composition_id)).size, 600, "every image request needs its own camera, lighting and focal composition combination");
 for (const image of manifest.images) {
   assert.ok(image.boss_story_canon?.motive, image.id + " must inherit the encounter's boss story context");
   assert.ok(image.prompt.includes("BOSS STORY CANON"), image.id + " prompt must reference the boss story");
+  assert.ok(image.prompt.includes(`PANEL COMPOSITION [${image.composition_id}]`), image.id + " prompt must lock its unique composition direction");
+  assert.equal(image.status, "requested_not_generated", image.id + " starts as a request, never as an approved runtime asset");
+  assert.equal(image.human_review, null, image.id + " must wait for human review after upload");
 }
+assert.match(webGame, /story_art_600_runtime\.json/, "Web must read the human-approved runtime art index");
+assert.match(webGame, /\$\{state\.selected_char\}:\$\{episode\.wave\}:\$\{storyPanelIndex \+ 1\}/, "Web must choose art for the active character, wave and panel");
+assert.match(godotHud, /story_art_600_runtime\.json/, "Godot must read the same human-approved runtime art index");
+assert.match(godotHud, /%s:%d:%d/, "Godot must choose art for the active character, wave and panel");
 console.log("Story expansion regression passed (20 boss stories, 14 independent supporting arcs, 600 unique image briefs).");

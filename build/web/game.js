@@ -1383,6 +1383,18 @@ function getEnemyInkReward(enemyType, fallback = 1) {
 }
 
 let STORY_ARC_DATA = null;
+let STORY_ART_RUNTIME_DATA = { panels: {} };
+const storyArtReady = fetch("assets/data/story_art_600_runtime.json", { cache: "no-store" }).then(response => {
+  if (!response.ok) throw new Error(`Story art index HTTP ${response.status}`);
+  return response.json();
+}).then(data => {
+  if (data.schema_version !== 1 || !data.panels || typeof data.panels !== "object") throw new Error("Story art index is invalid");
+  STORY_ART_RUNTIME_DATA = data;
+  return true;
+}).catch(error => {
+  console.warn("Approved story art index unavailable; using the built-in scene art", error);
+  return false;
+});
 const storyArcReady = fetch("assets/data/story_arc.json", { cache: "no-store" }).then(response => {
   if (!response.ok) throw new Error(`Story arc HTTP ${response.status}`);
   return response.json();
@@ -3011,8 +3023,15 @@ function renderStoryPanel() {
   document.getElementById("story-copy").textContent = beat[1];
   document.getElementById("story-scene-caption").textContent = episode.scene;
   document.getElementById("story-counter").textContent = `${storyPanelIndex + 1} / ${STORY_ARC_DATA.panel_count}`;
-  sceneImage.src = `assets/sprites/story/${episode.backdrop}`;
-  sceneImage.alt = `${episode.scene} · ${episode.location}`;
+  const fallbackScenePath = `assets/sprites/story/${episode.backdrop}`;
+  const artKey = `${state.selected_char}:${episode.wave}:${storyPanelIndex + 1}`;
+  const approvedPanel = STORY_ART_RUNTIME_DATA.panels?.[artKey];
+  sceneImage.onerror = () => {
+    sceneImage.onerror = null;
+    sceneImage.src = fallbackScenePath;
+  };
+  sceneImage.src = approvedPanel?.path || fallbackScenePath;
+  sceneImage.alt = approvedPanel ? `${episode.scene} · ${episode.location}` : `${episode.scene} · ${episode.location}`;
   const chosenBossSprite = isBossVoice && bossRosterEntry ? bossRosterEntry[1] : "";
   const speakerPath = heroSpeakerIds.has(speakerId) ? portraitPaths.hero
     : (chosenBossSprite || portraitPaths[speakerId] || "");
@@ -3045,8 +3064,9 @@ function renderStoryPanel() {
     : "ENTER · SONRAKİ KARE";
 }
 
-function showStoryIntermission(wave) {
+async function showStoryIntermission(wave) {
   if (!STORY_ARC_DATA) return openShop();
+  await Promise.all([storyArcReady, storyArtReady]);
   storyEpisodeIndex = STORY_ARC_DATA.episodes.findIndex(episode => episode.wave === wave);
   if (storyEpisodeIndex < 0) return openShop();
   storyWavePending = wave;

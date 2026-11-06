@@ -33,7 +33,7 @@ func _test_story_intermission(main_node: Node) -> void:
 	await get_tree().process_frame
 	var overlay: Control = hud.get_node("StoryIntermission")
 	assert(overlay.visible, "Every fifth-wave story scene must take focus over the game")
-	assert(hud._story_title.text == "Kanayan Fiş", "Wave 5 must begin the selected character's authored story")
+	assert(hud._story_title.text == "Ters Akan Fiş", "Wave 5 must begin the selected character's authored story")
 	assert(hud._story_scene_image.texture.resource_path.ends_with("/scenes/inky/episode_01.png"), "Wave 5 must load its unique Inky scene art")
 	hud._advance_story_panel()
 	await get_tree().process_frame

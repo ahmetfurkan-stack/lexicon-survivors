@@ -195,6 +195,45 @@ PANEL_STAGING = {
     5: "Close on the consequence and a new visual hook toward the next chapter; leave room for the game's separate dialogue overlay.",
 }
 
+CAMERA_ANGLES = [
+    "eye-level centered", "low-angle from floor height", "high-angle from a stair landing",
+    "overhead map-like view", "over-the-shoulder from behind the hero", "three-quarter profile from the left",
+    "three-quarter profile from the right", "distant view through a doorway", "close profile with deep background",
+    "oblique view along a shelf aisle",
+]
+SHOT_SCALES = [
+    "wide environmental shot", "full-figure two-person shot", "medium waist-up exchange",
+    "tight face-and-hands shot", "prop-led close-up with faces in the upper frame",
+    "deep layered shot with foreground, action plane and distant architecture",
+]
+LIGHTING_PATTERNS = [
+    "a narrow warm lamp beam crossing cool blue shadow",
+    "cold stained-glass light broken by shelf shadows",
+    "soft dawn light entering from behind the characters",
+    "one low candle illuminating hands while faces fall into dusk",
+    "a warm reflected glow from the clue against a dark room",
+]
+FOCAL_PLACEMENTS = [
+    "place the episode's clue low on the left, with the speaker looking across the frame",
+    "place the clue high on the right, with the hero's gesture leading toward it",
+]
+
+def unique_composition(global_panel_index: int) -> tuple[str, str]:
+    """Return a distinct, deterministic camera/light/layout combination for every panel."""
+    if not 0 <= global_panel_index < 600:
+        raise ValueError("global panel index must be in the 600-panel commission")
+    camera = global_panel_index % len(CAMERA_ANGLES)
+    scale = (global_panel_index // len(CAMERA_ANGLES)) % len(SHOT_SCALES)
+    lighting = (global_panel_index // (len(CAMERA_ANGLES) * len(SHOT_SCALES))) % len(LIGHTING_PATTERNS)
+    focal = global_panel_index // (len(CAMERA_ANGLES) * len(SHOT_SCALES) * len(LIGHTING_PATTERNS))
+    composition_id = f"C{camera:02d}-S{scale:02d}-L{lighting:02d}-F{focal:02d}"
+    description = (
+        f"Use a {CAMERA_ANGLES[camera]} camera and a {SHOT_SCALES[scale]}; "
+        f"light it with {LIGHTING_PATTERNS[lighting]}, and {FOCAL_PLACEMENTS[focal]}. "
+        "This composition code is reserved for this panel; do not reuse this camera, shot scale, light pattern and focal placement as a set."
+    )
+    return composition_id, description
+
 ACTS = [
     (5, 25, "I — First trace", "The hero discovers a clue and learns the Library is altering records, not merely hiding them."),
     (30, 50, "II — The borrowed answer", "The Library offers a comforting false version of the relationship; the hero rejects forced closure and earns the second memory."),
@@ -270,6 +309,8 @@ def build_manifest() -> dict:
                         speaker_reference_image = NPC_STORY_IMAGES[normalized_speaker]
                 if speaker_reference_image is None:
                     speaker_reference_image = BOSS_SPEAKER_IMAGES.get(str(speaker))
+                global_panel_index = len(images)
+                composition_id, composition_direction = unique_composition(global_panel_index)
                 prompt = (
                     "Create exactly ONE finished, hand-crafted high-resolution pixel-art graphic-novel panel, "
                     "16:9 landscape, for the Lexicon Survivors game. This is a single scene image, never a "
@@ -295,7 +336,8 @@ def build_manifest() -> dict:
                     + "\n"
                     f"CHARACTER MODEL LOCK: {anchor}\n"
                     f"HERO MODEL LOCK: {profile['identity_lock']}\n"
-                    f"PANEL COMPOSITION: {PANEL_STAGING[panel_index]} Compose this frame around the exact speaker and physical action above. "
+                    f"PANEL COMPOSITION [{composition_id}]: {PANEL_STAGING[panel_index]} {composition_direction} "
+                    "Compose this frame around the exact speaker and physical action above. "
                     "Make the background architecture and prop arrangement specific to this episode. Enrich the room with story-relevant shelves, stairways, "
                     "stained glass, maps, bound books, lamps, worked wood, worn cloth, brass fittings, dust and shaped light. Every prop must support the scene; "
                     "do not add ornamental noise. Use a fresh camera angle, silhouette grouping, lighting pattern and focal object unlike the other 599 panels. "
@@ -317,6 +359,8 @@ def build_manifest() -> dict:
                 )
                 images.append({
                     "id": asset_id,
+                    "composition_id": composition_id,
+                    "composition_direction": composition_direction,
                     "character_id": character_id,
                     "character_name": profile["display_name"],
                     "reference_sprite": profile["sprite_reference"],
@@ -347,6 +391,7 @@ def build_manifest() -> dict:
                     "expected_source_path": output_path,
                     "expected_web_path": web_path,
                     "status": "requested_not_generated",
+                    "human_review": None,
                     "qa": {
                         "unique_composition": "pending",
                         "character_match": "pending",

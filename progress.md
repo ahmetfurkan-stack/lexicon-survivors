@@ -217,3 +217,11 @@ Original prompt: https://github.com/yasinkaya701/lexicon-survivors — bunu ince
 - Görsel üretimi yapılmadı; manifest 600 ayrı görseli isteme/izleme dosyası olmaya devam ediyor.
 - Sanatçıya verilecek Türkçe ana görsel promptu ve genişletilmiş beş perdelik senaryo `docs/story-art-600/master-art-prompt.md` ile `master-scenario.md` altında ayrı teslim edildi. Manifest üreticisi 600 farklı kısa promptu bu sanat yönü ve karakter/boss kanonuyla oluşturuyor.
 - Yayın öncesi sahne dosyaları elle eklenebilsin diye üretim/yükleme ve insan inceleme adımı açık bırakıldı; bu dalda 600 panel görüntüsü yok. `python3 scripts/build_story_art_600_commission.py`, `story_expansion_regression.js`, `story_arc_regression.js` ve `git diff --check` başarılı.
+
+## İnsan onaylı 600 panel görsel hattı — 2026-11-06
+
+- Her manifest paneline 600 içinde tekrarlanmayan kamera, kadraj, ışık ve odak yerleşimi birleşimi eklendi. Kanonik görsel üreticisi prompta `composition_id` ve açık yönlendirme koyuyor.
+- Arkadaşın AI aracı taslak üretebilir; sanatçı veya editör dosyayı serbestçe rötuşlayabilir, reddedebilir ya da baştan çizebilir. `awaiting_human_review` hiçbir zaman oyunda kullanılmaz.
+- `scripts/prepare_story_art_600_runtime.py` insan inceleyeni/tarih, altı QA maddesi, 1280×720 WebP boyutu, 300 KB sınırı, iki runtime kopyasının SHA-256 eşitliği ve görsel başına benzersiz hash ister. Yalnızca geçen dosyalar küçük runtime manifestine yazılır; PNG master harici arşivde tutulur.
+- Web ve Godot hikâye kartı karakter/tur/panel anahtarıyla yalnız onaylı görseli seçer; görsel yoksa mevcut sahne çizimi görünür kalır. Web yalnız açık olan panelin dosya yolunu ister; 600 görsel topluca indirilmez.
+- Doğrulama: 600 farklı kompozisyon/prompt regression'ı, runtime indeksinin onay gate testleri (3/3), hikâye arc testleri ve Godot scene-instantiation geçti. Web smoke akışında 5. tur “Ters Akan Fiş” paneli, mevcut sahne görseline geri dönüş ve console error yok doğrulandı. 600 yeni görsel henüz üretilmedi; runtime index bu nedenle 0 onaylı panel içeriyor.

@@ -52,6 +52,7 @@ var _story_memory_icon: TextureRect
 var _story_next_button: Button
 var _story_skip_button: Button
 var _story_data: Dictionary = {}
+var _story_art_index: Dictionary = {"panels": {}}
 var _story_active: bool = false
 var _story_episode_index: int = -1
 var _story_panel_index: int = 0
@@ -328,6 +329,11 @@ func _load_story_arc() -> void:
 			push_error("Story arc has missing episodes for %s" % char_id)
 			return
 	_story_data = parsed
+	var art_file := FileAccess.open("res://assets/data/story_art_600_runtime.json", FileAccess.READ)
+	if art_file != null:
+		var art_data: Variant = JSON.parse_string(art_file.get_as_text())
+		if art_data is Dictionary and int(art_data.get("schema_version", 0)) == 1 and art_data.get("panels", {}) is Dictionary:
+			_story_art_index = art_data
 
 func _render_story_panel() -> void:
 	if _story_episode_index < 0 or _story_data.is_empty():
@@ -353,7 +359,16 @@ func _render_story_panel() -> void:
 	_story_speaker.text = _get_story_speaker_name(speaker_id, char_id)
 	_story_copy.text = str(beat[1])
 	_story_counter.text = "%d / 5" % [_story_panel_index + 1]
-	_story_scene_image.texture = load("res://assets/sprites/story/" + str(episode.get("backdrop", "story_library.png")))
+	var art_key := "%s:%d:%d" % [char_id, int(episode.get("wave", _story_pending_wave)), _story_panel_index + 1]
+	var approved_panels: Dictionary = _story_art_index.get("panels", {})
+	var approved_panel: Dictionary = approved_panels.get(art_key, {})
+	var approved_path := str(approved_panel.get("path", ""))
+	var fallback_path := "res://assets/sprites/story/" + str(episode.get("backdrop", "story_library.png"))
+	var selected_scene_path := "res://" + approved_path if not approved_path.is_empty() else fallback_path
+	var scene_texture: Texture2D = load(selected_scene_path) if ResourceLoader.exists(selected_scene_path) else null
+	if scene_texture == null and selected_scene_path != fallback_path:
+		scene_texture = load(fallback_path)
+	_story_scene_image.texture = scene_texture
 	var reward: Dictionary = episode.get("boss_reward", {}) if episode.get("boss_reward", null) is Dictionary else {}
 	var show_reward := _story_panel_index == 4 and not reward.is_empty()
 	(_story_memory.get_parent() as HBoxContainer).visible = show_reward
