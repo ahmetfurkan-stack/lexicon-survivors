@@ -58,7 +58,7 @@ var characters: Dictionary = {
 	"inky": {
 		"id": "inky",
 		"name": "Inky",
-		"title": "Dengeli Bilgin (The Balanced Scholar)",
+		"title": "Mürekkep Kâtibi",
 		"desc": "Standart dengeli nitelikler. Güvenilir ve çok yönlü kelime koruyucusu.",
 		"hp": 125.0,
 		"move_speed": 235.0,
@@ -74,7 +74,7 @@ var characters: Dictionary = {
 	"quillmaster": {
 		"id": "quillmaster",
 		"name": "Quillmaster",
-		"title": "Hızlı Kalemşör (Glass Cannon)",
+		"title": "Zaman Kalemşörü",
 		"desc": "+%35 Saldırı Hızı, +%20 Hasar ve +30 Hız! Seri kritik vuruşlar.",
 		"hp": 95.0,
 		"move_speed": 265.0,
@@ -90,7 +90,7 @@ var characters: Dictionary = {
 	"word_knight": {
 		"id": "word_knight",
 		"name": "Word Knight",
-		"title": "Sözcük Şövalyesi (The Tank)",
+		"title": "Sözlük Şövalyesi",
 		"desc": "+55 Maksimum Can (180 HP), +%30 Hasar Direnci (Zırh), sağlam savunma kalkanı.",
 		"hp": 180.0,
 		"move_speed": 210.0,
@@ -106,7 +106,7 @@ var characters: Dictionary = {
 	"rune_sorceress": {
 		"id": "rune_sorceress",
 		"name": "Rune Sorceress",
-		"title": "Kadim Rün Büyücüsü (Mystic Mage)",
+		"title": "Rün Büyücüsü",
 		"desc": "Büyülü rünlerle geniş alan hasarı, +%30 Hasar Çarpanı ve Rün Küresi.",
 		"hp": 105.0,
 		"move_speed": 245.0,
@@ -122,7 +122,7 @@ var characters: Dictionary = {
 	"lexicon_alchemist": {
 		"id": "lexicon_alchemist",
 		"name": "Alchemist",
-		"title": "Sözlük Simyacısı (Resource Alchemist)",
+		"title": "Arşiv Simyacısı",
 		"desc": "+%40 Mürekkep Kazanımı, Gramer Mıknatısı ve Mürekkep Alevi.",
 		"hp": 115.0,
 		"move_speed": 240.0,
@@ -138,7 +138,7 @@ var characters: Dictionary = {
 	"shadow_lexicographer": {
 		"id": "shadow_lexicographer",
 		"name": "Shadow Scribe",
-		"title": "Gölge Hattatı (Critical Assassin)",
+		"title": "Gölge Hattatı",
 		"desc": "290 Hız, +%35 Kritik Vuruş Şansı ve Hattat Katanası ile seri kesişler.",
 		"hp": 90.0,
 		"move_speed": 290.0,

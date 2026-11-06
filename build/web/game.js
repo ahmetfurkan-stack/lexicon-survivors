@@ -1030,7 +1030,8 @@ const CHARACTERS = {
   inky: {
     id: "inky",
     name: "Inky",
-    title: "Dengeli Bilgin (The Balanced Scholar)",
+    title: "Mürekkep Kâtibi",
+    selectionHook: "Mira'nın kayıp anısını bul.",
     desc: "Kütüphanenin kadim koruyucusu. Dengeli nitelikler ve kararlı mürekkep akışı.",
     hp: 125,
     speed: 235,
@@ -1047,7 +1048,8 @@ const CHARACTERS = {
   quillmaster: {
     id: "quillmaster",
     name: "Quillmaster",
-    title: "Hızlı Kalemşör (Glass Cannon)",
+    title: "Zaman Kalemşörü",
+    selectionHook: "Ada'nın kendi seçimini bul.",
     desc: "+%35 Saldırı Hızı, +%20 Hasar ve +30 Hareket Hızı! Seri kritik vuruşlar.",
     hp: 95,
     speed: 265,
@@ -1064,7 +1066,8 @@ const CHARACTERS = {
   word_knight: {
     id: "word_knight",
     name: "Word Knight",
-    title: "Sözcük Şövalyesi (The Citadel Tank)",
+    title: "Sözlük Şövalyesi",
+    selectionHook: "Kırık nöbet yeminini çöz.",
     desc: "+55 Maksimum Can (180 HP), +%30 Hasar Direnci (Zırh), sağlam savunma kalkanı.",
     hp: 180,
     speed: 210,
@@ -1081,7 +1084,8 @@ const CHARACTERS = {
   rune_sorceress: {
     id: "rune_sorceress",
     name: "Rune Sorceress",
-    title: "Kadim Rün Büyücüsü (Mystic Archmage)",
+    title: "Rün Büyücüsü",
+    selectionHook: "Lale'nin mühründeki kararı anla.",
     desc: "Büyülü rünlerle geniş alan hasarı, +%30 Hasar ve Rün Küresi ile başlar.",
     hp: 105,
     speed: 245,
@@ -1098,7 +1102,8 @@ const CHARACTERS = {
   lexicon_alchemist: {
     id: "lexicon_alchemist",
     name: "Alchemist",
-    title: "Sözlük Simyacısı (Resource Alchemist)",
+    title: "Arşiv Simyacısı",
+    selectionHook: "Lio'yu tek bir anıya hapsetme.",
     desc: "+%40 Mürekkep Kazanımı, Gramer Mıknatısı ve Mürekkep Alevi ile başlar.",
     hp: 115,
     speed: 240,
@@ -1115,7 +1120,8 @@ const CHARACTERS = {
   shadow_lexicographer: {
     id: "shadow_lexicographer",
     name: "Shadow Scribe",
-    title: "Gölge Hattatı (Critical Assassin)",
+    title: "Gölge Hattatı",
+    selectionHook: "Sana yazılan emrin izini sür.",
     desc: "290 Hız, +%35 Kritik Vuruş Şansı ve Hattat Katanası ile seri ölümcül kesişler.",
     hp: 90,
     speed: 290,
@@ -2731,7 +2737,6 @@ function initTitleScreen() {
   charGrid.innerHTML = "";
   ["inky", "quillmaster", "word_knight", "rune_sorceress", "lexicon_alchemist", "shadow_lexicographer"].forEach(cid => {
     const c = CHARACTERS[cid];
-    const storyMotive = STORY_ARC_DATA?.characters?.[cid]?.motive || "";
     const card = document.createElement("div");
     card.className = "choice-card" + (cid === state.selected_char ? " selected" : "");
     card.dataset.hero = cid;
@@ -2753,7 +2758,7 @@ function initTitleScreen() {
         </div>
       </div>
       <div class="desc" style="font-size: 10.5px; margin: 3px 0 2px 0;">${c.desc}</div>
-      <div class="story-motive" style="font-size:10px;margin:3px 0;color:#765d39;font-style:italic;">Kişisel arayış · ${storyMotive}</div>
+      <div class="story-motive" aria-label="Hikâye arayışı">${c.selectionHook}</div>
       <div class="passive" style="font-size: 9.5px; padding-top: 2px;">${c.passive}</div>
     `;
 
