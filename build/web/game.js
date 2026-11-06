@@ -185,6 +185,12 @@ function getAttackAnimationFrame(player) {
   return 3;
 }
 
+function getHeroAnimationFrame(action, player) {
+  if (action === "attack" || action === "ranged") return getAttackAnimationFrame(player);
+  if (action === "run") return getHeroRunFrameIndex(player.run_phase, getHeroRunFrameCount(state.selected_char));
+  return Math.floor(performance.now() / 240) % 4;
+}
+
 function selectWeaponTarget(weapon, enemies = state.enemies, origin = state.player) {
   // Keep the shipped 60fps targeting path: one pass and squared distances.
   const favorElites = weapon?.id === "grammar_sniper" || state.artifacts_owned.includes("archivist_compass");
@@ -6833,9 +6839,7 @@ function render() {
   const bodyDirection = aimDirection;
   const bodyTilt = Math.max(-0.38, Math.min(0.38, (bodyDirection?.y || 0) * 0.38));
   ctx.rotate(bodyTilt);
-  const frame = action === "attack"
-    ? getAttackAnimationFrame(p)
-    : action === "run" ? getHeroRunFrameIndex(p.run_phase, getHeroRunFrameCount(state.selected_char)) : Math.floor(performance.now() / 240) % 4;
+  const frame = getHeroAnimationFrame(action, p);
   const animationKey = state.selected_char === "inky" ? "inky"
     : state.selected_char === "quillmaster" ? "quillmaster"
     : state.selected_char === "word_knight" ? "word_knight"

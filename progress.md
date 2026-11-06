@@ -223,3 +223,10 @@ Original prompt: https://github.com/yasinkaya701/lexicon-survivors — bunu ince
 - 220 canlı düşman/110 komutan düzeninde aura güncellemesi 3.000 yinelemede 499.4 ms'den 37.3 ms'ye indi (13.4× bu dar fonksiyon ölçümünde). Bu sonuç tüm oyun FPS'ine genellenmiyor.
 - Tam kare düşman-çifti karşılaştırması 160 birim hücre komşuluğu ızgarasıyla değiştirildi; komutan yokken yalnızca bayrakları temizliyor. Çapraz hücre ve 160 birim sınır davranışı dahil 24 rastgele 220 düşman dizilimi eski dairesel mesafe kuralıyla aynı sonucu verdi.
 - Godot gameplay/boss/headless; web arena, ekonomi, hit feedback, weapon, boss, monster, story regresyonları ve Worker 26 testleri geçti. Chrome 390×844'te mobil gadget/çanta/duraklama/boss/hikâye/dükkân ve gizli overlay senaryoları yeniden geçti; JS sayfa hatası yok.
+
+## Web saldırı animasyonunu vuruş zamanına bağlama — 2026-11-06
+
+- Kod incelemesinde web menzilli saldırı karelerinin atışın kendi hazırlık/vuruş/toparlanma süresini kullanmadığı, bağımsız duvar saatiyle döndüğü görüldü. Web karakteri artık melee ve ranged eylemlerinde Godot ile aynı saldırı zamanlayıcısından kare seçiyor.
+- `test/web_hero_animation_regression.js` hazırlık, aktif vuruş ve toparlanmada sırasıyla 0/1/2/3 karelerini doğruluyor; `web_hero_animation_source_test.js` seçicinin render yoluna bağlı olduğunu kontrol ediyor. Oyun scripti önbellek anahtarı yükseltildi.
+- Doğrulama: iki animasyon regresyonu, JS sözdizimi, arena parity, ses manifesti, 18 canavar asset/cache kontrolü, ekonomi parity, canlı Chromium regresyonu ve Godot gameplay regression geçti. Godot kapanışında daha önce görülen ObjectDB/resource uyarıları devam ediyor.
+- Tarayıcıdaki gerçek oyun kareleri ve 6 kahramanın ranged temas sayfası incelendi; menzilli kareler artık vuruş fazlarıyla senkronize. Bu küçük düzeltme animasyon kalitesinin genel incelemesini tamamlamıyor; ekonomi uzun oturum dengesi, Godot dokunmatik oynanış ve leaderboard bütünlüğü hâlâ yayın öncesi iş.
