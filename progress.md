@@ -308,3 +308,8 @@ Original prompt: https://github.com/yasinkaya701/lexicon-survivors — bunu ince
 - 390×844 ekran denetiminde “yatay tutabilirsiniz · Kapat” ipucunun kapatılmadığı görüldü: portre CSS'i `display:block!important` ile inline `display:none` eylemini eziyordu.
 - Kapatma artık `hidden` durumunu ayarlıyor ve mobil CSS gizli öğeye öncelik tanıyor. HUD menü sağ kenarı x=383/390, gadget altı y=768/844 sınırında; ekran içine sığıyor.
 - Doğrulama: yön ipucu kaynak kontratı ve tam mobil inventory/gadget/boss pause regresyonu geçti. Dokunma emülasyonunda envanter dalga/HP/konum/gadget sayacını dondurdu; kapatınca joystick ve gadget devam etti, boss sayacı duraklayıp sürdü, hikâye paneli/dükkân ve dükkânda envanter kilidi çalıştı. Console error yok.
+
+## Başlık menüsü klavye ve tercih regresyonu — 2026-11-06
+
+- Menü için çalışma zamanı assert akışı eklendi: altı benzersiz ve klavyeyle seçilebilir karakter, duyurulan `aria-pressed` durumu, zorluk açıklaması, iki müzik seçicisinin eşleşmesi ve müzik tercihinin saklanması doğrulanıyor.
+- Mobil tarayıcı denemesinde Enter ile Gölge Kâtip seçildi, zorluk Zor'a geçti, Son Nöbet tercihi iki menüde eşitlendi ve localStorage'a yazıldı. Gizli overlay ve leaderboard aç/kapa akışları da geçti; console hatası yok.
