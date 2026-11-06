@@ -215,3 +215,5 @@ Original prompt: https://github.com/yasinkaya701/lexicon-survivors — bunu ince
 - Mobil regresyon ekran görüntüsü: `output/imagegen/ui-menu-mockups/mobile-regression-final.png`.
 - Başlangıç ekranında portreler mobilde 26 px olduğundan seçimin okunması zayıftı. Kahraman başına renk kodlu arşiv kartları eklendi, portreler 42–44 px'e büyütüldü; hikâye motivasyonu ve pasif özellik satırları iki taşma yapmadan okunuyor. Chrome 390×844 testinde altı kartın her biri 96 px ve taşmasız.
 - Güncel başlangıç ekranı görsel incelemesi: `output/imagegen/ui-menu-mockups/menu-mobile-v2.png`; mobil tam akış Playwright ve konsol hatasız doğrulandı.
+- Masaüstü başlatma/etkileşim denetiminde gizli leaderboard katmanının `display:flex` olarak kaldığı ve tıklamaları örttüğü bulundu. Global `.screen-overlay[hidden]` kuralı ile görünürlük ve pointer engeli birlikte kapatıldı; yeni `hidden_overlay_regression.js` hem mobil hem masaüstünde gizli katmanı ve aç/kapat yolunu doğruluyor.
+- Gerçek tarayıcı klavye hareketiyle dört köşeye ulaşıldı: yaklaşık `(-1205,-828)`, `(1206,-828)`, `(1206,828)`, `(-1205,828)`; sayfa hatası yok.
