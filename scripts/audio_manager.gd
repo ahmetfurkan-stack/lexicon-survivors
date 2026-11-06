@@ -12,6 +12,34 @@ var cue_player: AudioStreamPlayer
 var active_stage := -1
 var active_loop: AudioStreamWAV
 var _stage_tween: Tween
+var _sfx_players: Array[AudioStreamPlayer] = []
+var _sfx_cursor := 0
+var _main_theme: AudioStream
+var _boss_theme: AudioStream
+var _boss_mode := false
+var _effect_paths := {
+	"quill_blaster": "res://assets/audio/weapons/weapon_quill_blaster_v1.wav",
+	"syllable_shotgun": "res://assets/audio/weapons/weapon_syllable_shotgun_v1.wav",
+	"lexicon_beam": "res://assets/audio/weapons/weapon_lexicon_beam_v1.wav",
+	"punctuation_bomb": "res://assets/audio/weapons/weapon_punctuation_mine_drop.wav",
+	"dictionary_blade": "res://assets/audio/weapons/weapon_dictionary_blade_v1.wav",
+	"crossword_crossbow": "res://assets/audio/weapons/weapon_crossword_crossbow_v1.wav",
+	"hyphen_boomerang": "res://assets/audio/weapons/weapon_hyphen_boomerang.wav",
+	"ink_flamethrower": "res://assets/audio/weapons/weapon_ink_flamethrower.wav",
+	"thesaurus_rocket": "res://assets/audio/weapons/weapon_thesaurus_rocket_launch.wav",
+	"quote_pistols": "res://assets/audio/weapons/weapon_quote_pistols_v1.wav",
+	"calligraphy_katana": "res://assets/audio/weapons/weapon_calligraphy_katana_v1.wav",
+	"scroll_turret": "res://assets/audio/weapons/weapon_scroll_turret_deploy.wav",
+	"rune_orb": "res://assets/audio/weapons/weapon_rune_orb.wav",
+	"grammar_sniper": "res://assets/audio/weapons/weapon_grammar_sniper.wav",
+	"word_loom": "res://assets/audio/weapons/weapon_rune_orb.wav",
+	"hit": "res://assets/audio/gameplay/enemy_hit_light.wav",
+	"death": "res://assets/audio/gameplay/enemy_defeat.wav",
+	"pickup": "res://assets/audio/gameplay/ink_pickup.wav",
+	"wave": "res://assets/audio/gameplay/wave_start.wav",
+	"chapter_transition": "res://assets/audio/gameplay/chapter_transition.wav",
+	"gadget": "res://assets/audio/abilities/gadget_eraser_dash.wav"
+}
 
 func _ready() -> void:
 	process_mode = Node.PROCESS_MODE_ALWAYS
@@ -26,21 +54,43 @@ func _ready() -> void:
 	cue_player.process_mode = Node.PROCESS_MODE_ALWAYS
 	cue_player.volume_db = -11.0
 	add_child(cue_player)
+	for index in range(10):
+		var player := AudioStreamPlayer.new()
+		player.process_mode = Node.PROCESS_MODE_ALWAYS
+		player.volume_db = -5.0
+		add_child(player)
+		_sfx_players.append(player)
+	_main_theme = load("res://assets/audio/music/main_theme.mp3")
+	_boss_theme = load("res://assets/audio/music/boss_theme_dark_last_stand.wav")
+	if _main_theme is AudioStreamMP3:
+		_main_theme.loop = true
+		music_player.stream = _main_theme
+		music_player.play()
+	if _boss_theme is AudioStreamWAV:
+		_boss_theme.loop_mode = AudioStreamWAV.LOOP_FORWARD
+
+func play_effect(key: String) -> void:
+	if not _effect_paths.has(key) or _sfx_players.is_empty():
+		return
+	var stream = load(String(_effect_paths[key]))
+	if stream == null:
+		return
+	var player: AudioStreamPlayer = _sfx_players[_sfx_cursor % _sfx_players.size()]
+	_sfx_cursor += 1
+	player.stream = stream
+	player.play()
 
 func set_biome(stage_index: int, boss_wave: bool = false) -> void:
 	var stage := clampi(stage_index, 0, 3)
+	if boss_wave != _boss_mode:
+		_boss_mode = boss_wave
+		var next_theme: AudioStream = _boss_theme if boss_wave and _boss_theme else _main_theme
+		if next_theme and music_player.stream != next_theme:
+			music_player.stream = next_theme
+			music_player.play()
 	if stage != active_stage:
 		active_stage = stage
-		var stream := _make_biome_loop(stage)
-		if music_player.playing:
-			if _stage_tween and _stage_tween.is_running():
-				_stage_tween.kill()
-			_stage_tween = create_tween()
-			_stage_tween.tween_property(music_player, "volume_db", -42.0, 0.35)
-			_stage_tween.tween_callback(_switch_loop.bind(stream))
-			_stage_tween.tween_property(music_player, "volume_db", -19.0, 1.3)
-		else:
-			_switch_loop(stream)
+		play_effect("chapter_transition")
 		_play_chapter_chime(stage)
 	elif boss_wave:
 		_play_boss_cue(stage)

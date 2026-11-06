@@ -8,6 +8,14 @@
   window.runInventoryPauseRegression = async ({ waitMs = 1600 } = {}) => {
     const initial = readGame();
     assert(initial.mode === "wave", `expected active wave, received ${initial.mode}`);
+    if (window.innerWidth <= 700) {
+      const menuButton = document.getElementById("mobile-menu-btn");
+      const menuBounds = menuButton?.getBoundingClientRect();
+      assert(menuBounds && menuBounds.width > 0 && menuBounds.left >= 0 && menuBounds.right <= window.innerWidth,
+        `mobile menu button must fit inside viewport (right=${menuBounds?.right}, width=${window.innerWidth})`);
+      assert(/^TUR\s+\d+\s*\/\s*100\s*·\s*\d+s$/.test(document.getElementById("timer-badge")?.textContent || ""),
+        "mobile HUD must keep the round count and remaining seconds in its compact timer");
+    }
 
     document.getElementById("touch-gadget-btn").click();
     const gadgetUsed = readGame();
@@ -16,6 +24,19 @@
     document.getElementById("touch-inv-btn").click();
     assert(document.getElementById("inventory-modal").style.display === "flex", "inventory should open");
     assert(state.is_inventory_open === true, "inventory state should be true while its modal is open");
+    state.owned_gadgets.push("ink_cataclysm");
+    document.getElementById("inventory-gadgets-tab").click();
+    assert(document.getElementById("inventory-gadgets-panel").style.display === "block", "inventory gadget tab should show owned gadgets");
+    const cataclysmCard = document.querySelector('#inv-gadgets-list .inventory-gadget-card[aria-pressed="false"]');
+    assert(cataclysmCard, "a purchased gadget should appear as a selectable inventory row");
+    cataclysmCard.click();
+    assert(state.active_gadget_id === "ink_cataclysm", "selecting an owned gadget should equip it from inventory");
+    assert(document.getElementById("inventory-modal").style.display === "none", "equipping a gadget should close inventory");
+    state.active_gadget_id = "eraser_dash";
+    updateHUD();
+    document.getElementById("touch-inv-btn").click();
+    assert(document.getElementById("inventory-modal").style.display === "flex", "inventory should reopen after changing gadget");
+    document.getElementById("inventory-weapons-tab").click();
     const paused = readGame();
     await wait(waitMs);
     const stillPaused = readGame();
@@ -30,6 +51,19 @@
     assert(document.getElementById("inventory-modal").style.display === "none", "inventory should close");
     assert(state.is_inventory_open === false, "inventory state should clear when its modal closes");
     assert(getComputedStyle(document.getElementById("mobile-touch-controls")).display === "block", "mobile controls should return after close");
+    // The test's first gadget activation is an Eraser Dash. Inventory pauses
+    // that 220 ms dash in place, so let its remaining duration finish before
+    // measuring joystick travel in isolation.
+    await new Promise((resolve, reject) => {
+      const started = performance.now();
+      const poll = () => {
+        if (state.player.is_dashing === false) return resolve();
+        if (performance.now() - started > 1500) return reject(new Error("Inventory pause regression: the resumed gadget dash did not finish"));
+        setTimeout(poll, 25);
+      };
+      poll();
+    });
+    const beforeJoystick = readGame();
 
     const joystickSurface = document.getElementById("touch-joystick-surface");
     const rect = joystickSurface.getBoundingClientRect();
@@ -49,7 +83,7 @@
       clientX: rect.left + startX + 36, clientY: rect.top + startY
     }));
     const moved = readGame();
-    assert(moved.player.x > stillPaused.player.x + 10, "joystick movement did not resume after closing inventory");
+    assert(moved.player.x > beforeJoystick.player.x + 10, "joystick movement did not resume after closing inventory");
 
     await new Promise((resolve, reject) => {
       const started = performance.now();
@@ -81,18 +115,16 @@
     cataclysmTarget.vy = 0;
     const cataclysmBaseSpeed = cataclysmTarget.speed;
     document.getElementById("touch-gadget-btn").click();
-    assert(cataclysmTarget.slow_timer > 2.4, "Ink Cataclysm should apply a timed enemy slow");
-    assert(cataclysmTarget.slow_factor <= 0.1, "Ink Cataclysm should apply its stun factor");
+    assert(cataclysmTarget.stun_timer > 1.2, "Ink Cataclysm should apply its timed stun");
+    assert(cataclysmTarget.hp < cataclysmTarget.max_hp, "Ink Cataclysm should deal its authored area damage");
     assert(cataclysmTarget.speed === cataclysmBaseSpeed, "Ink Cataclysm should not mutate base enemy speed");
     document.getElementById("touch-inv-btn").click();
-    const cataclysmPausedTimer = cataclysmTarget.slow_timer;
+    const cataclysmPausedTimer = cataclysmTarget.stun_timer;
     await wait(1800);
-    assert(cataclysmTarget.slow_timer === cataclysmPausedTimer, "Ink Cataclysm status expired while inventory was open");
-    assert(cataclysmTarget.slow_factor <= 0.1, "Ink Cataclysm factor changed while inventory was open");
+    assert(cataclysmTarget.stun_timer === cataclysmPausedTimer, "Ink Cataclysm stun expired while inventory was open");
     document.getElementById("close-inventory-btn").click();
     window.advanceTime(2600);
-    assert(cataclysmTarget.slow_timer <= 0.05, "Ink Cataclysm status did not expire after simulation resumed");
-    assert(cataclysmTarget.slow_factor === 1, "enemy slow factor did not restore after Cataclysm expired");
+    assert(cataclysmTarget.stun_timer <= 0.05, "Ink Cataclysm stun did not expire after simulation resumed");
     assert(cataclysmTarget.speed === cataclysmBaseSpeed, "enemy base speed changed during Cataclysm recovery");
 
     state.current_wave = 5;

@@ -20,6 +20,7 @@ extends CanvasLayer
 @onready var chapter_desc = $ChapterCard/ChapterDesc
 @onready var chapter_accent = $ChapterCard/Accent
 @onready var touch_controls: Control = $TouchControls
+@onready var touch_stick: TouchStick = $TouchStick
 @onready var gadget_touch_button: Button = $TouchControls/ActionRow/GadgetTouchButton
 @onready var inventory_overlay: Control = $InventoryOverlay
 @onready var inventory_title: Label = $InventoryOverlay/InventoryPanel/InventoryLayout/InventoryHeader/InventoryTitle
@@ -68,6 +69,7 @@ func _ready():
 	chapter_card.hide()
 	inventory_overlay.hide()
 	touch_controls.visible = DisplayServer.is_touchscreen_available()
+	touch_stick.visible = touch_controls.visible
 	gadget_touch_button.pressed.connect(activate_gadget_touch)
 	$TouchControls/ActionRow/WeaponTouchButton.pressed.connect(StatsManager.switch_next_weapon)
 	$TouchControls/ActionRow/InventoryTouchButton.pressed.connect(toggle_inventory)
@@ -109,6 +111,9 @@ func set_touch_ui_enabled_override(enabled: bool) -> void:
 func _sync_touch_controls() -> void:
 	if is_node_ready():
 		touch_controls.visible = _touch_ui_override if _has_touch_ui_override else DisplayServer.is_touchscreen_available()
+		touch_stick.visible = touch_controls.visible
+		if not touch_controls.visible:
+			touch_stick.reset()
 
 func _apply_touch_safe_area() -> void:
 	var screen := DisplayServer.window_get_current_screen()
@@ -117,15 +122,23 @@ func _apply_touch_safe_area() -> void:
 		return
 	var safe_rect := DisplayServer.get_display_safe_area()
 	var viewport_size := get_viewport().get_visible_rect().size
+	var left_inset := maxf(0.0, float(safe_rect.position.x)) * viewport_size.x / float(screen_size.x)
 	var right_inset := maxf(0.0, float(screen_size.x - safe_rect.end.x)) * viewport_size.x / float(screen_size.x)
 	var bottom_inset := maxf(0.0, float(screen_size.y - safe_rect.end.y)) * viewport_size.y / float(screen_size.y)
-	_apply_touch_safe_area_insets(right_inset, bottom_inset)
+	_apply_touch_safe_area_insets(right_inset, bottom_inset, left_inset)
 
-func _apply_touch_safe_area_insets(right_inset: float, bottom_inset: float) -> void:
+func _apply_touch_safe_area_insets(right_inset: float, bottom_inset: float, left_inset: float = 0.0) -> void:
 	touch_controls.offset_left = -306.0 - right_inset
 	touch_controls.offset_right = -24.0 - right_inset
 	touch_controls.offset_top = -88.0 - bottom_inset
 	touch_controls.offset_bottom = -24.0 - bottom_inset
+	touch_stick.offset_left = 24.0 + left_inset
+	touch_stick.offset_right = 180.0 + left_inset
+	touch_stick.offset_top = -168.0 - bottom_inset
+	touch_stick.offset_bottom = -24.0 - bottom_inset
+
+func get_touch_move_vector() -> Vector2:
+	return touch_stick.vector if touch_stick.visible else Vector2.ZERO
 
 func toggle_inventory() -> void:
 	set_inventory_open(not inventory_open)
@@ -142,6 +155,7 @@ func set_inventory_open(open: bool) -> void:
 	inventory_open = open
 	inventory_overlay.visible = open
 	if open:
+		touch_stick.reset()
 		refresh_inventory()
 	var player := get_tree().get_first_node_in_group("player")
 	if player and player.has_method("set_inventory_input_blocked"):
@@ -173,6 +187,10 @@ func refresh_inventory() -> void:
 		button.custom_minimum_size = Vector2(0, 54)
 		button.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		button.text = ("SEÇİLİ  ·  " if selected else "") + item_name.to_upper()
+		if item_kind == "gadget" and not str(item_data.get("icon", "")).is_empty():
+			button.icon = load("res://" + str(item_data["icon"])) as Texture2D
+			button.icon_alignment = HORIZONTAL_ALIGNMENT_LEFT
+			button.expand_icon = true
 		button.add_theme_font_size_override("font_size", 16)
 		button.pressed.connect(func(): select_inventory_item(item_kind, item_id))
 		inventory_items.add_child(button)
@@ -262,25 +280,14 @@ func update_gadget(time_left: float, _total_time: float):
 		gadget_status.modulate = Color(0.72, 0.72, 0.66)
 
 func _on_gadget_switched(gadget_id: String) -> void:
-	var labels := {
-		"dash": "SİLGİ · SPACE",
-		"ink_bomb": "MÜREKKEP · SPACE",
-		"time_stop": "ZAMAN · SPACE",
-		"shield": "KALKAN · SPACE",
-		"magnet": "MANYETİK · SPACE"
-	}
-	var icons := {
-		"dash": "eraser_icon.png",
-		"ink_bomb": "gadget_ink_bomb.png",
-		"time_stop": "gadget_time_stop.png",
-		"shield": "gadget_shield.png",
-		"magnet": "gadget_magnet.png"
-	}
-	gadget_name.text = labels.get(gadget_id, "GEREÇ · SPACE")
-	var texture_path: String = "res://assets/sprites/" + str(icons.get(gadget_id, "eraser_icon.png"))
+	var canonical_id := StatsManager.normalize_gadget_id(gadget_id)
+	var data: Dictionary = StatsManager.gadgets_catalog.get(canonical_id, {})
+	var label := str(data.get("name", "GEREÇ")) + " · SPACE"
+	gadget_name.text = label
+	var texture_path := "res://" + str(data.get("icon", "assets/sprites/gadgets/eraser_dash.png"))
 	gadget_glyph.texture = load(texture_path) as Texture2D
 	gadget_touch_button.icon = gadget_glyph.texture
-	gadget_touch_button.tooltip_text = labels.get(gadget_id, "GEREÇ · SPACE") + " · dokun ve kullan"
+	gadget_touch_button.tooltip_text = label + " · dokun ve kullan"
 	update_gadget(0.0, 0.0)
 	refresh_inventory()
 

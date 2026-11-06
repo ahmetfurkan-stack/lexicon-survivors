@@ -12,6 +12,8 @@ var time_left: float = 25.0
 var spawn_timer: float = 0.0
 var is_wave_active: bool = false
 var player_ref: Node2D = null
+const SPAWN_X_LIMIT := 1150.0
+const SPAWN_Y_LIMIT := 850.0
 
 func start_wave():
 	time_left = wave_duration
@@ -60,6 +62,29 @@ func _get_wave_enemy_cap() -> int:
 	# the larger horde the pacing promises, with a performance ceiling at 220.
 	return mini(max_active_enemies, 48 + maxi(0, StatsManager.current_wave - 1) * 2)
 
+func get_arena_spawn_position(origin: Vector2, min_distance: float = 560.0, preferred_angle: Variant = null) -> Vector2:
+	# Keep spawns inside the visible room and away from a player standing at a shelf corner.
+	var first_angle: float = float(preferred_angle) if preferred_angle != null else randf() * TAU
+	for attempt in range(16):
+		var angle := first_angle + attempt * TAU / 16.0
+		var point := origin + Vector2(cos(angle), sin(angle)) * 700.0
+		point.x = clampf(point.x, -SPAWN_X_LIMIT, SPAWN_X_LIMIT)
+		point.y = clampf(point.y, -SPAWN_Y_LIMIT, SPAWN_Y_LIMIT)
+		if point.distance_to(origin) >= min_distance:
+			return point
+
+	var safe_points: Array[Vector2] = []
+	for x in range(-1050, 1051, 175):
+		safe_points.append(Vector2(x, -820))
+		safe_points.append(Vector2(x, 820))
+	for y in range(-750, 751, 150):
+		safe_points.append(Vector2(-1120, y))
+		safe_points.append(Vector2(1120, y))
+	var candidates := safe_points.filter(func(point: Vector2) -> bool: return point.distance_to(origin) >= min_distance)
+	if not candidates.is_empty():
+		return candidates[randi() % candidates.size()]
+	return Vector2(clampf(0.0, -SPAWN_X_LIMIT, SPAWN_X_LIMIT), clampf(0.0, -SPAWN_Y_LIMIT, SPAWN_Y_LIMIT))
+
 func find_player():
 	if not is_inside_tree():
 		return
@@ -77,9 +102,7 @@ func spawn_enemy():
 	if not player_ref:
 		return
 		
-	# Random angle around player at distance ~680
-	var angle = randf() * TAU
-	var spawn_pos = player_ref.global_position + Vector2(cos(angle), sin(angle)) * 680.0
+	var spawn_pos := get_arena_spawn_position(player_ref.global_position, 560.0)
 	
 	var enemy = enemy_scene.instantiate()
 	enemy.global_position = spawn_pos

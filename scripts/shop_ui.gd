@@ -227,9 +227,16 @@ func render_gadgets():
 		var vbox = VBoxContainer.new()
 		vbox.add_theme_constant_override("separation", 10)
 		card_panel.add_child(vbox)
+		var icon := TextureRect.new()
+		icon.custom_minimum_size = Vector2(58, 58)
+		icon.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+		icon.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+		icon.texture = load("res://" + str(gadget.get("icon", "assets/sprites/gadgets/eraser_dash.png"))) as Texture2D
+		icon.tooltip_text = str(gadget.get("name", gadget_id))
+		vbox.add_child(icon)
 
 		var tag = Label.new()
-		tag.text = "AKTİF GEREÇ  ·  " + str(gadget.get("cooldown", 0.0)) + "s BEKLEME"
+		tag.text = "AKTİF GEREÇ  ·  " + str(snappedf(float(gadget.get("cooldown", 0.0)), 0.1)) + "s BEKLEME"
 		tag.add_theme_font_override("font", SHOP_MONO_FONT)
 		tag.add_theme_font_size_override("font_size", 10)
 		tag.add_theme_color_override("font_color", Color(0.32, 0.42, 0.36, 1))
@@ -242,7 +249,7 @@ func render_gadgets():
 		vbox.add_child(title)
 
 		var desc = Label.new()
-		desc.text = str(gadget.get("desc", ""))
+		desc.text = str(gadget.get("description", gadget.get("desc", "")))
 		desc.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 		style_shop_description(desc)
 		vbox.add_child(desc)
@@ -382,7 +389,9 @@ func render_weapons():
 		spacer.size_flags_vertical = Control.SIZE_EXPAND_FILL
 		vbox.add_child(spacer)
 		var owned_for_price = StatsManager.has_weapon(w["id"])
-		vbox.add_child(make_shop_price_label("SAHİP" if owned_for_price else str(w["cost"]) + "  ·  MÜREKKEP"))
+		var weapon_tier: int = StatsManager.get_weapon_tier(w["id"]) if owned_for_price else 0
+		var upgrade_cost: int = StatsManager.get_weapon_tier_cost(w["id"]) if owned_for_price else 0
+		vbox.add_child(make_shop_price_label(("T%d / EFSANEVİ" % weapon_tier) if (owned_for_price and weapon_tier >= 4) else (("T%d → T%d  ·  %d MÜREKKEP" % [weapon_tier, weapon_tier + 1, upgrade_cost]) if owned_for_price else str(w["cost"]) + "  ·  MÜREKKEP")))
 		
 		var buy_btn = Button.new()
 		buy_btn.custom_minimum_size = Vector2(0, 44)
@@ -391,23 +400,27 @@ func render_weapons():
 		var w_id = w["id"]
 		
 		if is_owned:
-			var is_active = (StatsManager.get_active_weapon_id() == w_id)
-			if is_active:
-				buy_btn.text = "Kuşanıldı (aktif)"
+			if weapon_tier >= 4:
+				buy_btn.text = "EFSANEVİ · T4"
 				buy_btn.disabled = true
 				buy_btn.modulate = Color(1.3, 1.2, 0.4)
+			elif StatsManager.ink_count < upgrade_cost:
+				buy_btn.text = "MÜREKKEP YETERSİZ"
+				buy_btn.disabled = true
 			else:
-				buy_btn.text = "BİRİNCİL YAP"
+				buy_btn.text = "YÜKSELT · T%d → T%d" % [weapon_tier, weapon_tier + 1]
 				buy_btn.pressed.connect(func():
-					var idx = StatsManager.equipped_weapons.find(w_id)
-					if idx != -1:
-						StatsManager.select_weapon_index(idx)
+					if StatsManager.upgrade_weapon_tier(w_id):
 						render_current_view()
+						update_top_bar()
 				)
 		else:
 			var cost = w["cost"]
 			buy_btn.text = "Kuşan"
-			if StatsManager.ink_count < cost:
+			if StatsManager.equipped_weapons.size() >= StatsManager.max_weapon_slots:
+				buy_btn.disabled = true
+				buy_btn.text = "SİLAH YUVASI DOLU"
+			elif StatsManager.ink_count < cost:
 				buy_btn.disabled = true
 				buy_btn.text = "Mürekkep yetersiz"
 			else:
@@ -429,6 +442,13 @@ func render_artifacts():
 		var vbox = VBoxContainer.new()
 		vbox.add_theme_constant_override("separation", 10)
 		card_panel.add_child(vbox)
+		var icon := TextureRect.new()
+		icon.custom_minimum_size = Vector2(58, 58)
+		icon.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+		icon.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+		icon.texture = load("res://" + str(art.get("icon", "assets/sprites/relics/magnifying_glass.png"))) as Texture2D
+		icon.tooltip_text = str(art.get("name", k))
+		vbox.add_child(icon)
 		
 		var tag = Label.new()
 		tag.text = "PASİF ESER  ·  GEREÇ"
@@ -444,7 +464,7 @@ func render_artifacts():
 		vbox.add_child(title)
 		
 		var desc = Label.new()
-		desc.text = art["desc"]
+		desc.text = str(art.get("description", art.get("desc", "")))
 		desc.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 		style_shop_description(desc)
 		vbox.add_child(desc)
@@ -452,15 +472,20 @@ func render_artifacts():
 		var spacer = Control.new()
 		spacer.size_flags_vertical = Control.SIZE_EXPAND_FILL
 		vbox.add_child(spacer)
-		var is_owned = StatsManager.has_artifact(art["id"])
-		vbox.add_child(make_shop_price_label("SAHİP" if is_owned else str(art["cost"]) + "  ·  MÜREKKEP"))
+		var art_id: String = str(art["id"])
+		var is_owned := StatsManager.has_artifact(art_id)
+		if art_id == "slot_expansion":
+			is_owned = StatsManager.max_weapon_slots >= 6
+			vbox.add_child(make_shop_price_label("YUVA %d / 6" % StatsManager.max_weapon_slots))
+		else:
+			vbox.add_child(make_shop_price_label("SAHİP" if is_owned else str(art["cost"]) + "  ·  MÜREKKEP"))
 		
 		var buy_btn = Button.new()
 		buy_btn.custom_minimum_size = Vector2(0, 44)
 		style_shop_action(buy_btn)
 		
 		if is_owned:
-			buy_btn.text = "SATIN ALINDI"
+			buy_btn.text = "TÜM YUVALAR AÇIK" if art_id == "slot_expansion" else "SATIN ALINDI"
 			buy_btn.disabled = true
 		else:
 			var cost = art["cost"]

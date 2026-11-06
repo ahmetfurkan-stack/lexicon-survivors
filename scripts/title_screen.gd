@@ -1,16 +1,22 @@
 extends Control
 
 signal game_started()
+signal leaderboard_requested()
 
 @onready var char_cards_container = $Panel/VBox/CharCardsContainer
 @onready var easy_btn = $Panel/VBox/DiffContainer/EasyButton
 @onready var normal_btn = $Panel/VBox/DiffContainer/NormalButton
 @onready var hard_btn = $Panel/VBox/DiffContainer/HardButton
 @onready var start_button = $Panel/VBox/StartButton
+@onready var leaderboard_button = $Panel/VBox/LeaderboardButton
 @onready var diff_desc_label = $Panel/VBox/DiffDescLabel
 
 var selected_char: String = "inky"
 var selected_diff: String = "normal"
+var intro_overlay: ColorRect
+var intro_content: VBoxContainer
+var intro_active: bool = false
+var intro_seen_path: String = "user://archive_intro_seen.cfg"
 
 const DIFFICULTY_DESCRIPTIONS = {
 	"easy": "Düşmanlar daha yavaş ve daha az dayanıklıdır. Başlangıç canı +40 HP.",
@@ -23,10 +29,148 @@ func _ready():
 	normal_btn.pressed.connect(func(): set_difficulty("normal"))
 	hard_btn.pressed.connect(func(): set_difficulty("hard"))
 	start_button.pressed.connect(_on_start_pressed)
+	leaderboard_button.pressed.connect(func(): leaderboard_requested.emit())
 	_style_start_button()
 	
 	build_character_cards()
 	set_difficulty("normal")
+	start_intro()
+
+func _input(event: InputEvent) -> void:
+	if not intro_active:
+		return
+	if event is InputEventKey and event.pressed and not event.echo:
+		if event.keycode in [KEY_SPACE, KEY_ENTER, KEY_KP_ENTER, KEY_ESCAPE]:
+			skip_intro()
+			get_viewport().set_input_as_handled()
+	elif event is InputEventMouseButton and event.pressed:
+		skip_intro()
+		get_viewport().set_input_as_handled()
+	elif event is InputEventScreenTouch and event.pressed:
+		skip_intro()
+		get_viewport().set_input_as_handled()
+
+func _is_reduced_motion() -> bool:
+	return bool(ProjectSettings.get_setting("accessibility/reduced_motion", false)) or OS.get_environment("REDUCED_MOTION") == "1"
+
+func _build_intro_overlay() -> void:
+	intro_overlay = ColorRect.new()
+	intro_overlay.name = "ArchiveIntro"
+	intro_overlay.color = Color("#09100c")
+	intro_overlay.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	intro_overlay.mouse_filter = Control.MOUSE_FILTER_STOP
+	intro_overlay.z_index = 20
+	add_child(intro_overlay)
+
+	var backdrop = TextureRect.new()
+	backdrop.name = "ArchiveBackdrop"
+	backdrop.texture = load("res://assets/sprites/upgrade_v1/arena_frame_library.png")
+	backdrop.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	backdrop.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	backdrop.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_COVERED
+	backdrop.modulate = Color(0.42, 0.46, 0.4, 0.22)
+	backdrop.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	intro_overlay.add_child(backdrop)
+
+	var center = CenterContainer.new()
+	center.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	center.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	intro_overlay.add_child(center)
+
+	intro_content = VBoxContainer.new()
+	intro_content.alignment = BoxContainer.ALIGNMENT_CENTER
+	intro_content.add_theme_constant_override("separation", 12)
+	intro_content.custom_minimum_size = Vector2(320, 0)
+	intro_content.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	center.add_child(intro_content)
+
+	var mark = TextureRect.new()
+	mark.texture = load("res://assets/ui/icons/book.svg")
+	mark.custom_minimum_size = Vector2(68, 68)
+	mark.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	mark.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	mark.modulate = Color("#d4af75")
+	mark.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	intro_content.add_child(mark)
+
+	var hero = TextureRect.new()
+	hero.texture = load(_character_sprite_path(selected_char))
+	hero.custom_minimum_size = Vector2(48, 48)
+	hero.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	hero.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	hero.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
+	hero.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	intro_content.add_child(hero)
+
+	var kicker = Label.new()
+	kicker.text = "ARŞİV AÇILIYOR"
+	kicker.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	kicker.add_theme_color_override("font_color", Color("#cbb980"))
+	kicker.add_theme_font_size_override("font_size", 12)
+	intro_content.add_child(kicker)
+
+	var title = Label.new()
+	title.text = "LEXICON SURVIVORS"
+	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	title.add_theme_color_override("font_color", Color("#f2e8d2"))
+	title.add_theme_font_size_override("font_size", 28)
+	intro_content.add_child(title)
+
+	var subtitle = Label.new()
+	subtitle.text = "Kayıp kelimeleri rafların arasından geri çağır."
+	subtitle.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	subtitle.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	subtitle.add_theme_color_override("font_color", Color("#c0c1ae"))
+	subtitle.add_theme_font_size_override("font_size", 14)
+	intro_content.add_child(subtitle)
+
+	var skip_button = Button.new()
+	skip_button.text = "GEÇ · SPACE"
+	skip_button.custom_minimum_size = Vector2(190, 44)
+	skip_button.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
+	skip_button.pressed.connect(skip_intro)
+	intro_content.add_child(skip_button)
+
+func start_intro() -> void:
+	if intro_active:
+		return
+	var config = ConfigFile.new()
+	if config.load(intro_seen_path) == OK and config.get_value("intro", "seen", false):
+		return
+	_build_intro_overlay()
+	intro_active = true
+	var reduced_motion = _is_reduced_motion()
+	var backdrop = intro_overlay.get_node("ArchiveBackdrop") as TextureRect
+	intro_overlay.modulate.a = 0.0 if reduced_motion else 1.0
+	if reduced_motion:
+		var fade_in = create_tween().set_parallel(true)
+		fade_in.tween_property(intro_overlay, "modulate:a", 1.0, 0.25)
+		fade_in.tween_property(backdrop, "modulate:a", 0.45, 0.25)
+	else:
+		intro_content.position.y = 14.0
+		intro_content.modulate.a = 0.0
+		var reveal = create_tween().set_parallel(true)
+		reveal.tween_property(intro_content, "position:y", 0.0, 1.5).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
+		reveal.tween_property(intro_content, "modulate:a", 1.0, 0.65)
+		reveal.tween_property(backdrop, "modulate:a", 0.7, 1.25).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
+	get_tree().create_timer(0.4 if reduced_motion else 1.65).timeout.connect(finish_intro)
+
+func skip_intro() -> void:
+	finish_intro()
+
+func finish_intro() -> void:
+	if not intro_active:
+		return
+	intro_active = false
+	var config = ConfigFile.new()
+	config.set_value("intro", "seen", true)
+	config.save(intro_seen_path)
+	var fade = create_tween()
+	fade.tween_property(intro_overlay, "modulate:a", 0.0, 0.2 if _is_reduced_motion() else 0.28)
+	fade.finished.connect(func():
+		if is_instance_valid(intro_overlay):
+			intro_overlay.queue_free()
+	)
 
 func build_character_cards():
 	for child in char_cards_container.get_children():

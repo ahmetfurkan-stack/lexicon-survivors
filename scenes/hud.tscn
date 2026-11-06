@@ -1,4 +1,4 @@
-[gd_scene load_steps=15 format=3 uid="uid://g9v4x2m1q7k8b"]
+[gd_scene load_steps=16 format=3 uid="uid://g9v4x2m1q7k8b"]
 
 [ext_resource type="Script" path="res://scripts/hud.gd" id="1_script"]
 [ext_resource type="Texture2D" path="res://assets/ui/icons/ink.svg" id="2_ink"]
@@ -10,6 +10,7 @@
 [ext_resource type="Texture2D" path="res://assets/ui/icons/weapons.svg" id="8_weapons"]
 [ext_resource type="Texture2D" path="res://assets/ui/icons/gadget.svg" id="9_gadget"]
 [ext_resource type="Texture2D" path="res://assets/ui/icons/close.svg" id="10_close"]
+[ext_resource type="Script" path="res://scripts/touch_stick.gd" id="11_touch_stick"]
 
 [sub_resource type="StyleBoxFlat" id="ChapterCardStyle"]
 bg_color = Color(0.075, 0.095, 0.085, 0.97)
@@ -79,6 +80,18 @@ offset_bottom = -24.0
 grow_horizontal = 0
 grow_vertical = 0
 mouse_filter = 2
+
+[node name="TouchStick" type="Control" parent="."]
+visible = false
+anchors_preset = 12
+anchor_top = 1.0
+anchor_bottom = 1.0
+offset_left = 24.0
+offset_top = -168.0
+offset_right = 180.0
+offset_bottom = -24.0
+grow_vertical = 0
+script = ExtResource("11_touch_stick")
 
 [node name="ActionRow" type="HBoxContainer" parent="TouchControls"]
 layout_mode = 1

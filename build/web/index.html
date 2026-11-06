@@ -1,6 +1,7 @@
 <!DOCTYPE html>
 <html lang="tr">
 <head>
+    <meta name="leaderboard-api" content="https://lexicon-survivors-leaderboard.lexicon-survivors-leaderboard.workers.dev">
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
   <title>Lexicon Survivors: The Word Guardian | Hardcore Roguelite v4.0</title>
@@ -119,6 +120,42 @@
       background: var(--gold-primary);
       border-radius: 3px;
       border: 1px solid var(--gold-dark);
+    }
+
+
+    #archive-intro {
+      position: absolute;
+      inset: 0;
+      z-index: 500;
+      display: grid;
+      place-items: center;
+      overflow: hidden;
+      color: #f2e8d2;
+      text-align: center;
+      background: radial-gradient(ellipse at 50% 55%, rgba(76, 63, 43, .62), rgba(8, 13, 10, .98) 68%), #080d0a;
+      opacity: 1;
+      transition: opacity 180ms ease;
+      touch-action: manipulation;
+    }
+    #archive-intro[hidden] { display: none; }
+    #archive-intro::before { content: ""; position: absolute; inset: -2%; background: url("assets/sprites/upgrade_v1/arena_frame_library.png") center / cover no-repeat; opacity: .2; filter: brightness(.65) saturate(.55); animation: archive-lights 1.45s ease-out both; }
+    #archive-intro::after { content: ""; position: absolute; inset: 0; background: radial-gradient(ellipse at center, transparent 12%, rgba(4, 8, 6, .6) 100%); pointer-events: none; }
+    #archive-intro.is-leaving { opacity: 0; pointer-events: none; }
+    #archive-intro .archive-intro-content { position: relative; z-index: 1; padding: 24px; animation: archive-rise 1.7s ease both; }
+    #archive-intro .archive-intro-mark { width: clamp(48px, 9vw, 82px); height: clamp(48px, 9vw, 82px); margin-bottom: 8px; opacity: .92; filter: drop-shadow(0 0 22px rgba(212, 175, 55, .62)); }
+    #archive-intro .archive-intro-hero { display: block; width: 48px; height: 48px; margin: 0 auto 9px; image-rendering: pixelated; filter: drop-shadow(0 0 14px rgba(212, 175, 55, .3)); }
+    #archive-intro .archive-intro-kicker { color: #cbb980; font: 500 11px 'IBM Plex Mono', monospace; letter-spacing: .2em; }
+    #archive-intro h1 { margin: 10px 0 5px; font: 600 clamp(25px, 6vw, 48px) 'IBM Plex Serif', serif; letter-spacing: .08em; text-shadow: 0 3px 24px rgba(0, 0, 0, .9); }
+    #archive-intro p { color: #c0c1ae; font: 400 clamp(12px, 2vw, 15px) 'IBM Plex Sans', sans-serif; }
+    #archive-intro .archive-intro-skip { margin-top: 28px; padding: 11px 18px; border: 1px solid rgba(202, 187, 135, .56); border-radius: 3px; color: #f2e8d2; background: rgba(20, 27, 22, .7); font: 500 12px 'IBM Plex Mono', monospace; letter-spacing: .07em; cursor: pointer; }
+    #archive-intro .archive-intro-skip:focus-visible { outline: 2px solid #ffd700; outline-offset: 3px; }
+    #archive-intro.is-reduced { transition-duration: 250ms; }
+    #archive-intro.is-reduced .archive-intro-content, #archive-intro.is-reduced::before { animation: none; }
+    @keyframes archive-lights { 0% { opacity: .03; filter: brightness(.3) saturate(.35); } 100% { opacity: .34; filter: brightness(.8) saturate(.68); } }
+    @keyframes archive-rise { 0% { opacity: .2; transform: translateY(14px) scale(.98); } 100% { opacity: 1; transform: translateY(0) scale(1); } }
+    @media (prefers-reduced-motion: reduce) {
+      #archive-intro, #archive-intro.is-reduced { transition-duration: 250ms; }
+      #archive-intro .archive-intro-content, #archive-intro::before { animation: none; }
     }
 
     /* =========================================
@@ -595,6 +632,16 @@
       gap: 8px;
       margin: 6px 0;
     }
+    .inventory-tabs { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:6px; border:0; margin:2px 0; }
+    .inventory-tabs .tab-btn { min-height:40px; }
+    .inventory-gadget-note { margin:2px 0 8px; color:#59625b; font-size:12px; line-height:1.45; }
+    .inventory-gadgets-grid { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:8px; max-height:min(52vh,420px); overflow:auto; padding:2px; }
+    .inventory-gadget-card { display:flex; align-items:center; gap:10px; min-height:76px; padding:10px; text-align:left; border:1px solid #b6aa91; border-radius:5px; background:#f5f1e7; color:#292b25; cursor:pointer; }
+    .inventory-gadget-card[aria-pressed="true"] { border-color:#7d4547; box-shadow:inset 3px 0 0 #7d4547; background:#eee5d6; }
+    .inventory-gadget-card img { width:40px; height:40px; flex:0 0 40px; object-fit:contain; }
+    .inventory-gadget-card strong { display:block; font:600 13px 'IBM Plex Serif',serif; }
+    .inventory-gadget-card small { display:block; margin-top:3px; color:#617064; font:400 10px 'IBM Plex Sans',sans-serif; line-height:1.35; }
+    @media (max-width:600px) { .slots-grid { grid-template-columns:repeat(3,minmax(0,1fr)); } .inventory-gadgets-grid { grid-template-columns:1fr; max-height:50vh; } }
     .slot-box {
       background: #faf4e8;
       border: 2px solid var(--parchment-border);
@@ -1658,14 +1705,15 @@
     #auto-run-countdown-bar { width: 100%; height: 100%; background: #82958a; transition: width .1s linear; }
     #game-over-screen .btn { min-height: 38px; }
     @media (max-width: 700px), (pointer: coarse) {
-      #hud { padding: 5px 7px !important; gap: 1px !important; }
-      .hud-row { gap: 5px; }
-      .hp-container { width: clamp(92px, 29vw, 170px); height: 20px; flex: 0 1 auto; }
+      #hud { box-sizing: border-box !important; padding: 5px 7px !important; gap: 1px !important; }
+      .hud-row { width: 100% !important; min-width: 0 !important; gap: 4px !important; }
+      .hp-container { width: clamp(72px, 24vw, 105px) !important; min-width: 72px !important; height: 20px; flex: 0 1 auto !important; }
       .hp-text { font-size: 9px; }
-      .timer-badge { font-size: 10px; padding: 2px 3px; white-space: nowrap; }
-      .stats-right { gap: 6px; font-size: 10px; }
+      .timer-badge { min-width: 0 !important; flex: 1 1 auto !important; overflow: hidden; text-overflow: ellipsis; font-size: 9px !important; padding: 2px 3px !important; white-space: nowrap !important; text-align: center; }
+      .stats-right { min-width: 0 !important; flex: 0 1 auto !important; gap: 4px !important; font-size: 10px; }
       .stats-right .hud-btn:not(#mobile-menu-btn):not(#fullscreen-btn) { display: none !important; }
       .hud-btn { padding: 3px 6px; font-size: 10px; }
+      #mobile-menu-btn { flex: 0 0 auto !important; gap: 3px !important; padding: 3px 5px !important; font-size: 9px !important; }
       .ui-icon { width: 14px; height: 14px; }
       .info-subrow { padding: 3px 6px; font-size: 9px; }
       .weapons-info { max-width: 56vw; overflow: hidden; }
@@ -1727,6 +1775,9 @@
         line-height: 1.25 !important;
         white-space: normal;
       }
+    }
+    @media (max-width: 360px) {
+      #kill-count { display: none !important; }
     }
   </style>
 </head>
@@ -1841,10 +1892,23 @@
           <img src="assets/sprites/wax_seal.png" style="width: 22px; height: 22px;" alt="seal">
           Kütüphaneye gir
         </button>
+        <button class="btn btn-seal" id="title-leaderboard-btn" type="button" style="align-self:center;min-height:38px;">KÜRESEL SIRALAMA</button>
 
         <div style="text-align: center; font-size: 11.5px; color: #6a4a2a; font-family: 'IBM Plex Serif', serif; letter-spacing: 0.5px;">
           WASD: Hareket · Q/E/1–6: Silah seç · Space: Atılım · I: Envanter · Fare: Dükkân
         </div>
+      </div>
+    </div>
+
+
+    <div id="archive-intro" role="region" aria-label="Lexicon Survivors arşiv açılışı">
+      <div class="archive-intro-content">
+        <img class="archive-intro-mark" src="assets/ui/icons/book.svg" alt="">
+        <img class="archive-intro-hero" src="assets/sprites/upgrade_v1/hero_inky.png" alt="Inky">
+        <div class="archive-intro-kicker">ARŞİV AÇILIYOR</div>
+        <h1 id="archive-intro-title">LEXICON SURVIVORS</h1>
+        <p>Kayıp kelimeleri rafların arasından geri çağır.</p>
+        <button class="archive-intro-skip" id="archive-intro-skip" type="button">GEÇ · SPACE</button>
       </div>
     </div>
 
@@ -1873,8 +1937,8 @@
 
         <div class="tab-bar" role="tablist" aria-label="Dükkân kategorileri">
           <button class="tab-btn active" id="tab-cards-btn" role="tab" aria-controls="shop-items-grid" aria-selected="true"><img class="ui-icon" src="assets/ui/icons/cards.svg" alt="">KELİME KARTLARI</button>
-          <button class="tab-btn" id="tab-weapons-btn" role="tab" aria-controls="shop-items-grid" aria-selected="false"><img class="ui-icon" src="assets/ui/icons/weapons.svg" alt="">SİLAHLAR · 14</button>
-          <button class="tab-btn" id="tab-gadgets-btn" role="tab" aria-controls="shop-items-grid" aria-selected="false"><img class="ui-icon" src="assets/ui/icons/gadget.svg" alt="">GEREÇLER · 5</button>
+          <button class="tab-btn" id="tab-weapons-btn" role="tab" aria-controls="shop-items-grid" aria-selected="false"><img class="ui-icon" src="assets/ui/icons/weapons.svg" alt="">SİLAHLAR · 15</button>
+          <button class="tab-btn" id="tab-gadgets-btn" role="tab" aria-controls="shop-items-grid" aria-selected="false"><img class="ui-icon" src="assets/ui/icons/gadget.svg" alt="">GEREÇLER · 8</button>
           <button class="tab-btn" id="tab-artifacts-btn" role="tab" aria-controls="shop-items-grid" aria-selected="false"><img class="ui-icon" src="assets/ui/icons/artifact.svg" alt="">YADİGÂRLAR</button>
         </div>
 
@@ -1913,11 +1977,15 @@
       <div class="dialog-panel" style="max-width: 880px;">
         <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1.5px solid var(--parchment-border); padding-bottom: 6px;">
           <h2 style="font-family: 'IBM Plex Serif', serif; font-size: 20px; color: #2b170c; font-weight: 900;">
-            KÂTİP ENVANTERİ · SİLAH YUVALARI
+            KÂTİP ENVANTERİ · TEÇHİZAT DEFTERİ
           </h2>
           <button class="btn" id="close-inventory-btn" style="padding: 4px 12px;"><img class="ui-icon" src="assets/ui/icons/close.svg" alt="">Kapat [I]</button>
         </div>
-
+        <div class="tab-bar inventory-tabs" role="tablist" aria-label="Envanter kategorileri">
+          <button class="tab-btn active" id="inventory-weapons-tab" role="tab" aria-selected="true" aria-controls="inventory-weapons-panel">SİLAH YÜKÜ</button>
+          <button class="tab-btn" id="inventory-gadgets-tab" role="tab" aria-selected="false" aria-controls="inventory-gadgets-panel">GEREÇ ÇANTASI</button>
+        </div>
+        <div id="inventory-weapons-panel">
         <div style="font-family: 'IBM Plex Serif', serif; font-size: 13.5px; font-weight: 800; color: #5c3b1e; margin-top: 4px;">
           AKTİF SİLAHLAR (Otomatik ateş)
         </div>
@@ -1936,6 +2004,11 @@
         <div style="background: rgba(220, 200, 160, 0.4); padding: 8px 14px; border-radius: 4px; border: 1px solid var(--parchment-border); margin-top: 4px; font-size: 12px; line-height: 1.5; color: #2b170c; font-family: 'IBM Plex Serif', serif;">
           <strong>Kâtip İstatistikleri:</strong>
           <span id="inv-stats-summary">Can: 120 | Hasar: 1.0x | Atış: 1.0x | Zırh: %5 | Kritik: %8 | Hız: 235</span>
+        </div>
+        </div>
+        <div id="inventory-gadgets-panel" role="tabpanel" aria-labelledby="inventory-gadgets-tab" style="display:none;">
+          <p class="inventory-gadget-note">Sahip olduğun gereçler buradadır. Kuşanmak ücretsizdir; her dalgada birini etkin kullan.</p>
+          <div id="inv-gadgets-list" class="inventory-gadgets-grid"></div>
         </div>
       </div>
     </div>
@@ -2088,6 +2161,7 @@
         </div>
 
         <div style="display: flex; justify-content: center; gap: 8px; flex-wrap: wrap; margin-top: 6px;">
+          <button class="btn btn-seal" id="gameover-leaderboard-btn" type="button" style="font-size:12.5px;padding:8px 14px;">Skorunu gönder · Sıralama</button>
           <button class="btn btn-seal" id="restart-game-btn" style="font-size: 13.5px; padding: 8px 16px;">
             <img src="assets/sprites/wax_seal.png" style="width: 18px; height: 18px;" alt="seal">
             Kütüphaneye dön
@@ -2101,8 +2175,74 @@
         </div>
       </div>
     </div>
+    <div class="screen-overlay" id="leaderboard-overlay" role="dialog" aria-modal="true" aria-labelledby="leaderboard-title" hidden style="z-index:240;">
+      <div class="dialog-panel" style="width:min(620px,94vw);max-height:86vh;overflow:auto;">
+        <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;">
+          <div><span class="title-index">KARANLIK KÜTÜPHANE · RUN KAYITLARI</span><h2 id="leaderboard-title" style="margin:4px 0;color:#46392c;">Küresel sıralama</h2></div>
+          <button id="leaderboard-close-btn" class="btn btn-seal" type="button" aria-label="Sıralamayı kapat">Kapat</button>
+        </div>
+        <form id="leaderboard-submit-form" style="display:flex;flex-wrap:wrap;align-items:end;gap:8px;margin:12px 0;">
+          <label for="leaderboard-alias" style="flex:1 1 220px;font-size:12px;color:#5a4b3c;">Görünen ad <input id="leaderboard-alias" maxlength="20" autocomplete="nickname" required style="display:block;width:100%;min-height:40px;padding:8px;border:1px solid #a99980;border-radius:5px;background:#faf5e9;color:#302922;"></label>
+          <button id="leaderboard-submit-btn" class="btn btn-emerald" type="submit" style="min-height:40px;">Bu koşuyu gönder</button>
+        </form>
+        <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:8px;">
+          <label for="leaderboard-difficulty" style="font-size:12px;">Zorluk</label>
+          <select id="leaderboard-difficulty" style="min-height:36px;padding:4px 8px;"><option value="easy">Rahat</option><option value="normal" selected>Normal</option><option value="hard">Zor</option></select>
+          <button id="leaderboard-refresh-btn" class="btn btn-seal" type="button" style="min-height:36px;">Küresel tabloyu yenile</button>
+        </div>
+        <p id="leaderboard-status" role="status" aria-live="polite" style="min-height:22px;font-size:12px;color:#675b4f;"></p>
+        <ol id="leaderboard-entries" style="padding-left:28px;margin:8px 0;display:grid;gap:5px;"></ol>
+        <p style="font-size:11px;line-height:1.45;color:#756b5d;">Çevrimdışı koşular bu cihazda saklanır. Küresel skorlar istemci tarafından gönderilir ve doğrulanmış turnuva sonucu sayılmaz.</p>
+      </div>
+    </div>
   </div>
 
-  <script src="game.js"></script>
+
+  <script>
+    (() => {
+      const INTRO_KEY = 'lexicon-survivors-archive-intro-seen-v1';
+      let introTimer = 0;
+      let introDone = false;
+      const intro = document.getElementById('archive-intro');
+      const skipButton = document.getElementById('archive-intro-skip');
+      window.finishArchiveIntro = (skipped = false) => {
+        if (introDone || !intro || intro.hidden) return;
+        introDone = true;
+        window.clearTimeout(introTimer);
+        try { localStorage.setItem(INTRO_KEY, '1'); } catch (_) {}
+        intro.classList.add('is-leaving');
+        document.getElementById('start-game-btn')?.focus({ preventScroll: true });
+        intro.setAttribute('aria-hidden', 'true');
+        window.setTimeout(() => {
+          intro.hidden = true;
+        }, intro.classList.contains('is-reduced') ? 260 : 190);
+      };
+      window.startArchiveIntro = () => {
+        if (!intro) return;
+        let alreadySeen = false;
+        try { alreadySeen = localStorage.getItem(INTRO_KEY) === '1'; } catch (_) {}
+        const reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+        if (alreadySeen) { intro.hidden = true; return; }
+        if (reduced) intro.classList.add('is-reduced');
+        skipButton?.focus({ preventScroll: true });
+        const duration = reduced ? 350 : 1800;
+        introTimer = window.setTimeout(() => window.finishArchiveIntro(false), duration);
+      };
+      skipButton?.addEventListener('click', () => window.finishArchiveIntro(true));
+      intro?.addEventListener('pointerdown', (event) => {
+        if (event.target !== skipButton) window.finishArchiveIntro(true);
+      });
+      document.addEventListener('keydown', (event) => {
+        if (introDone || intro?.hidden) return;
+        if (event.code === 'Space' || event.code === 'Enter' || event.code === 'Escape') {
+          event.preventDefault();
+          event.stopImmediatePropagation();
+          window.finishArchiveIntro(true);
+        }
+      }, true);
+      window.startArchiveIntro();
+    })();
+  </script>
+  <script src="game.js?v=gameplay-20261105-1"></script>
 </body>
 </html>

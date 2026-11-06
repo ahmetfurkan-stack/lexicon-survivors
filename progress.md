@@ -103,3 +103,71 @@ Original prompt: https://github.com/yasinkaya701/lexicon-survivors — bunu ince
 - GitHub Pages `gh-pages` build #1342292905 `built` durumuna ulaştı. Uzak tarayıcı testi HTTP 200, 0 JavaScript hatası, 0 başarısız istek ve 31/31 DOM görsel yüklemesi verdi.
 - İlk dalga normal web süresinde oynatıldı; 7 saniye çapraz hareket sonunda oyuncu (-1163, -868) köşesinde kaldı, dalga 1 devam etti ve düşman sayısı 48 sınırının altındaydı.
 - Yayın önizlemesi: https://yasinkaya701.github.io/lexicon-survivors/
+
+## Task 1 — action poses and Inky locomotion — 2026-11-05
+
+- Godot and web now use weapon-aware action events; ranged shots preserve locomotion while melee/cast/heavy actions show short poses with aim-facing. Weapon recoil is tuned by weapon class.
+- Added eased acceleration/braking and speed-scaled run cadence without changing top speed or arena clamps. Inky's generated 4×2 sheet was sliced to eight 64×64 frames and wired into both runtimes; original retained at `output/imagegen/inky_run_8f_preview.png`.
+- Godot gameplay regression and headless runtime passed, as did web syntax and Playwright wave/movement checks (no browser errors). Full details: `.superpowers/sdd/2026-11-05-combat-animation-and-economy/task-1-report.md`.
+- Follow-up polish adds a pixel-snapped 1–2px footfall bob and 1px movement lean to the hero and mounted weapons, clamped within shelf visual bounds; idle/action/dash reset it. Three consecutive in-motion Playwright captures show the run pose and advance position/phase. Braking is now softer than acceleration, covered by regression assertions.
+
+## Fast integration pass — 2026-11-05
+
+- Integrated the supplied dark-library theme and boss theme in Godot, plus weapon, hit, defeat, pickup, chapter, gadget, and UI sound playback in the web runtime. User audio lives in `assets/audio/` with web mirrors and a checked manifest. Godot resources were imported with the headless editor before testing.
+- Added scene-wide mine and turret caps, including persistence across weapon-node rebuilds. Preserved bounded waves, wave/shop transitions, and shelf-corner movement.
+- Verified `test/gameplay_regression_test.gd`, `test/headless_runtime_test.tscn`, `test/scene_instantiation_test.tscn`, all three Node audio/combat checks, `node --check build/web/game.js`, and `git diff --check`. A Playwright capture on local port 8013 showed wave 1, weapon placement and enemy actors, with no reported browser errors.
+- **Durum düzeltmesi — 2026-11-05:** Eski nottan sonra gereç/yadigâr parity ve düşman mekanikleri tamamlandı; Worker+D1 uygulaması ile 26 test de eklendi/geçti. Kalan yayın kapısı canlı altyapı: Worker config içindeki D1 UUID placeholder, web leaderboard API URL alanı boş, Wrangler oturumu expired. Yerel/mock testler global canlı skoru kanıtlamaz; D1 kimliği ve Workers URL gerçek hesapta oluşturulup site metaverisine yazılmalı. Skorlar istemciden geldiği için canlı leaderboard casual skor panosu düzeyindedir; anti-cheat doğrulaması ayrıca tasarlanmalı.
+
+## Silah rolleri, görselleri ve savuşturma — 2026-11-05
+
+- Dört silahın özgün piksel varlığı yeniden çizildi: Koruyucu Kenar için ay kitap-kalkanı, Izgara Delicisi için arbalet, Aç-Kapa Tabancalar için çift tabanca, Sözdizimi Ray-Tüfeği için dürbünlü tüfek. Sprite'lar `assets/sprites/weapons/` ve web kopyasında 64×64 RGBA; ham atlas ile önizlemeler `output/imagegen/weapons/` altında tutuluyor.
+- Koruyucu Kenar aktif vuruş karesinde 132 birim içindeki düşman mermilerini temizliyor; T3+ yakındaki hedefe %65 hasarlı karşı atış gönderiyor. Web'de sınır içi/dışı mermi ve karşı atış regresyonla doğrulandı; Godot'ta mermi menzili davranışı test edildi.
+- Izgara Delicisi hasarı 28, atış aralığı 0.82 sn ve fiyatı 20; Sözdizimi Ray-Tüfeği 82 hasar, 1.55 sn ve fiyatı 29 olarak ayrıştı. Böylece arbalet daha sık pin/saçılma alan kontrolü, tüfek ise daha yavaş yüksek öncelikli zırh delme rolünde.
+- Ortak denge/archetype ve görsel metadata JSON'ları web kopyalarıyla eşlendi. Silah açıklamaları menü/mağaza dilini gerçek mekaniğe göre güncellendi; arbalet ağır saldırı duruşu ve yeni sprite tutuş/muzzle hizası bağlandı.
+- Doğrulama: `node --check build/web/game.js`, `node test/web_weapon_archetype_regression.js`, tarayıcı içi 14 silah davranış kontratı (0 konsol/HTTP hatası), `godot --headless --path . -s test/gameplay_regression_test.gd`, `git diff --check` geçti. Sprite temas sayfası gözle incelendi.
+- Yayın/Cloudflare Worker dağıtımı bu silah işi kapsamında yapılmadı; daha önce kaydedilen Wrangler giriş bilgisi yenileme gereksinimi hâlâ geçerli.
+
+
+## Harita spawn parity ve yönlü animasyon — 2026-11-05
+
+- Denetimde Godot düşman spawn'larının köşe oyuncusundan 680 birim dışarı, raf arkasına taşabildiği bulundu; web bunu alan içinde sınırlıyordu. `WaveManager.get_arena_spawn_position()` şimdi 16 yönlü güvenli nokta araması ve iç çevre fallback'iyle ±1150/±850 görünür oyun alanında doğuruyor, oyuncuya en az 560 birim mesafe koruyor. Regresyon testleri dört köşeyi ve gerçek `spawn_enemy()` çağrısını kapsıyor.
+- Dikey/çapraz hareket ve saldırıda iki sürümde de yatay bakan gövdeye küçük aim/movement tilt eklendi; silah kendi aim rotation/recoil animasyonunu koruyor. Web `render_game_to_text` artık body_tilt raporluyor. Godot regresyonu yukarı/aşağı pozitif-negatif tilt'i assert ediyor.
+- Worker testleri yeniden çalıştı: 26/26 geçti. 390×844 Playwright mobil akışta gadget, inventory, pause, ekipman seçimi, joystick ve cooldown çalıştı; hatasız sayfa. Dikey gövde tilt denemesi -0.38/+0.38 radyan veriyor.
+- Sonraki doğrulama: yeni 0.38 radyan görsel pozlarını ekran görüntüsünde yeniden incele ve Godot/web geniş regression setini koştur. Cloudflare oturumu yenilenmeden gerçek D1/Worker deploy ve global skor yayını doğrulanamaz.
+
+## Tam kapsam regresyon ve yayın ön kontrolü — 2026-11-05
+
+- Yeni hareket/aim tilt pozları 1280×720 oyun görüntüsünde yukarı koşu ve aşağı saldırı karelerinde görsel olarak incelendi; web text state, yukarı/aşağı için ±0.38 radyan tilt verdi.
+- Web statik kontrolleri geçti: JS syntax, weapon archetype/signature, arena bounds parity, hit-feedback, 14 silah ses/asset manifesti. Worker `npm test`: 26/26.
+- Godot editor import, features simulation, game simulation, v2 feature/economy, scene instantiation, headless runtime ve gameplay regression geçti. Gameplay testinde dört köşede spawn alanı/560 mesafe ve gerçek `spawn_enemy()` çıktısı assert ediliyor. Test sonundaki ObjectDB/resource-leak uyarıları halen var.
+- 390×844 mobil tarayıcı regression: gadget aktivasyonu, envanter aç/kapa ve pause, gereç seçimi, joystick resume, cooldown resume, dalga boss countdown ve shop içinden envanter engeli geçti; 0 page error ve HTTP hatası.
+- `npx wrangler deploy --dry-run` Worker'ı 10.07 KiB / 3.16 KiB gzip olarak başarıyla paketledi; DB ve RATE_LIMITER binding'leri göründü. Bu remote D1 veya canlı endpoint testi değildir.
+- Bu ön kontrol notu daha sonra tamamlandı; son durum için aşağıdaki “Canlı Worker ve web sürümü” bölümüne bak.
+
+## Canlı Worker ve web sürümü — 2026-11-05
+
+- Cloudflare oturumu yenilendi; WEUR D1 `lexicon-survivors-leaderboard` oluşturuldu, `0001_leaderboard.sql` remote uygulandı ve Worker deploy edildi. Canlı adres: `https://lexicon-survivors-leaderboard.lexicon-survivors-leaderboard.workers.dev`.
+- `build/web/index.html` içindeki `leaderboard-api` meta alanı canlı Worker'a bağlandı; `gh-pages` yayımı tamamlandı. Yayın commit'i `9c07ca667fb1b88df622966fb67e9437456894a9`; GitHub Pages build `built`.
+- Canlı Worker GET'i `difficulty=normal` için `200` ve boş `entries` verdi; GitHub Pages Origin'inden `access-control-allow-origin` doğru döndü. Yayındaki `dictionary_blade.png` varlığı HTTP 200.
+- Canlı tarayıcı smoke kontrolünde başlık/karakter seçimi açıldı, `Kütüphaneye gir` ile ilk tur başladı, HUD'da 1. tur/100 ve `1 · İğne` göründü; browser error log boş. Küresel sıralama paneli canlı API'den yüklendi ve `Henüz kayıt yok.` durumunu gösterdi.
+- Ek doğrulama: `git diff --check` temiz. Savaş/asset/audio/Godot regresyonları ve Worker'ın 26 testi bu yayından önce son kapsam regresyonda geçti; Pages değişikliği API adresi meta alanı ve statik deploy kapsamındaydı.
+- Üretim leaderboard'u istemci tarafından bildirilen skor kabul ediyor; anti-cheat/turnuva güvenilirliği yok. Canlı skor yarışması açılmadan önce sunucu tarafı koşu doğrulama gerekir. Godot Web export template'leri hâlâ kurulu değil; Pages mevcut web runtime'ını yayınlıyor.
+
+## Silah paketi yenilemesi — 2026-11-05
+
+- Üretilen ortak 4×4 silah atlası `assets/sprites/weapons/weapon_atlas_4x4_source.png` olarak kaydedildi. 14 mevcut silahın PNG'leri yeniden çizildi ve aynı 320×320 master boyutuna getirildi; tutuş/namlu noktaları yeni şekillere göre ayarlandı. Web kopyaları da `build/web/assets/sprites/weapons/` altında güncellendi.
+- Ortak `weapon_archetypes.json` değerleri denge ve oynanış özellikleriyle yenilendi. Web yedek kataloğu bu ortak fiyat/hasar/atış hızlarıyla hizalandı; Godot ve web silah mermileri imza limitlerini (işaret süresi, saçma açısı/adedi, pin, dönüş, yanma, hedef kilidi, sekme ve zayıf nokta zinciri) okuyor.
+- Yeni 15. silah **Dipnot Tezgâhı / Word Loom** eklendi: hedefe mürekkep ipliği bağlı alan kurar, alandaki düşmanlara periyodik hasar verir ve yavaşlatır; T3 işaretler, T4 yakın hedefte ikinci alan açar. PNG, mağaza kartı, maliyetler, ses ve Godot/web mantığı eklendi.
+- Mağaza sayacı `SİLAHLAR · 15` oldu; mevcut silah adları/açıklamaları değişen güçleri anlatıyor.
+- Doğrulama: Godot editör asset importu; `test/gameplay_regression_test.gd` (silah texture/yerleşimleri ve Word Loom alan hasarı-yavaşlatma-işaret/çift alan), `test/v2_features_test.gd` (15 silah), Node web şema/görsel testleri, tarayıcıdaki `runWebWeaponArchetypeRegression` ve `runWebHitFeedbackRegression`, mağaza ekranı ve 15 silah görselinin yüklenmesi. Konsol hatası yok.
+- Bu paket daha geniş aktif oyun geliştirme hedefinin bir parçası; tüm kapsam hazır olmadığı için henüz deploy edilmedi. Açık işler arasında kalan karakter saldırı görselleri ve önceki `Açık işler` başlıkları var.
+
+## Koşu animasyonları ve hedefe dönük atış pozu — 2026-11-05
+
+- Beş ek karakter için referans sprite'larından 4×2 koşu atlasları üretildi, hücreler 64×64 RGBA karelere dilimlendi ve web/Godot ortak animasyon klasörlerine bağlandı. Inky dâhil altı karakterin tümü artık sekiz kareli aynı stride çevrimini kullanıyor. Kaynak atlaslar ve kontrol önizlemeleri `output/imagegen/characters/run8/` altında.
+- Web archive intro temiz ilk ziyaret oturumunda telefon portresinde görsel olarak incelendi: kitap/karakter/başlık/kısayol ekran içinde, `GEÇ · SPACE` düğmesi dokunulabilir alanda; 1.1 sn animasyon karesinde metin okunaklı. Dokunma ile skip ve ardından ilk dalga başlangıcı geçti, console error yok. Godot intro skip ve tekrar ziyaret yolu doğru `.tscn` sahne testinde doğrulandı.
+- Godot ve web menzilli silah ateşinde koşu animasyonunu kesmiyor; kısa recoil boyunca gövde yönü silahın hedef açısına dönüyor. Yakın, büyü ve ağır saldırı poz süreleri ortak silah arketiplerindeki windup/active/recovery ritminden türetiliyor; recovery her sınıfta okunabilir üst sınırla kısaltılıyor.
+- Mobil tarayıcıda gerçek touch emülasyonu ile gadget düğmesi cooldown başlattı, envanter açıldı/kapatıldı, joystick parmak sürüklemesi oyuncuyu hareket ettirdi. Uzun inventory regresyonunda başlangıç gadget'ı dash olduğu için joystick ölçümünden önce dash'ın bitmesi beklenecek şekilde düzeltildi; tam regresyon geçti.
+- Doğrulama: Godot gameplay regression geçti (köşe erişimi dâhil); V2 özellik testi 15 silah, 8 gadget, 13 düşman ve 100 dalgayı doğruladı. Web weapon/combat/arena kontrolleri ve gerçek mobil inventory-pause-joystick senaryosu geçti. Altı karakterde 48/48 web run sprite'ı 64×64 yükleniyor; tarayıcıda 15 silah imza kontrolü geçti ve konsolda hata yok. `git diff --check` temiz.
+- Scene-instantiation testi ilk denemelerde yanlışlıkla `-s test/scene_instantiation_test.gd` ile çağrıldı; bu Node scripti `test/scene_instantiation_test.tscn` üzerinden çalıştırılmalı. Doğru komut `godot --headless --path . test/scene_instantiation_test.tscn` temiz çıkış koduyla geçti; test tüm sahne bileşenlerini, intro skip/first-visit yolunu ve offline leaderboard durumunu doğruladı. Godot kapanışında 2 ObjectDB instance ve 1 resource leak uyarısı kaldı.
+- Genel kapsam hâlâ açık: saldırı animasyonlarını görsel testte inceleme, Godot dokunma emülasyonu, mağaza/ekonomi oturum dengelemesi, global leaderboard skor doğrulama ve web/Godot son uçtan uca doğrulama. Bu nedenle yeni değişiklikler henüz deploy edilmedi.

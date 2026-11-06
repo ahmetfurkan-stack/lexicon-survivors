@@ -1,4 +1,4 @@
-[gd_scene load_steps=17 format=3 uid="uid://b1j4k8m5q2v7p"]
+[gd_scene load_steps=18 format=3 uid="uid://b1j4k8m5q2v7p"]
 
 [ext_resource type="Script" path="res://scripts/main.gd" id="1_script"]
 [ext_resource type="Texture2D" path="res://assets/sprites/tile_floor.png" id="2_floor"]
@@ -11,6 +11,7 @@
 [ext_resource type="Script" path="res://scripts/audio_manager.gd" id="9_audio"]
 [ext_resource type="Texture2D" path="res://assets/ui/icons/book.svg" id="10_book"]
 [ext_resource type="Texture2D" path="res://assets/sprites/wax_seal.png" id="11_seal"]
+[ext_resource type="Script" path="res://scripts/leaderboard_panel.gd" id="12_leaderboard"]
 
 [sub_resource type="RectangleShape2D" id="WallShape_Horiz"]
 size = Vector2(2550, 60)
@@ -219,7 +220,7 @@ anchors_preset = 12
 anchor_top = 1.0
 anchor_right = 1.0
 anchor_bottom = 1.0
-offset_left = 60.0
+offset_left = 300.0
 offset_top = -65.0
 offset_right = -60.0
 offset_bottom = -20.0
@@ -232,6 +233,21 @@ theme_override_font_sizes/font_size = 18
 text = "Yeniden başla"
 icon = ExtResource("11_seal")
 icon_max_width = 24
+
+[node name="LeaderboardButton" type="Button" parent="GameOverLayer/GameOverPanel"]
+layout_mode = 1
+anchors_preset = 12
+anchor_top = 1.0
+anchor_bottom = 1.0
+offset_left = 32.0
+offset_top = -65.0
+offset_right = 270.0
+offset_bottom = -20.0
+grow_vertical = 0
+text = "Skor gönder · Sıralama"
+
+[node name="LeaderboardPanel" type="CanvasLayer" parent="."]
+script = ExtResource("12_leaderboard")
 
 [node name="TitleLayer" type="CanvasLayer" parent="."]
 process_mode = 2

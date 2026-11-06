@@ -13,6 +13,11 @@ extends Node2D
 @onready var arena_floor = $Floor
 @onready var arena_frame = $ArenaFrame
 @onready var audio_manager = $AudioManager
+@onready var leaderboard_panel = $LeaderboardPanel
+@onready var leaderboard_button: Button = $GameOverLayer/GameOverPanel/LeaderboardButton
+
+var _run_started_at_msec: int = 0
+var _latest_run_result: Dictionary = {}
 
 func _ready():
 	process_mode = Node.PROCESS_MODE_PAUSABLE
@@ -27,9 +32,11 @@ func _ready():
 	shop_ui.shop_closed.connect(_on_shop_closed)
 	StatsManager.player_died.connect(_on_player_died)
 	restart_button.pressed.connect(_on_restart_pressed)
+	leaderboard_button.pressed.connect(_open_run_leaderboard)
 	
 	if title_screen:
 		title_screen.game_started.connect(_on_title_game_started)
+		title_screen.leaderboard_requested.connect(_open_title_leaderboard)
 		get_tree().paused = true
 		title_layer.show()
 	else:
@@ -43,6 +50,8 @@ func start_game():
 	if is_inside_tree():
 		get_tree().paused = false
 	StatsManager.reset()
+	_run_started_at_msec = Time.get_ticks_msec()
+	_latest_run_result.clear()
 	game_over_layer.hide()
 	shop_ui.hide()
 	if player:
@@ -76,9 +85,21 @@ func _on_shop_closed():
 	wave_manager.start_wave()
 
 func _on_player_died():
+	if game_over_layer.visible:
+		return
 	if is_inside_tree():
 		get_tree().paused = true
 	game_over_layer.show()
+	_latest_run_result = {
+		"submissionId": LeaderboardClient.create_submission_id(),
+		"alias": LeaderboardClient.get_saved_alias(),
+		"wavesCleared": maxi(0, StatsManager.current_wave - 1),
+		"kills": maxi(0, StatsManager.kill_count),
+		"elapsedMs": maxi(1000, Time.get_ticks_msec() - _run_started_at_msec),
+		"characterId": StatsManager.selected_character,
+		"difficultyId": StatsManager.difficulty
+	}
+	LeaderboardClient.save_local_result(_latest_run_result, str(_latest_run_result.get("alias", "Oyuncu")) if not str(_latest_run_result.get("alias", "")).is_empty() else "Oyuncu")
 	
 	var words_list = ""
 	if StatsManager.words_learned.is_empty():
@@ -96,6 +117,12 @@ func _on_player_died():
 	summary_text += "KAZANILAN MÜREKKEP  ·  " + str(StatsManager.ink_count)
 	
 	game_over_summary.text = summary_text
+
+func _open_title_leaderboard() -> void:
+	leaderboard_panel.open_board()
+
+func _open_run_leaderboard() -> void:
+	leaderboard_panel.open_board(_latest_run_result)
 
 func _on_restart_pressed():
 	get_tree().paused = false
