@@ -186,6 +186,29 @@ test('rejects disallowed origins and sends CORS only to the published game', asy
   assert.equal(accepted.headers.get('access-control-allow-origin'), ORIGIN);
 });
 
+test('allows loopback origins for local game previews without allowing lookalike domains', async () => {
+  const ctx = context();
+  for (const origin of ['http://127.0.0.1:8014', 'http://localhost:8013']) {
+    const response = await worker.fetch(new Request('https://leaderboard.test/api/leaderboard?difficulty=normal', { headers: { origin } }), ctx.env);
+    assert.equal(response.status, 200);
+    assert.equal(response.headers.get('access-control-allow-origin'), origin);
+  }
+  for (const origin of ['http://127.0.0.1.evil:8014', 'https://localhost:8014', 'http://localhost.evil:8014']) {
+    const response = await worker.fetch(new Request('https://leaderboard.test/api/leaderboard?difficulty=normal', { headers: { origin } }), ctx.env);
+    assert.equal(response.status, 403);
+    assert.equal(response.headers.get('access-control-allow-origin'), null);
+  }
+  for (const origin of ['http://localhost:8013/path', 'http://user@localhost:8013']) {
+    const response = await worker.fetch(new Request('https://leaderboard.test/api/leaderboard?difficulty=normal', { headers: { origin } }), ctx.env);
+    assert.equal(response.status, 403);
+    assert.equal(response.headers.get('access-control-allow-origin'), null);
+  }
+  const preflight = await worker.fetch(new Request('https://leaderboard.test/api/leaderboard', { method: 'OPTIONS', headers: { origin: 'http://127.0.0.1:8014' } }), ctx.env);
+  assert.equal(preflight.status, 204);
+  assert.equal(preflight.headers.get('access-control-allow-origin'), 'http://127.0.0.1:8014');
+  assert.match(preflight.headers.get('access-control-allow-methods'), /POST/);
+});
+
 test('supports native requests without Origin and preflight for the published origin', async () => {
   const ctx = context();
   const native = new Request('https://leaderboard.test/api/leaderboard', { method: 'POST', headers: { 'content-type': 'application/json', 'cf-connecting-ip': '198.51.100.4' }, body: JSON.stringify(validSubmission()) });

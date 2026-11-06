@@ -34,8 +34,19 @@ function publicError(message, status, corsOrigin) {
 
 function originFor(request) {
   const origin = request.headers.get('origin');
-  if (origin && origin !== ALLOWED_ORIGIN) return false;
-  return origin === ALLOWED_ORIGIN ? ALLOWED_ORIGIN : null;
+  if (!origin) return null;
+  if (origin === ALLOWED_ORIGIN) return ALLOWED_ORIGIN;
+
+  // Permit only canonical HTTP origins on IPv4 loopback or localhost so local
+  // previews can use the public read-only leaderboard endpoint.
+  try {
+    const parsed = new URL(origin);
+    const isLoopbackHost = parsed.hostname === 'localhost' || parsed.hostname === '127.0.0.1';
+    if (parsed.protocol === 'http:' && isLoopbackHost && parsed.origin === origin) return origin;
+  } catch {
+    // Invalid Origin headers are rejected below.
+  }
+  return false;
 }
 
 export function sanitizeAlias(value) {
