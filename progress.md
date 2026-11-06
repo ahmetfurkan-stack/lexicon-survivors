@@ -213,3 +213,5 @@ Original prompt: https://github.com/yasinkaya701/lexicon-survivors — bunu ince
 - `test/web_inventory_pause_regression.js` beş Enter adımını gerçekten doğrulayacak şekilde düzeltildi. `test/game_simulation_test.gd` eski test beklentisini 15 başlangıç mürekkebini hesaba katacak şekilde düzeltti.
 - Godot köşe gameplay, arena parity, economy, combat, weapon, boss, headless runtime, scene, feature, v2 ve enemy registry testleri geçti. Godot kapatırken daha önce görülen ObjectDB/resource uyarıları sürüyor.
 - Mobil regresyon ekran görüntüsü: `output/imagegen/ui-menu-mockups/mobile-regression-final.png`.
+- Başlangıç ekranında portreler mobilde 26 px olduğundan seçimin okunması zayıftı. Kahraman başına renk kodlu arşiv kartları eklendi, portreler 42–44 px'e büyütüldü; hikâye motivasyonu ve pasif özellik satırları iki taşma yapmadan okunuyor. Chrome 390×844 testinde altı kartın her biri 96 px ve taşmasız.
+- Güncel başlangıç ekranı görsel incelemesi: `output/imagegen/ui-menu-mockups/menu-mobile-v2.png`; mobil tam akış Playwright ve konsol hatasız doğrulandı.

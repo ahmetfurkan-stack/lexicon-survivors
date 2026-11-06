@@ -1816,6 +1816,78 @@
         white-space: normal;
       }
     }
+    /* Character archive plates: each hero gets a restrained, authored color signal. */
+    #title-screen #char-selection-grid .choice-card {
+      --hero-accent: #617b6d;
+      --hero-wash: #f1f0e5;
+      position: relative;
+      overflow: hidden !important;
+      isolation: isolate;
+      border: 1px solid color-mix(in srgb, var(--hero-accent) 42%, #c8bea8) !important;
+      border-left: 3px solid var(--hero-accent) !important;
+      border-radius: 4px !important;
+      background: linear-gradient(105deg, var(--hero-wash), #f8f4e8 46%, #f8f4e8) !important;
+      box-shadow: inset 0 1px rgba(255,255,255,.76), 0 3px 10px rgba(26, 31, 27, .1) !important;
+      transition: border-color 180ms ease, background 180ms ease, box-shadow 180ms ease, transform 180ms ease !important;
+    }
+    #title-screen #char-selection-grid .choice-card::after {
+      content: "";
+      position: absolute;
+      z-index: -1;
+      top: -34px;
+      right: -34px;
+      width: 92px;
+      height: 92px;
+      border: 1px solid color-mix(in srgb, var(--hero-accent) 24%, transparent);
+      border-radius: 50%;
+      box-shadow: 0 0 0 7px color-mix(in srgb, var(--hero-accent) 5%, transparent), 0 0 0 14px color-mix(in srgb, var(--hero-accent) 4%, transparent);
+      pointer-events: none;
+    }
+    #title-screen #char-selection-grid .choice-card[data-hero="inky"] { --hero-accent: #536f5e; --hero-wash: #e9eee5; }
+    #title-screen #char-selection-grid .choice-card[data-hero="quillmaster"] { --hero-accent: #8a6548; --hero-wash: #f1e9db; }
+    #title-screen #char-selection-grid .choice-card[data-hero="word_knight"] { --hero-accent: #607581; --hero-wash: #e8edf0; }
+    #title-screen #char-selection-grid .choice-card[data-hero="rune_sorceress"] { --hero-accent: #77628e; --hero-wash: #eee8f0; }
+    #title-screen #char-selection-grid .choice-card[data-hero="lexicon_alchemist"] { --hero-accent: #9a7844; --hero-wash: #f3ebd9; }
+    #title-screen #char-selection-grid .choice-card[data-hero="shadow_lexicographer"] { --hero-accent: #506d70; --hero-wash: #e5eeec; }
+    #title-screen #char-selection-grid .choice-card.selected {
+      border-color: var(--hero-accent) !important;
+      outline: 0 !important;
+      background: linear-gradient(105deg, color-mix(in srgb, var(--hero-wash) 72%, white), #fbf8ef 58%) !important;
+      box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--hero-accent) 34%, transparent), 0 0 0 2px color-mix(in srgb, var(--hero-accent) 18%, transparent), 0 5px 14px rgba(26,31,27,.13) !important;
+    }
+    #title-screen #char-selection-grid .choice-card img {
+      flex: 0 0 auto;
+      width: 44px !important;
+      height: 44px !important;
+      padding: 3px;
+      border: 1px solid color-mix(in srgb, var(--hero-accent) 46%, #d2c7b2);
+      border-radius: 3px;
+      background: radial-gradient(circle at 50% 42%, rgba(255,255,255,.96), var(--hero-wash) 72%);
+      image-rendering: pixelated;
+      object-fit: contain;
+    }
+    #title-screen #char-selection-grid .choice-card .story-motive {
+      display: -webkit-box;
+      -webkit-box-orient: vertical;
+      -webkit-line-clamp: 2;
+      overflow: hidden;
+      padding-left: 2px;
+      border-left: 1px solid color-mix(in srgb, var(--hero-accent) 44%, transparent);
+      color: #66563d !important;
+      font: italic 10px/1.3 'IBM Plex Sans', sans-serif !important;
+    }
+    #title-screen #char-selection-grid .choice-card .passive {
+      border-top: 1px solid color-mix(in srgb, var(--hero-accent) 22%, #ddd4c2) !important;
+      color: #4e6258 !important;
+      font: 500 9.5px/1.28 'IBM Plex Sans', sans-serif !important;
+    }
+    @media (max-width: 700px), (pointer: coarse) {
+      #title-screen #char-selection-grid { max-height: min(38vh, 320px) !important; }
+      #title-screen #char-selection-grid .choice-card { min-height: 96px !important; padding: 7px 9px !important; }
+      #title-screen #char-selection-grid .choice-card img { width: 42px !important; height: 42px !important; }
+      #title-screen #char-selection-grid .choice-card .story-motive { -webkit-line-clamp: 1; font-size: 9px !important; }
+      #title-screen #char-selection-grid .choice-card .passive { -webkit-line-clamp: 1; font-size: 9px !important; }
+    }
     @media (max-width: 360px) {
       #kill-count { display: none !important; }
     }

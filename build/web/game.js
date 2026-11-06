@@ -2711,6 +2711,7 @@ function initTitleScreen() {
     const storyMotive = STORY_ARC_DATA?.characters?.[cid]?.motive || "";
     const card = document.createElement("div");
     card.className = "choice-card" + (cid === state.selected_char ? " selected" : "");
+    card.dataset.hero = cid;
     card.setAttribute("role", "button");
     card.setAttribute("aria-pressed", String(cid === state.selected_char));
     card.setAttribute("aria-label", `${c.name} karakterini seç`);
@@ -2718,7 +2719,7 @@ function initTitleScreen() {
     card.innerHTML = `
       <div style="display: flex; justify-content: space-between; align-items: center; width: 100%;">
         <div style="display: flex; align-items: center; gap: 8px;">
-          <img src="assets/sprites/${c.sprite}" style="width: 26px; height: 26px; image-rendering: pixelated;" alt="${c.name}">
+          <img src="assets/sprites/${c.sprite}" alt="${c.name}">
           <div>
             <h3 style="margin: 0; font-size: 13.5px;">${c.name}</h3>
             <div class="subtitle" style="margin: 0; font-size: 10px;">${c.title}</div>
