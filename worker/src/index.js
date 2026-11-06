@@ -58,6 +58,24 @@ function minimumPlausibleRunTimeMs(wavesCleared) {
   return Math.floor(expectedMinimumMs * MIN_RUN_TIME_RATIO);
 }
 
+function maximumPlausibleKills(wavesCleared, difficultyId) {
+  let maximum = 0;
+  const highestEncounteredWave = Math.min(100, wavesCleared + 1);
+  for (let wave = 1; wave <= highestEncounteredWave; wave++) {
+    if (wave % 5 === 0) {
+      maximum += 1;
+      continue;
+    }
+    const duration = Math.min(42, 22 + (wave - 1) * 0.25);
+    const difficultyFactor = difficultyId === 'hard' ? 0.75 : difficultyId === 'easy' ? 1.15 : 1.0;
+    const spawnInterval = Math.max(0.12, 0.60 - wave * 0.04) * difficultyFactor;
+    const batchSize = wave >= 25 ? 3 : wave >= 8 ? 2 : 1;
+    // Every spawned slime may split into two more kills. The spare cycles cover timer carry and frame boundaries.
+    maximum += (Math.ceil(duration / spawnInterval) + 2) * batchSize * 3;
+  }
+  return maximum;
+}
+
 export function validateSubmission(input) {
   if (!input || typeof input !== 'object' || Array.isArray(input)) return null;
   if (Object.keys(input).some((key) => !SUBMISSION_KEYS.has(key))) return null;
@@ -67,6 +85,7 @@ export function validateSubmission(input) {
   if (!Number.isInteger(input.kills) || input.kills < 0 || input.kills > 100000) return null;
   if (!Number.isInteger(input.elapsedMs) || input.elapsedMs < 1000 || input.elapsedMs > 43_200_000) return null;
   if (input.elapsedMs < minimumPlausibleRunTimeMs(input.wavesCleared)) return null;
+  if (input.kills > maximumPlausibleKills(input.wavesCleared, input.difficultyId)) return null;
   const alias = sanitizeAlias(input.alias);
   if (!alias) return null;
   return {

@@ -103,6 +103,20 @@ test('accepts a plausible run time at the same wave count', async () => {
   assert.equal(ctx.db.rows.length, 1);
 });
 
+test('rejects more kills than the wave spawn budget can produce', async () => {
+  const ctx = context();
+  const response = await worker.fetch(post(validSubmission({ wavesCleared: 0, kills: 100000, elapsedMs: 120000 })), ctx.env);
+  assert.equal(response.status, 400);
+  assert.equal(ctx.db.rows.length, 0);
+});
+
+test('keeps room for split-enemy kill counts in an early wave', async () => {
+  const ctx = context();
+  const response = await worker.fetch(post(validSubmission({ wavesCleared: 0, kills: 120, elapsedMs: 120000 })), ctx.env);
+  assert.equal(response.status, 201);
+  assert.equal(ctx.db.rows.length, 1);
+});
+
 test('rejects invalid IDs, empty aliases, negative counts, and impossible bounds without writing', async (t) => {
   const cases = [
     ['difficulty', { difficultyId: 'nightmare' }],
