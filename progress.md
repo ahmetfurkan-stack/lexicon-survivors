@@ -217,3 +217,9 @@ Original prompt: https://github.com/yasinkaya701/lexicon-survivors — bunu ince
 - Güncel başlangıç ekranı görsel incelemesi: `output/imagegen/ui-menu-mockups/menu-mobile-v2.png`; mobil tam akış Playwright ve konsol hatasız doğrulandı.
 - Masaüstü başlatma/etkileşim denetiminde gizli leaderboard katmanının `display:flex` olarak kaldığı ve tıklamaları örttüğü bulundu. Global `.screen-overlay[hidden]` kuralı ile görünürlük ve pointer engeli birlikte kapatıldı; yeni `hidden_overlay_regression.js` hem mobil hem masaüstünde gizli katmanı ve aç/kapat yolunu doğruluyor.
 - Gerçek tarayıcı klavye hareketiyle dört köşeye ulaşıldı: yaklaşık `(-1205,-828)`, `(1206,-828)`, `(1206,828)`, `(-1205,828)`; sayfa hatası yok.
+
+## Kalabalık dalga aura performansı — 2026-11-06
+
+- 220 canlı düşman/110 komutan düzeninde aura güncellemesi 3.000 yinelemede 499.4 ms'den 37.3 ms'ye indi (13.4× bu dar fonksiyon ölçümünde). Bu sonuç tüm oyun FPS'ine genellenmiyor.
+- Tam kare düşman-çifti karşılaştırması 160 birim hücre komşuluğu ızgarasıyla değiştirildi; komutan yokken yalnızca bayrakları temizliyor. Çapraz hücre ve 160 birim sınır davranışı dahil 24 rastgele 220 düşman dizilimi eski dairesel mesafe kuralıyla aynı sonucu verdi.
+- Godot gameplay/boss/headless; web arena, ekonomi, hit feedback, weapon, boss, monster, story regresyonları ve Worker 26 testleri geçti. Chrome 390×844'te mobil gadget/çanta/duraklama/boss/hikâye/dükkân ve gizli overlay senaryoları yeniden geçti; JS sayfa hatası yok.

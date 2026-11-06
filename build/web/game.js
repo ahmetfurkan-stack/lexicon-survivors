@@ -4516,6 +4516,46 @@ function updateMilestoneBossSkill(boss, dt, dirX, dirY, chronoMult) {
   }
 }
 
+function updateCommanderAuras(enemies = state.enemies) {
+  const radius = 160;
+  const radiusSquared = radius * radius;
+  const cellKey = (x, y) => x * 32 + y;
+  const commanders = [];
+  for (const enemy of enemies) {
+    enemy.is_buffed = false;
+    if (!enemy.dead && enemy.affix === "commander") commanders.push(enemy);
+  }
+  if (!commanders.length) return;
+
+  const cells = new Map();
+  for (const enemy of enemies) {
+    if (enemy.dead) continue;
+    const cellX = Math.floor(enemy.x / radius);
+    const cellY = Math.floor(enemy.y / radius);
+    const key = cellKey(cellX, cellY);
+    let bucket = cells.get(key);
+    if (!bucket) cells.set(key, bucket = []);
+    bucket.push(enemy);
+  }
+
+  for (const commander of commanders) {
+    const cellX = Math.floor(commander.x / radius);
+    const cellY = Math.floor(commander.y / radius);
+    for (let offsetX = -1; offsetX <= 1; offsetX++) {
+      for (let offsetY = -1; offsetY <= 1; offsetY++) {
+        const nearby = cells.get(cellKey(cellX + offsetX, cellY + offsetY));
+        if (!nearby) continue;
+        for (const other of nearby) {
+          if (other === commander) continue;
+          const dx = other.x - commander.x;
+          const dy = other.y - commander.y;
+          if (dx * dx + dy * dy < radiusSquared) other.is_buffed = true;
+        }
+      }
+    }
+  }
+}
+
 function updateEnemies(dt) {
   if (!state.is_wave_active) return;
 
@@ -4578,17 +4618,8 @@ function updateEnemies(dt) {
   const p = state.player;
   const chronoMult = state.chrono_timer > 0 ? 0.15 : 1.0;
 
-  // Commander Aura buff reset & calculation
-  state.enemies.forEach(e => { e.is_buffed = false; });
-  state.enemies.forEach(e => {
-    if (e.affix === "commander" && !e.dead) {
-      state.enemies.forEach(other => {
-        if (other !== e && Math.hypot(other.x - e.x, other.y - e.y) < 160) {
-          other.is_buffed = true;
-        }
-      });
-    }
-  });
+  // Commander proximity uses a small spatial grid instead of comparing every pair.
+  updateCommanderAuras();
 
   state.enemies.forEach(e => {
     e.charge_timer = Math.max(0, (e.charge_timer || 0) - dt);
