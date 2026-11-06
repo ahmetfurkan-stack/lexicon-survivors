@@ -45,6 +45,17 @@ for (const [x, y, expectedX, expectedY] of [
   assert.equal(player.y, expectedY, `Unexpected web y bound for input (${x}, ${y})`);
 }
 
+const outwardAtRightEdge = { x: 2000, y: 0, vx: 180, vy: 40 };
+webArena.clampPlayerToArena(outwardAtRightEdge);
+assert.equal(outwardAtRightEdge.x, 1205.5);
+assert.equal(outwardAtRightEdge.vx, 0, "The web player must stop horizontal velocity when clamped against the right shelf edge");
+assert.equal(outwardAtRightEdge.vy, 40, "A horizontal edge contact must preserve tangent movement");
+
+const movingBackInside = { x: 2000, y: 0, vx: -80, vy: 0 };
+webArena.clampPlayerToArena(movingBackInside);
+assert.equal(movingBackInside.x, 1205.5);
+assert.equal(movingBackInside.vx, -80, "The boundary must preserve velocity directed back into the room");
+
 assert.match(webSource, /ctx\.drawImage\(frameImg, -ARENA_LAYOUT\.width \/ 2, -ARENA_LAYOUT\.height \/ 2, ARENA_LAYOUT\.width, ARENA_LAYOUT\.height\)/, "Web room art must be anchored at the fixed room origin");
 assert.doesNotMatch(webSource, /const sceneW = Math\.max\(viewW, viewH \* \(4 \/ 3\)\)/, "Web room art must not be recentered and resized with the camera");
 

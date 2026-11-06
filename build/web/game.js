@@ -484,8 +484,18 @@ function updateHitEffects(dt) {
 }
 
 function clampPlayerToArena(player) {
-  player.x = Math.max(-PLAYER_CENTER_LIMIT_X, Math.min(PLAYER_CENTER_LIMIT_X, player.x));
-  player.y = Math.max(PLAYER_CENTER_MIN_Y, Math.min(PLAYER_CENTER_MAX_Y, player.y));
+  const previousX = player.x;
+  const previousY = player.y;
+  const clampedX = Math.max(-PLAYER_CENTER_LIMIT_X, Math.min(PLAYER_CENTER_LIMIT_X, previousX));
+  const clampedY = Math.max(PLAYER_CENTER_MIN_Y, Math.min(PLAYER_CENTER_MAX_Y, previousY));
+  if (clampedX !== previousX) {
+    if ((previousX - clampedX) * (player.vx || 0) > 0) player.vx = 0;
+    player.x = clampedX;
+  }
+  if (clampedY !== previousY) {
+    if ((previousY - clampedY) * (player.vy || 0) > 0) player.vy = 0;
+    player.y = clampedY;
+  }
 }
 
 function getLocomotionBob(runPhase) {

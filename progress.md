@@ -242,3 +242,8 @@ Original prompt: https://github.com/yasinkaya701/lexicon-survivors — bunu ince
 
 - Godot gameplay regression, `TouchStick` için basma/sürükleme/bırakma dokunma olaylarını yerel `_gui_input` işleyicisine vererek yön vektörü ve bırakınca sıfırlanmayı doğruluyor. Gereç, çanta ve kapat düğmelerinin sinyalleri de gadget bekleme süresi ve envanter pause/resume davranışına kadar izleniyor.
 - Godot gameplay regression geçti. Headless viewport sentetik ekran dokunuşunu GUI hit-test üzerinden dağıtmadığı için bu kontrol gerçek cihaz/hit-test doğrulaması sayılmıyor; gerçek Godot mobil cihaz denemesi yayın kapısı olarak duruyor. Web tarafındaki gerçek Playwright touch akışı ayrı olarak geçmişti.
+
+## Arena kenarında koşu döngüsü kaymasını durdurma — 2026-11-06
+
+- Web arena parity regresyonu, sınırı aşıp dışarı doğru ilerleyen hızın hâlâ korunduğunu gösterdi; oyuncu görsel olarak sabit kalırken koşu animasyonu ve ayak döngüsü devam ediyordu. Web clamp artık yalnızca çarpılan eksenin dışa dönük hızını sıfırlıyor, kenara paralel hareketi ve içeri dönük hızı koruyor. Godot davranışıyla aynı kenar duruşunu veriyor.
+- Regresyon önce `vx=180` değerinin sınırda kaldığını yakalayarak kırmızıya düştü; düzeltme sonrası arena parity ve JS sözdizimi testleri geçti. Canlı Chromium oyun simülasyonunda sağ sınıra dayanan oyuncunun `vx` değeri 0'a indi, animasyonu `idle` oldu; konsol hatası yok. Oyun scripti cache anahtarı yenilendi.
