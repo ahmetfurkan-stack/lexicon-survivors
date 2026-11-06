@@ -63,6 +63,23 @@
       throw new Error(`The run base must keep its stride while upper-body attacks use their own frames. Expected 3,0,3,2,3,0; got ${animationFrames}`);
     }
 
+    const heroAnimationKeys = {
+      inky: "inky",
+      quillmaster: "quillmaster",
+      word_knight: "word_knight",
+      rune_sorceress: "rune_sorceress",
+      lexicon_alchemist: "alchemist",
+      shadow_lexicographer: "shadow_scribe"
+    };
+    const requiredActions = ["run", "attack", "ranged"];
+    const heroSpriteFrames = Object.entries(heroAnimationKeys).map(([character, key]) => {
+      const missing = requiredActions.flatMap(action => [0, 1, 2, 3]
+        .filter(frame => !images[`upgrade_v1/animations/${key}_${action}_v2_${frame}.png`]?.naturalWidth)
+        .map(frame => `${action}:${frame}`));
+      if (missing.length) throw new Error(`${character} is missing layered animation frames: ${missing.join(", ")}`);
+      return character;
+    });
+
     const oldInventoryState = state.is_inventory_open;
     state.is_inventory_open = false;
     const runPose = getLocomotionPoseOffset({ x: 0, y: 0, vx: 180, vy: 0, run_phase: 3.5, is_dashing: false, attack_anim_timer: 0 });
@@ -71,6 +88,6 @@
     if (runPose.x !== firePose.x || runPose.y !== firePose.y) {
       throw new Error(`Ranged fire must not freeze locomotion bob. Expected ${JSON.stringify(runPose)}, got ${JSON.stringify(firePose)}`);
     }
-    return { rangedPoseFrames: actual, blendedActions: rendered, movingRanged, movingMelee, movingRecovery, standingRanged };
+    return { rangedPoseFrames: actual, blendedActions: rendered, movingRanged, movingMelee, movingRecovery, standingRanged, heroSpriteFrames };
   };
 })();
