@@ -203,6 +203,19 @@ function getHeroRenderAction(player) {
   return moving ? "run" : "attack";
 }
 
+function getHeroRenderLayers(player) {
+  const action = getHeroRenderAction(player);
+  const moving = !player.is_dashing && Math.hypot(player.vx, player.vy) > 30;
+  if (!moving) return { base: action, upperBody: null, baseFrame: getHeroAnimationFrame(action, player), upperBodyFrame: null };
+  if (action === "attack") {
+    return { base: "run", upperBody: "attack", baseFrame: getHeroAnimationFrame("run", player), upperBodyFrame: getAttackAnimationFrame(player) };
+  }
+  if (action === "run" && player.attack_anim_timer > 0 && player.attack_anim_kind === "ranged") {
+    return { base: "run", upperBody: "ranged", baseFrame: getHeroAnimationFrame("run", player), upperBodyFrame: getAttackAnimationFrame(player) };
+  }
+  return { base: action, upperBody: null, baseFrame: getHeroAnimationFrame(action, player), upperBodyFrame: null };
+}
+
 function selectWeaponTarget(weapon, enemies = state.enemies, origin = state.player) {
   // Keep the shipped 60fps targeting path: one pass and squared distances.
   const favorElites = weapon?.id === "grammar_sniper" || state.artifacts_owned.includes("archivist_compass");
@@ -546,7 +559,7 @@ function getLocomotionPoseOffset(player) {
   const speed = Math.hypot(player.vx, player.vy);
   let x = 0;
   let y = 0;
-  if (!player.is_dashing && !state.is_inventory_open && player.attack_anim_timer <= 0 && speed > 30) {
+  if (!player.is_dashing && !state.is_inventory_open && speed > 30) {
     const bob = getLocomotionBob(player.run_phase);
     x = player.vx > 20 ? 1 : player.vx < -20 ? -1 : 0;
     y = -bob;
@@ -6876,26 +6889,37 @@ function render(dt = 1 / 60) {
   if (renderFacingLeft) ctx.scale(-1, 1);
 
   const cData = CHARACTERS[state.selected_char];
-  const isMoving = p.is_dashing || Math.hypot(p.vx, p.vy) > 30;
-  const action = getHeroRenderAction(p);
+  const renderLayers = getHeroRenderLayers(p);
   const bodyDirection = aimDirection;
   const bodyTilt = Math.max(-0.38, Math.min(0.38, (bodyDirection?.y || 0) * 0.38));
   ctx.rotate(bodyTilt);
-  const frame = getHeroAnimationFrame(action, p);
+  const frame = renderLayers.baseFrame;
   const animationKey = state.selected_char === "inky" ? "inky"
     : state.selected_char === "quillmaster" ? "quillmaster"
     : state.selected_char === "word_knight" ? "word_knight"
     : state.selected_char === "rune_sorceress" ? "rune_sorceress"
     : state.selected_char === "lexicon_alchemist" ? "alchemist"
     : state.selected_char === "shadow_lexicographer" ? "shadow_scribe" : null;
-  const actionAsset = action === "run" || action === "ranged" || action === "attack"
-    ? `${animationKey}_${action}_v2_${frame}.png`
-    : `${animationKey}_${action}_${frame}.png`;
+  const actionAsset = renderLayers.base === "run" || renderLayers.base === "ranged" || renderLayers.base === "attack"
+    ? `${animationKey}_${renderLayers.base}_v2_${frame}.png`
+    : `${animationKey}_${renderLayers.base}_${frame}.png`;
   const actionSprite = animationKey
     ? images[`upgrade_v1/animations/${actionAsset}`]
     : null;
   const pSpr = actionSprite || images[cData.sprite] || images["player.png"];
   if (pSpr) ctx.drawImage(pSpr, -44, -44, 88, 88);
+  if (renderLayers.upperBody) {
+    const upperAsset = `${animationKey}_${renderLayers.upperBody}_v2_${renderLayers.upperBodyFrame}.png`;
+    const upperSprite = images[`upgrade_v1/animations/${upperAsset}`];
+    if (upperSprite) {
+      ctx.save();
+      ctx.beginPath();
+      ctx.rect(-44, -44, 88, 62);
+      ctx.clip();
+      ctx.drawImage(upperSprite, -44, -44, 88, 88);
+      ctx.restore();
+    }
+  }
   ctx.restore();
 
   // Floating Slotted Weapons Arsenal
