@@ -313,3 +313,10 @@ Original prompt: https://github.com/yasinkaya701/lexicon-survivors — bunu ince
 
 - Menü için çalışma zamanı assert akışı eklendi: altı benzersiz ve klavyeyle seçilebilir karakter, duyurulan `aria-pressed` durumu, zorluk açıklaması, iki müzik seçicisinin eşleşmesi ve müzik tercihinin saklanması doğrulanıyor.
 - Mobil tarayıcı denemesinde Enter ile Gölge Kâtip seçildi, zorluk Zor'a geçti, Son Nöbet tercihi iki menüde eşitlendi ve localStorage'a yazıldı. Gizli overlay ve leaderboard aç/kapa akışları da geçti; console hatası yok.
+
+## Godot port entegrasyonu — 2026-11-06
+
+- `origin/main` üzerindeki Godot 4 portu oyun dalına ayrı `codex/integrate-main-godot-port` dalında birleştirildi. Çakışmalarda yeni boss fazları/telegraph'ları, taktiksel affix'ler, mobil analog stick, inventory ve hikâye akışı birlikte korundu. HUD'daki çift `TouchControls` kaldırıldı; tek joystick ve tek dokunmatik aksiyon satırı kaldı.
+- Sahne açılışında iki kez bağlanan floating-text sinyali ve kayan yazı Label'ında geçersiz tema erişimi bulundu ve düzeltildi. Düşman boss öfke lazeri hedefi önceden kilitliyor; saldırı kaçılabilir.
+- Doğrulama: Godot port özellik testi (6/6), sahne kurulumu, v2 özellik testi, boss Godot regresyonu, oynanış regresyonu (köşe erişimi dahil); Node boss, ekonomi ve hikâye regresyonları geçti. Headless test kapanışında bazı ObjectDB/resource sızıntı uyarıları sürüyor; test çıktılarında kalan davranış hatası yok.
+- Birleşim dalı origin'e gönderildi. 600 sahnelik sanat dalında 600 benzersiz brief hazır, ancak 0 görsel insan onayı aldı; AI/artist katkısı PR ile yapılabilir ve yalnızca onaylı, hash'i doğrulanmış WebP'ler runtime'a girer. Bu nedenle üretim deploy'u hâlâ bekliyor.
