@@ -8,8 +8,8 @@ const ARENA_LAYOUT = Object.freeze({
   innerShelfY: 870,
   playerColliderRadius: 15,
   playerColliderOffsetY: 3,
-  playerVisualHalfWidth: 44,
-  playerVisualHalfHeight: 44,
+  playerVisualHalfWidth: 39.5,
+  playerVisualHalfHeight: 42,
 });
 const PLAYER_CENTER_LIMIT_X = ARENA_LAYOUT.innerShelfX - ARENA_LAYOUT.playerVisualHalfWidth;
 const PLAYER_CENTER_MIN_Y = -ARENA_LAYOUT.innerShelfY + ARENA_LAYOUT.playerVisualHalfHeight;

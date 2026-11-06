@@ -147,7 +147,7 @@
     #archive-intro .archive-intro-kicker { color: #cbb980; font: 500 11px 'IBM Plex Mono', monospace; letter-spacing: .2em; }
     #archive-intro h1 { margin: 10px 0 5px; font: 600 clamp(25px, 6vw, 48px) 'IBM Plex Serif', serif; letter-spacing: .08em; text-shadow: 0 3px 24px rgba(0, 0, 0, .9); }
     #archive-intro p { color: #c0c1ae; font: 400 clamp(12px, 2vw, 15px) 'IBM Plex Sans', sans-serif; }
-    #archive-intro .archive-intro-skip { margin-top: 28px; padding: 11px 18px; border: 1px solid rgba(202, 187, 135, .56); border-radius: 3px; color: #f2e8d2; background: rgba(20, 27, 22, .7); font: 500 12px 'IBM Plex Mono', monospace; letter-spacing: .07em; cursor: pointer; }
+    #archive-intro .archive-intro-skip { position: absolute; z-index: 2; left: 50%; bottom: max(18px, env(safe-area-inset-bottom)); transform: translateX(-50%); margin: 0; padding: 11px 18px; min-height: 44px; border: 1px solid rgba(202, 187, 135, .56); border-radius: 3px; color: #f2e8d2; background: rgba(20, 27, 22, .94); font: 500 12px 'IBM Plex Mono', monospace; letter-spacing: .07em; cursor: pointer; touch-action: manipulation; }
     #archive-intro .archive-intro-skip:focus-visible { outline: 2px solid #ffd700; outline-offset: 3px; }
     #archive-intro.is-reduced { transition-duration: 250ms; }
     #archive-intro.is-reduced .archive-intro-content, #archive-intro.is-reduced::before { animation: none; }
@@ -1977,8 +1977,8 @@
         <div class="archive-intro-kicker">ARŞİV AÇILIYOR</div>
         <h1 id="archive-intro-title">LEXICON SURVIVORS</h1>
         <p>Kayıp kelimeleri rafların arasından geri çağır.</p>
-        <button class="archive-intro-skip" id="archive-intro-skip" type="button">GEÇ · SPACE</button>
       </div>
+      <button class="archive-intro-skip" id="archive-intro-skip" type="button">GEÇ · SPACE</button>
     </div>
 
     <!-- SCRIPTORIUM BAZAAR SHOP OVERLAY -->

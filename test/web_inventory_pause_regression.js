@@ -144,7 +144,13 @@
     endWave();
     assert(document.getElementById("story-intermission").hidden === false, "every fifth cleared wave should enter the story intermission");
     assert(document.getElementById("shop-screen").style.display === "none", "shop should wait until the story intermission is acknowledged");
+    for (let panel = 1; panel < STORY_ARC_DATA.panel_count; panel += 1) {
+      document.getElementById("story-next").click();
+      assert(document.getElementById("story-intermission").hidden === false, "comic must remain open until its final panel");
+    }
+    assert(/DÜKKÂNA GEÇ/.test(document.getElementById("story-next").textContent), "final panel should offer the shop transition");
     document.getElementById("story-next").click();
+    assert(document.getElementById("story-intermission").hidden === true, "final comic step should close the intermission");
     assert(document.getElementById("shop-screen").style.display !== "none", "acknowledging the story intermission should enter the between-wave shop");
     const inventoryModal = document.getElementById("inventory-modal");
     toggleInventoryModal(true);

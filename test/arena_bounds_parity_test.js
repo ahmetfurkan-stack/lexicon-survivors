@@ -13,7 +13,7 @@ const webArena = vm.runInNewContext(`${arenaLayout[0]}\n${boundConstants[0]}\n${
 const shelfEdge = godotSource.match(/const INNER_SHELF_EDGE := Vector2\((\d+), (\d+)\)/);
 const colliderRadius = godotSource.match(/const PLAYER_COLLIDER_RADIUS := ([\d.]+)/);
 const colliderOffset = godotSource.match(/const PLAYER_COLLIDER_OFFSET := Vector2\(([-\d.]+), ([-\d.]+)\)/);
-const visualExtent = godotSource.match(/const PLAYER_MAX_VISUAL_HALF_EXTENT := Vector2\((\d+), (\d+)\)/);
+const visualExtent = godotSource.match(/const PLAYER_MAX_VISUAL_HALF_EXTENT := Vector2\(([\d.]+), ([\d.]+)\)/);
 assert(shelfEdge && colliderRadius && colliderOffset && visualExtent, "Godot build must expose shelf edge, collider, and visual extents");
 
 assert.equal(webArena.ARENA_LAYOUT.width, 2800);
@@ -22,21 +22,21 @@ assert.equal(webArena.ARENA_LAYOUT.innerShelfX, Number(shelfEdge[1]));
 assert.equal(webArena.ARENA_LAYOUT.innerShelfY, Number(shelfEdge[2]));
 assert.equal(webArena.ARENA_LAYOUT.playerColliderRadius, Number(colliderRadius[1]));
 assert.equal(webArena.ARENA_LAYOUT.playerColliderOffsetY, Number(colliderOffset[2]));
-assert.equal(webArena.ARENA_LAYOUT.playerVisualHalfWidth, 44, "Web sprite is rendered at 88px wide");
-assert.equal(webArena.ARENA_LAYOUT.playerVisualHalfHeight, 44, "Web sprite is rendered at 88px tall");
-assert.equal(Number(visualExtent[1]), 41, "Godot visual margin covers max scaled alpha width");
-assert.equal(Number(visualExtent[2]), 42, "Godot visual margin covers max scaled alpha height");
+assert.equal(webArena.ARENA_LAYOUT.playerVisualHalfWidth, Number(visualExtent[1]), "Web and Godot use the same measured sprite-safe x margin");
+assert.equal(webArena.ARENA_LAYOUT.playerVisualHalfHeight, Number(visualExtent[2]), "Web and Godot use the same measured sprite-safe y margin");
+assert.equal(Number(visualExtent[1]), 39.5, "Godot visual margin matches max scaled alpha width");
+assert.equal(Number(visualExtent[2]), 42, "Godot visual margin matches max scaled alpha height");
 assert.match(webSource, /ctx\.drawImage\(pSpr, -44, -44, 88, 88\)/, "Web visual margin must match the rendered player dimensions");
 
 for (const [x, y, expectedX, expectedY] of [
-  [10000, 0, 1201, 0],
-  [-10000, 0, -1201, 0],
-  [0, 10000, 0, 826],
-  [0, -10000, 0, -826],
-  [10000, 10000, 1201, 826],
-  [-10000, 10000, -1201, 826],
-  [10000, -10000, 1201, -826],
-  [-10000, -10000, -1201, -826],
+  [10000, 0, 1205.5, 0],
+  [-10000, 0, -1205.5, 0],
+  [0, 10000, 0, 828],
+  [0, -10000, 0, -828],
+  [10000, 10000, 1205.5, 828],
+  [-10000, 10000, -1205.5, 828],
+  [10000, -10000, 1205.5, -828],
+  [-10000, -10000, -1205.5, -828],
   [1160, 780, 1160, 780],
 ]) {
   const player = { x, y };

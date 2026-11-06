@@ -205,3 +205,11 @@ Original prompt: https://github.com/yasinkaya701/lexicon-survivors — bunu ince
 - 120 kaynak görsel `assets/sprites/story/scenes/` içine; web kopyaları `build/web/assets/sprites/story/scenes/` içine eklendi. Her panelin SHA-256 değeri benzersiz, web kopyası kaynakla bayt bayt aynı. Oyunda hikâye kartları beş ayrı Enter adımıyla ilerliyor.
 - Hikâye regresyonu artık 120 benzersiz path/dosya/hash ve kaynak-web eşitliğini doğruluyor. Godot içe aktarma, Inky 5. dalga paneli ve beş Enter adımı testi geçti. Godot boss/v2, web canavar cache, silah, ekonomi ve hikâye regresyonları geçti; headless Godot kapanışında önceki ObjectDB/resource leak uyarıları sürüyor.
 - Web önizlemesi yeniden yüklendi, oyun ekranı açıldı ve Playwright konsol hata kaydı oluşmadı. Canlı Pages henüz bu 120 sahneyi ve yeni canavar sprite cache anahtarını içermiyor; geniş hedefin kalan yayın kapıları tamamlandıktan sonra deploy edilmeli.
+
+## Arena köşeleri ve mobil hikâye/çanta akışı — 2026-11-06
+
+- Web oyuncu görsel sınırı Godot'taki ölçülmüş alfa sınırıyla eşitlendi (`39.5 × 42`); dört köşeye kadar hareket artık sprite güvenli payla sürüyor. Giriş animasyonu geç düğmesi mobilde ekranın alt güvenli alanına sabitlendi ve en az 44 px dokunma alanı aldı.
+- Mobil Chrome'da çanta, gadget tetikleme, envanter açıkken zamanın donması, gadget etkisinin duraklama/devamı, 5. dalga boss sayacı, beş panelli hikâye sonrası dükkân ve dükkânda envanterin kapanması uçtan uca geçti; Playwright sayfa hatası yok.
+- `test/web_inventory_pause_regression.js` beş Enter adımını gerçekten doğrulayacak şekilde düzeltildi. `test/game_simulation_test.gd` eski test beklentisini 15 başlangıç mürekkebini hesaba katacak şekilde düzeltti.
+- Godot köşe gameplay, arena parity, economy, combat, weapon, boss, headless runtime, scene, feature, v2 ve enemy registry testleri geçti. Godot kapatırken daha önce görülen ObjectDB/resource uyarıları sürüyor.
+- Mobil regresyon ekran görüntüsü: `output/imagegen/ui-menu-mockups/mobile-regression-final.png`.

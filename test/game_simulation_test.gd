@@ -20,8 +20,9 @@ func _init():
 	assert(StatsManager.hp == StatsManager.max_hp, "HP must start at the selected character's maximum")
 	assert(StatsManager.ink_count == 15, "A run must begin with the shared starter amount for its first shop purchase")
 	
+	var starting_ink = StatsManager.ink_count
 	StatsManager.add_ink(50)
-	var expected_ink = int(ceil(50.0 * StatsManager.ink_mult))
+	var expected_ink = starting_ink + int(ceil(50.0 * StatsManager.ink_mult))
 	assert(StatsManager.ink_count == expected_ink, "Ink should include the selected difficulty multiplier")
 	
 	var spend_success = StatsManager.spend_ink(20)
