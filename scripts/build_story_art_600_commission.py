@@ -132,6 +132,57 @@ NPC_STORY_IMAGES = {
     "lio": "docs/story-art-600/references/npcs/lio.png",
     "shadow_double": "docs/story-art-600/references/npcs/shadow_double.png",
     "blank_page": "docs/story-art-600/references/npcs/blank_page.png",
+    "sera": "docs/story-art-600/references/npcs/extra/sera.png",
+    "mara": "docs/story-art-600/references/npcs/extra/mara.png",
+    "yel": "docs/story-art-600/references/npcs/extra/yel.png",
+    "tavi": "docs/story-art-600/references/npcs/extra/tavi.png",
+    "lira": "docs/story-art-600/references/npcs/extra/lira.png",
+    "ink_child": "docs/story-art-600/references/npcs/extra/murekkep-cocugu.png",
+    "silent_mechanic": "docs/story-art-600/references/npcs/extra/dilsiz-tamirci.png",
+}
+
+# Exact encounter order and skill IDs from scripts/wave_manager.gd. Comic scenes
+# follow these existing solo fights; the story never inserts another boss.
+BOSS_ROSTER = [
+    (5, "boss_red_pen_boss", "Red Pen Boss", "KIRMIZI MÜFETTİŞ", "judgment", "red_pen_inquisitor", "upgrade_v2/boss_red_inquisitor.png"),
+    (10, "boss_syntax_titan", "Syntax Titan", "YARIM KALAN DEV", "quake", "syntax_titan", "upgrade_v2/boss_syntax_titan.png"),
+    (15, "boss_oxymoron_ogre", "Oxymoron Ogre", "ÇELİŞKİ", "nova", "oxymoron_ogre", "oxymoron_ogre.png"),
+    (20, "boss_homophone_harpy", "Homophone Harpy", "İKİ SESLİ HARPY", "fan", "homophone_harpy", "upgrade_v1/monster_homophone_harpy.png"),
+    (25, "boss_lexicon_dragon_boss", "Lexicon Dragon Boss", "LEKSİKON EJDERHASI", "orbit", "lexicon_dragon", "upgrade_v2/boss_lexicon_dragon.png"),
+    (30, "boss_run_on_reaper", "Run-on Reaper", "DURAKSIZ ORAKÇI", "charge", "run_on_reaper", "upgrade_v1/monster_run_on_reaper.png"),
+    (35, "boss_malapropism_mimic", "Malapropism Mimic", "ÖDÜNÇ YÜZ", "mirror", "malapropism_mimic", "malapropism_mimic.png"),
+    (40, "boss_vocabulary_void", "Vocabulary Void", "SÖZCÜKSÜZ AĞIZ", "gravity", "vocabulary_void", "upgrade_v2/boss_void_curator.png"),
+    (45, "boss_punctuation_phantom", "Punctuation Phantom", "SON NOKTA", "crossfire", "punctuation_phantom", "upgrade_v1/monster_punctuation_phantom.png"),
+    (50, "boss_double_negative_drake", "Double Negative Drake", "ÇİFTE YADSIMA", "rift", "double_negative_drake", "upgrade_v1/monster_double_negative_drake.png"),
+    (55, "boss_palindrome_phantom", "Palindrome Phantom", "TERS YANSI", "return", "palindrome_phantom", "palindrome_phantom.png"),
+    (60, "boss_tautology_twin", "Tautology Twin", "YİNELENEN İKİZ", "echo", "tautology_twin", "upgrade_v1/monster_tautology_twin.png"),
+    (65, "boss_dangling_modifier", "Dangling Modifier", "ASKIDA CÜMLE", "snare", "dangling_modifier", "upgrade_v1/monster_dangling_modifier.png"),
+    (70, "boss_spelling_spectre", "Spelling Spectre", "SOLUK DÜZELTMEN", "shards", "spelling_spectre", "upgrade_v1/monster_spelling_spectre.png"),
+    (75, "boss_idiom_imp", "Idiom Imp", "HARFÎ ALEV", "embers", "idiom_imp", "upgrade_v1/monster_idiom_imp.png"),
+    (80, "boss_red_pen_boss", "Red Pen Boss", "KIRMIZI REDAKTÖR", "sever", "red_pen_inquisitor", "upgrade_v2/boss_red_inquisitor.png"),
+    (85, "boss_oxymoron_ogre", "Oxymoron Ogre", "İKİLİ GERÇEK", "split", "oxymoron_ogre", "oxymoron_ogre.png"),
+    (90, "boss_malapropism_mimic", "Malapropism Mimic", "YANLIŞ NERİS", "eclipse", "malapropism_mimic", "malapropism_mimic.png"),
+    (95, "boss_vocabulary_void", "Vocabulary Void", "YAZILMAMIŞ", "void_bloom", "vocabulary_void", "upgrade_v2/boss_void_curator.png"),
+    (100, "boss_lexicon_dragon_boss", "Lexicon Dragon Boss", "OMEGA · SON SÖZ", "finale", "lexicon_dragon", "upgrade_v2/boss_lexicon_dragon.png"),
+]
+BOSS_BY_WAVE = {
+    wave: {"id": boss_id, "type": boss_type, "name": boss_name, "skill_id": skill_id,
+           "reference_image": f"docs/story-art-600/references/bosses/{slug}.png",
+           "reference_sprite": f"assets/sprites/{sprite}"}
+    for wave, boss_id, boss_type, boss_name, skill_id, slug, sprite in BOSS_ROSTER
+}
+BOSS_SPEAKER_IMAGES = {
+    boss_id: f"docs/story-art-600/references/bosses/{slug}.png"
+    for _, boss_id, _, _, _, slug, _ in BOSS_ROSTER
+}
+NPC_REFERENCE_NOTES = {
+    "sera": "Sera, adult courier with a burnt-orange route satchel and two-notch envelope shears; alert, quick, protective of other people's addresses.",
+    "mara": "Mara, adult former passage witness carrying a repaired hand lantern with one mismatched glass pane; steady but guarded, with a practical travel coat.",
+    "yel": "Yel, adult map restorer with an inverted brass measuring compass and rolled route papers; ink-stained fingertips, asymmetrical work apron, observant posture.",
+    "tavi": "Tavi, adult laboratory assistant in a stained split-color apron, carrying a cracked measuring cup; wary of the Alchemist and not eager to forgive.",
+    "lira": "Lira, adult former watch guard in worn slate armor with a removed insignia and a short baton; calm, candid, and able to leave without permission.",
+    "ink_child": "The Ink Child is a young adult courier in a plain charcoal coat with a threaded note pouch; do not make them a child mascot or copy any hero costume.",
+    "silent_mechanic": "The Silent Mechanic is an adult archive engineer in a soot-dark repair apron with brass calipers and a small pointer; communicates through deliberate gestures.",
 }
 
 PANEL_STAGING = {
@@ -166,11 +217,14 @@ def speaker_anchor(speaker: str, hero_id: str) -> str:
     }.get(speaker, speaker)
     if speaker in NPC_REFERENCES:
         return NPC_REFERENCES[speaker]
+    if speaker in NPC_REFERENCE_NOTES:
+        return NPC_REFERENCE_NOTES[speaker]
     if speaker.startswith("boss_"):
-        boss_name = speaker.removeprefix("boss_").replace("_", " ")
+        roster = next((entry for entry in BOSS_ROSTER if entry[1] == speaker), None)
+        boss_name = roster[2] if roster else speaker.removeprefix("boss_").replace("_", " ")
         return (
-            f"Design the unique milestone boss called {boss_name} as a memorable person-shaped or creature-shaped "
-            "archive custodian with its own silhouette, material, face read and combat motif. Do not reuse another boss design."
+            f"Use the already approved in-game boss model for {boss_name}; preserve its exact silhouette, material, face and combat motif. "
+            "This scene follows its solo fight: show aftermath or a wary witness, never a second boss encounter."
         )
     if speaker in ("caption", "narrator"):
         return "No speaking character is required; tell this beat through its authored environment and one clear story prop."
@@ -190,6 +244,7 @@ def build_manifest() -> dict:
             if len(episode.get("beats", [])) != 5:
                 raise ValueError(f"{character_id} wave {episode['wave']} needs exactly five beats")
             act, act_summary = act_for_wave(int(episode["wave"]))
+            boss = BOSS_BY_WAVE[int(episode["wave"])]
             for panel_index, beat in enumerate(episode["beats"], start=1):
                 speaker, dialogue = beat
                 asset_id = f"story_{character_id}_wave_{int(episode['wave']):03d}_panel_{panel_index:02d}"
@@ -202,6 +257,8 @@ def build_manifest() -> dict:
                     normalized_speaker = {"whisper": "blank_page", "mother_echo": "lale", "lio_echo": "lio"}.get(str(speaker))
                     if normalized_speaker:
                         speaker_reference_image = NPC_STORY_IMAGES[normalized_speaker]
+                if speaker_reference_image is None:
+                    speaker_reference_image = BOSS_SPEAKER_IMAGES.get(str(speaker))
                 prompt = (
                     "Create exactly ONE finished, hand-crafted high-resolution pixel-art graphic-novel panel, "
                     "16:9 landscape, for the Lexicon Survivors game. This is a single scene image, never a "
@@ -210,6 +267,8 @@ def build_manifest() -> dict:
                     f"Use {profile['story_reference_image']} as the approved high-detail story character model reference; "
                     "the sprite is authoritative for gameplay identity and palette while this model sheet locks the expanded story design. "
                     + (f"Use {speaker_reference_image} as the named speaker's exact visual reference. " if speaker_reference_image else "")
+                    + f"For boss continuity, consult the exact in-game sprite {boss['reference_sprite']} and detailed model sheet {boss['reference_image']} ({boss['type']}; {boss['skill_id']} skill). "
+                    "The boss was defeated in the preceding solo fight; depict it only when this beat's scene canon calls for it, and never stage another fight. "
                     + "Use docs/story-art-600/character-model-sheets.md for the written drawing model and "
                     "docs/story-art-600/character-reference-gallery.html to compare all six playable heroes. "
                     "Treat those game files as the identity source; do not invent a replacement design.\n\n"
@@ -254,6 +313,12 @@ def build_manifest() -> dict:
                     "scene_canon": episode.get("scene", ""),
                     "panel_index": panel_index,
                     "speaker_id": speaker,
+                    "boss_id": boss["id"],
+                    "boss_type": boss["type"],
+                    "boss_name": boss["name"],
+                    "boss_skill_id": boss["skill_id"],
+                    "boss_reference_sprite": boss["reference_sprite"],
+                    "boss_reference_image": boss["reference_image"],
                     "dialogue_context_only": dialogue,
                     "panel_staging": PANEL_STAGING[panel_index],
                     "continuity_reference": anchor,
@@ -283,6 +348,9 @@ def build_manifest() -> dict:
         "requested_images": 600,
         "generated_images": 0,
         "generated_character_references": len(CHARACTERS),
+        "generated_npc_references": len(NPC_STORY_IMAGES),
+        "generated_boss_references": len({item[5] for item in BOSS_ROSTER}),
+        "generated_reference_images": len(CHARACTERS) + len(NPC_STORY_IMAGES) + len({item[5] for item in BOSS_ROSTER}),
         "image_policy": "Each record is a separate image request. Do not combine prompts into atlases or reuse an image.",
         "source_story_version": story["version"],
         "panel_count_per_episode": 5,
@@ -295,6 +363,12 @@ def build_manifest() -> dict:
         "reference_gallery": "docs/story-art-600/character-reference-gallery.html",
         "reference_npcs": NPC_REFERENCES,
         "story_npc_references": NPC_STORY_IMAGES,
+        "milestone_boss_roster": [
+            {"wave": wave, "boss_id": boss_id, "boss_type": boss_type, "boss_name": boss_name,
+             "skill_id": skill_id, "reference_image": f"docs/story-art-600/references/bosses/{slug}.png",
+             "reference_sprite": f"assets/sprites/{sprite}"}
+            for wave, boss_id, boss_type, boss_name, skill_id, slug, sprite in BOSS_ROSTER
+        ],
         "upload_policy": {
             "source": "Keep approved lossless PNG originals in an external/source archive, not in the runtime download path.",
             "runtime_format": "After human visual approval, export a 1280x720 WebP with pixel edges preserved; target <= 300 KB each.",

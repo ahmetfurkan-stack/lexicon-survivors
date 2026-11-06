@@ -96,6 +96,42 @@ Görsellerin tümü 1536×1024 RGBA PNG'dir. Aynı modelin önden, 3/4 ve arkada
 | Shadow Double | `docs/story-art-600/references/npcs/shadow_double.png` |
 | Blank Page / Whisper | `docs/story-art-600/references/npcs/blank_page.png` |
 
-NPC model sayfaları da tam boy, şeffaf fonlu yüksek ayrıntılı PNG'dir. Mira ayrı ve bağımsız bir kişi olarak çizilmiştir; Shadow Double insan siluetini korur; Blank Page'in yüz alanı boş bırakılmıştır. Gerçek piksel ölçüleri galeri ve manifestte kayıtlıdır.
+NPC model sayfaları da tam boy, şeffaf fonlu, yüksek ayrıntılı PNG'dir. Mira ayrı ve bağımsız bir kişi olarak çizilmiştir; Shadow Double insan siluetini korur; Blank Page'in yüz alanı boş bırakılmıştır. Gerçek piksel ölçüleri galeri ve manifestte kayıtlıdır.
+
+### Ek yan karakterler
+
+| NPC | Model görseli | Görsel imza / dramatik işlev |
+| --- | --- | --- |
+| Sera | `docs/story-art-600/references/npcs/extra/sera.png` | Turuncu rota çantası ve iki çentikli zarf makası; adresi ve teslim kararını korur. |
+| Mara | `docs/story-art-600/references/npcs/extra/mara.png` | Onarılmış el feneri; geçit tanığıdır, kahramanı hemen bağışlamaz. |
+| Yel | `docs/story-art-600/references/npcs/extra/yel.png` | Ters ölçü pergeli ve harita ruloları; iki farklı çıkış gösterir. |
+| Tavi | `docs/story-art-600/references/npcs/extra/tavi.png` | Lekeli önlük ve çatlak ölçü kabı; Alchemist'in kararlarından zarar görmüştür. |
+| Lira | `docs/story-art-600/references/npcs/extra/lira.png` | Arması sökülmüş nöbet zırhı; eski emri savunmadan anlatır. |
+| Mürekkep Çocuğu | `docs/story-art-600/references/npcs/extra/murekkep-cocugu.png` | Not taşıyan genç yetişkin; tek kampanyaya ait maskot değildir. |
+| Dilsiz Tamirci | `docs/story-art-600/references/npcs/extra/dilsiz-tamirci.png` | Boss düzeneklerinin dilini bilen arşiv mühendisi; çözümleri hazır vermez. |
+
+Ek yan karakterlerin tamamı ayrı, tam boy şeffaf PNG model sayfasıdır. Galeriye düşük boyutlu önizleme yerine yüksek çözünürlüklü sayfa açılınca yüklenir.
+
+## Üretilmiş boss model referansları
+
+| Boss modeli | Model görseli |
+| --- | --- |
+| Red Pen Inquisitor | `docs/story-art-600/references/bosses/red_pen_inquisitor.png` |
+| Syntax Titan | `docs/story-art-600/references/bosses/syntax_titan.png` |
+| Oxymoron Ogre | `docs/story-art-600/references/bosses/oxymoron_ogre.png` |
+| Homophone Harpy | `docs/story-art-600/references/bosses/homophone_harpy.png` |
+| Lexicon Dragon | `docs/story-art-600/references/bosses/lexicon_dragon.png` |
+| Run-on Reaper | `docs/story-art-600/references/bosses/run_on_reaper.png` |
+| Malapropism Mimic | `docs/story-art-600/references/bosses/malapropism_mimic.png` |
+| Vocabulary Void | `docs/story-art-600/references/bosses/vocabulary_void.png` |
+| Punctuation Phantom | `docs/story-art-600/references/bosses/punctuation_phantom.png` |
+| Double Negative Drake | `docs/story-art-600/references/bosses/double_negative_drake.png` |
+| Palindrome Phantom | `docs/story-art-600/references/bosses/palindrome_phantom.png` |
+| Tautology Twin | `docs/story-art-600/references/bosses/tautology_twin.png` |
+| Dangling Modifier | `docs/story-art-600/references/bosses/dangling_modifier.png` |
+| Spelling Spectre | `docs/story-art-600/references/bosses/spelling_spectre.png` |
+| Idiom Imp | `docs/story-art-600/references/bosses/idiom_imp.png` |
+
+Bu 15 boss modeli 20 dalgalık takvimdeki tekrar eden karşılaşmaları kapsar; aynı modelin farklı dalga adı yeni bir model sayılmaz. Her sayfada tam boy açılar, saldırı pozu ve imza malzeme/silah ayrıntıları bulunur. İki sheet'te süs amaçlı küçük işaretler görülebilir; sahne görsellerinde yazı ve sahte yazı yasağı geçerlidir.
 
 ## Devam eden karakterler için model sayfası standardı

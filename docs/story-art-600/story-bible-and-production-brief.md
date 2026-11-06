@@ -30,7 +30,7 @@ At wave 100, every campaign refuses the archive's demand for a single imposed en
 | 80–95 | Shared authorship | The hero stops trying to force closure. Other people speak for themselves, and the group decides how to preserve conflicting memories without deleting them. |
 | 100 | The open record | The final boss tests the hero's new belief. The ending is a choice, not an automatic reunion, resurrection or clean-up. |
 
-The deeper character-by-character episode plan, boss testimony and earned keepsakes are documented in [the narrative expansion](narrative-expansion-proposal.md). It keeps the six opening twenty-episode routes distinct while giving the shared archive mystery a stronger reveal: the missing people's echoes are witnesses, not substitutes for the people themselves.
+The branch includes 6 playable-hero model sheets, 14 recurring/side-NPC sheets, and 15 boss archetype sheets (35 high-resolution references total). The deeper character-by-character episode plan, boss testimony and earned keepsakes are documented in [the narrative expansion](narrative-expansion-proposal.md). It keeps the six opening twenty-episode routes distinct while giving the shared archive mystery a stronger reveal: the missing people's echoes are witnesses, not substitutes for the people themselves.
 
 The five visual beats in an episode move from place, to clue, to relationship, to pressure, to consequence. The framing should follow the actual dialogue and scene; this rhythm is guidance, never permission to repeat a composition.
 
