@@ -30,6 +30,8 @@ At wave 100, every campaign refuses the archive's demand for a single imposed en
 | 80–95 | Shared authorship | The hero stops trying to force closure. Other people speak for themselves, and the group decides how to preserve conflicting memories without deleting them. |
 | 100 | The open record | The final boss tests the hero's new belief. The ending is a choice, not an automatic reunion, resurrection or clean-up. |
 
+The deeper character-by-character episode plan, boss testimony and earned keepsakes are documented in [the narrative expansion](narrative-expansion-proposal.md). It keeps the six opening twenty-episode routes distinct while giving the shared archive mystery a stronger reveal: the missing people's echoes are witnesses, not substitutes for the people themselves.
+
 The five visual beats in an episode move from place, to clue, to relationship, to pressure, to consequence. The framing should follow the actual dialogue and scene; this rhythm is guidance, never permission to repeat a composition.
 
 ## Six distinct character campaigns
@@ -94,6 +96,8 @@ The low-resolution in-game sprites are the authoritative identity references for
 - **Blank Page / Whisper:** adult-height faceless curator in ivory paper-fiber layers and clean negative space. No scribbles, fake writing, file icon or skull face.
 - **Bosses:** every boss ID in the panel manifest gets its own silhouette, materials, palette and attack read. A shared story role is not a shared model.
 
+The approved full-body visual references for all seven recurring NPCs are linked from the [character gallery](character-reference-gallery.html) and stored under `docs/story-art-600/references/npcs/`. These sheets lock each NPC's clothing, face, props and silhouette for panel artists.
+
 ## Image production and review contract
 
 1. Generate every manifest record as its own image request. Never generate a contact sheet, reuse an image, recolor another panel or substitute one character's scene for another.
@@ -108,6 +112,7 @@ The low-resolution in-game sprites are the authoritative identity references for
 
 - `assets/data/story_art_600_manifest.json`: 600 unique per-panel requests, all currently `requested_not_generated`.
 - `scripts/build_story_art_600_commission.py`: rebuilds the text-only manifest from `assets/data/story_arc.json`; it creates no art.
+- `docs/story-art-600/references/`: high-resolution, full-body story model references for the six playable characters.
 - Future source assets: `assets/sprites/story/panels_600/<character_id>/wave_<wave>_panel_<panel>.webp`.
 - Future web mirrors: `build/web/assets/sprites/story/panels_600/<character_id>/wave_<wave>_panel_<panel>.webp`.
 

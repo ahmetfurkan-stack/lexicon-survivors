@@ -17,6 +17,9 @@
     article { display:grid; grid-template-columns:112px 1fr; gap:18px; align-items:start; padding:18px; border:1px solid var(--line); background:linear-gradient(145deg,#25221c,#191814); border-radius:7px }
     figure { margin:0; width:112px; height:112px; display:grid; place-items:center; background:#0c0d10; border:1px solid #514938; image-rendering:pixelated }
     figure img { width:96px; height:96px; object-fit:contain; image-rendering:pixelated }
+    details { margin-top:14px; grid-column:1 / -1; color:#dfc78f }
+    details summary { cursor:pointer; font:13px ui-monospace,monospace }
+    details img { display:block; width:100%; height:auto; margin-top:12px; border:1px solid #514938; background:#161411 }
     h2 { margin:0 0 5px; color:#f0d79f; font-size:21px }
     .size { color:var(--muted); font:12px/1.4 ui-monospace,monospace }
     p { margin:9px 0 0; color:#ded5c3 }
@@ -38,6 +41,27 @@
     <article><figure><img src="../../assets/sprites/upgrade_v1/hero_rune_sorceress.png" alt="Rune Sorceress oyun sprite'ı"></figure><div><h2>Rune Sorceress</h2><span class="size">64×64 · hero_rune_sorceress.png</span><p>Yetişkin kadın büyücü; gece mavisi katlı giysi, açık mavi başlık, altın ayrıntı ve mor rün odağı.</p></div></article>
     <article><figure><img src="../../assets/sprites/upgrade_v1/hero_alchemist.png" alt="Alchemist oyun sprite'ı"></figure><div><h2>Alchemist</h2><span class="size">64×64 · hero_alchemist.png</span><p>Yetişkin kadın simyacı; yosun yeşili başlık ve pelerin, deri kemer, pirinç mercek ve birkaç cam şişe.</p></div></article>
     <article><figure><img src="../../assets/sprites/upgrade_v1/hero_shadow_scribe.png" alt="Shadow Scribe oyun sprite'ı"></figure><div><h2>Shadow Scribe</h2><span class="size">64×64 · hero_shadow_scribe.png</span><p>İnce siyah kukuletalı siluet, soğuk mavi göz ışığı, koyu kırmızı atkı ve dar hat katanası.</p></div></article>
+  </section>
+  <h2 style="margin:38px 0 12px;color:#f0d79f">Hikâye için tam boy çizim modelleri</h2>
+  <p style="color:var(--muted);max-width:820px">Her dosya 1536×1024 yüksek ayrıntılı PNG model referansıdır. Üç tam boy açı, ifade örnekleri ve imza ekipman detayları aynı görselde bulunur. Görseli açarak büyütüp inceleyebilirsin.</p>
+  <section class="grid" aria-label="Hikâye karakter model görselleri">
+    <article><div><h2>Inky</h2><span class="size">1536×1024 · references/inky.png</span></div><details><summary>Tam boy referansı aç</summary><img loading="lazy" src="references/inky.png" alt="Inky hikâye karakter model sayfası"></details></article>
+    <article><div><h2>Quillmaster</h2><span class="size">1536×1024 · references/quillmaster.png</span></div><details><summary>Tam boy referansı aç</summary><img loading="lazy" src="references/quillmaster.png" alt="Quillmaster hikâye karakter model sayfası"></details></article>
+    <article><div><h2>Word Knight</h2><span class="size">1536×1024 · references/word_knight.png</span></div><details><summary>Tam boy referansı aç</summary><img loading="lazy" src="references/word_knight.png" alt="Word Knight hikâye karakter model sayfası"></details></article>
+    <article><div><h2>Rune Sorceress</h2><span class="size">1536×1024 · references/rune_sorceress.png</span></div><details><summary>Tam boy referansı aç</summary><img loading="lazy" src="references/rune_sorceress.png" alt="Rune Sorceress hikâye karakter model sayfası"></details></article>
+    <article><div><h2>Alchemist</h2><span class="size">1536×1024 · references/alchemist.png</span></div><details><summary>Tam boy referansı aç</summary><img loading="lazy" src="references/alchemist.png" alt="Alchemist hikâye karakter model sayfası"></details></article>
+    <article><div><h2>Shadow Scribe</h2><span class="size">1536×1024 · references/shadow_scribe.png</span></div><details><summary>Tam boy referansı aç</summary><img loading="lazy" src="references/shadow_scribe.png" alt="Shadow Scribe hikâye karakter model sayfası"></details></article>
+  </section>
+  <h2 style="margin:38px 0 12px;color:#f0d79f">NPC ve hikâye karakterleri</h2>
+  <p style="color:var(--muted);max-width:820px">Bu karakterlerin de kendi kararları ve hedefleri var. Model görselleri yüz, siluet ve eşya devamlılığı için kullanılır.</p>
+  <section class="grid" aria-label="Hikâye NPC model görselleri">
+    <article><div><h2>Neris</h2><span class="size">1199×1312 · references/npcs/neris.png</span></div><details><summary>Tam boy referansı aç</summary><img loading="lazy" src="references/npcs/neris.png" alt="Neris hikâye model sayfası"></details></article>
+    <article><div><h2>Mira</h2><span class="size">1145×1374 · references/npcs/mira.png</span></div><details><summary>Tam boy referansı aç</summary><img loading="lazy" src="references/npcs/mira.png" alt="Mira hikâye model sayfası"></details></article>
+    <article><div><h2>Ada</h2><span class="size">1199×1312 · references/npcs/ada.png</span></div><details><summary>Tam boy referansı aç</summary><img loading="lazy" src="references/npcs/ada.png" alt="Ada hikâye model sayfası"></details></article>
+    <article><div><h2>Lale</h2><span class="size">1199×1312 · references/npcs/lale.png</span></div><details><summary>Tam boy referansı aç</summary><img loading="lazy" src="references/npcs/lale.png" alt="Lale hikâye model sayfası"></details></article>
+    <article><div><h2>Lio</h2><span class="size">1086×1448 · references/npcs/lio.png</span></div><details><summary>Tam boy referansı aç</summary><img loading="lazy" src="references/npcs/lio.png" alt="Lio hikâye model sayfası"></details></article>
+    <article><div><h2>Shadow Double</h2><span class="size">1219×1290 · references/npcs/shadow_double.png</span></div><details><summary>Tam boy referansı aç</summary><img loading="lazy" src="references/npcs/shadow_double.png" alt="Shadow Double hikâye model sayfası"></details></article>
+    <article><div><h2>Blank Page</h2><span class="size">1199×1312 · references/npcs/blank_page.png</span></div><details><summary>Tam boy referansı aç</summary><img loading="lazy" src="references/npcs/blank_page.png" alt="Blank Page hikâye model sayfası"></details></article>
   </section>
   <p class="notice">Üretim yönergeleri: <a href="story-bible-and-production-brief.md">hikâye ve sanat brief’i</a> · <a href="character-model-sheets.md">karakter model sayfaları</a></p>
 </main>

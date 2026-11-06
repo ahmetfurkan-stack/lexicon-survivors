@@ -1,15 +1,15 @@
 # Hikâye için karakter model sayfaları
 
-Bu sayfalar oyundaki altı oynanabilir karakterin hikâye çizimlerinde kullanılacak yüksek ayrıntılı çizim modellerini tanımlar. Kaynak kimlik görselleri [referans galerisinde](character-reference-gallery.html) ve `assets/sprites/upgrade_v1/hero_*.png` altında bulunur. Her kaynak sprite 64×64 pikseldir; nihai çizimler daha ayrıntılı olabilir ama karakter tasarımı değişemez.
+Bu sayfalar oyundaki altı oynanabilir karakterin hikâye çizimlerinde kullanılacak yüksek ayrıntılı çizim modellerini tanımlar. Oyun kimliği `assets/sprites/upgrade_v1/hero_*.png` içindeki 64×64 sprite'lardan gelir. Her karakter için ayrıca [tam boy yüksek ayrıntılı model referansı](character-reference-gallery.html) üretildi. Bu model referansları Neris örneğinin işçilik, ışık ve malzeme kalitesinde; sahne üretim brief'indeki piksel çizim yönü ayrıca korunur. Sprite ana siluet/renk/ekipman kaynağı, üretilen model görseli ise sahnelerdeki yüz, kumaş ve ayrıntı sürekliliği kaynağıdır.
 
 ## Ortak model kuralları
 
-- Her panelde kaynak sprite ile aynı baş-gövde oranını, ana dış çizgiyi, kıyafeti, ana renk bloklarını ve imza eşyayı koru. Yeni kıyafet veya alternatif kostüm uydurma.
+- Kaynak sprite ile aynı dış çizgiyi, ana renk bloklarını ve imza eşyayı koru. Model referansındaki detayları karakterin hikâye sürümü olarak sabitle; yeni kıyafet, rastgele insignia veya alternatif ekipman uydurma.
 - Aynı karakterin 600 panel içindeki yüzü, saç/başlık şekli, vücut yapısı ve ekipmanı aynı modeldir. Yakın plan, tam boy, profil, arka açı ve aksiyon pozu için de aynı tasarım sayfasını izle.
 - Duygu farkını göz, kaş, omuz, el ve ağırlık merkezinde göster. Karakteri pozdan poza başka yaşta, cinsiyette veya yapıda çizme.
 - İzin verilen sahne değişimleri: toz, küçük çizik, ıslak kumaş, ışığın rengi, geçici yüz ifadesi ve sahnenin gerektirdiği kontrollü hasar. İmza rengi, silahı, başlığı, zırhı veya pelerini değiştiren kalıcı dönüşüm yok.
-- Pixel-art çizgi ölçeği sabit olsun. Ana çizgi ve gölge kümeleri bilinçli, kenarlar basamaklı ve keskin; bulanıklaştırma, pürüzsüz vektör kenarı ve sonradan pixel filtresi yok.
-- Standart sahne modeli 640×360 mantıksal piksel tuvalinde çizilir ve 2× nearest-neighbor ile 1280×720'ye çıkarılır. Yüz ve el ayrıntısı bu piksel ölçeğinde okunmalı.
+- Üretilmiş model referansları 1536×1024 PNG'dir; tam boy açıların tamamı ve ekipman ayrıntıları için tek kaynak bunlardır. Üzerinde yazı veya karakter adı bulunmaz.
+- Bu referanslar production/model sheet'tir, oyuna atılacak sprite değildir. Oyun içi karakter sprite'ları 64×64 olarak kalır. Hikâye panel çizimlerinde pixel-art yönü, panel brief'indeki 640×360 mantıksal ölçek ve 2× nearest-neighbor kuralıyla korunur.
 
 ## Inky — oyundaki mavi bilgin
 
@@ -71,6 +71,31 @@ Yetişkin kadın ve sahada çalışan sağlam yapılı gezgin; yosun yeşili ba�
 
 **Sabit tanıma işaretleri:** siyah kukuleta + soğuk mavi göz + koyu kırmızı atkı + ince katana.
 
-## Her karakter için sanatçıya verilecek model sayfası isteği
+## Üretilmiş tam boy model referansları
 
-Kaynak sprite'ı kompozisyon ve kimlik referansı olarak ekle. Aynı karakterin önden, 3/4, profilden ve arkadan tam boy görünüşünü; yüz için nötr, kaygılı, öfkeli ve rahatlamış ifadeleri; imza silah/eşyasının elde ve dinlenme konumlarını gösteren tek bir **model referans sayfası** hazırla. Bu sayfa yalnızca üretim kılavuzudur; 600 panelden biri değildir ve oyun içine konmaz. Kaynak sprite'ın oranlarını ve tanıma işaretlerini koru, ayrıntıyı kaliteli el çizimi pixel-art kümeleriyle yükselt. Model sayfasına sadece karakter adı ve yön etiketleri yazılabilir; sahne görsellerinde yazı kesinlikle kullanılmaz.
+| Karakter | Model görseli |
+| --- | --- |
+| Inky | `docs/story-art-600/references/inky.png` |
+| Quillmaster | `docs/story-art-600/references/quillmaster.png` |
+| Word Knight | `docs/story-art-600/references/word_knight.png` |
+| Rune Sorceress | `docs/story-art-600/references/rune_sorceress.png` |
+| Alchemist | `docs/story-art-600/references/alchemist.png` |
+| Shadow Scribe | `docs/story-art-600/references/shadow_scribe.png` |
+
+Görsellerin tümü 1536×1024 RGBA PNG'dir. Aynı modelin önden, 3/4 ve arkadan görünüşünü; ifade ve ekipman detaylarını birlikte içerir. Bunlar 600 hikâye sahnesinden ayrı, tutarlılık referanslarıdır.
+
+## Üretilmiş NPC model referansları
+
+| NPC | Model görseli |
+| --- | --- |
+| Neris | `docs/story-art-600/references/npcs/neris.png` |
+| Mira | `docs/story-art-600/references/npcs/mira.png` |
+| Ada | `docs/story-art-600/references/npcs/ada.png` |
+| Lale | `docs/story-art-600/references/npcs/lale.png` |
+| Lio | `docs/story-art-600/references/npcs/lio.png` |
+| Shadow Double | `docs/story-art-600/references/npcs/shadow_double.png` |
+| Blank Page / Whisper | `docs/story-art-600/references/npcs/blank_page.png` |
+
+NPC model sayfaları da tam boy, şeffaf fonlu yüksek ayrıntılı PNG'dir. Mira ayrı ve bağımsız bir kişi olarak çizilmiştir; Shadow Double insan siluetini korur; Blank Page'in yüz alanı boş bırakılmıştır. Gerçek piksel ölçüleri galeri ve manifestte kayıtlıdır.
+
+## Devam eden karakterler için model sayfası standardı
