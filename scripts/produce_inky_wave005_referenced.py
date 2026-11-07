@@ -54,7 +54,7 @@ def load_reference(key: str, back: bool = False) -> Image.Image:
     image = Image.open(src).convert("RGBA")
     if not meaningful_alpha(image):
         raise ValueError(f"Canonical model reference has no transparent background: {src}")
-    return extract_hero_view(image, back) if key == "inky" else tight_crop(image.crop((0, 0, round(image.width / 3), round(image.height * .77))))
+    return extract_hero_view(image, back) if key == "inky" else tight_crop(image.crop((0, 0, round(image.width / 3), round(image.height * (.70 if key == "blank_page" else .77)))))
 
 
 def palette_check() -> None:
