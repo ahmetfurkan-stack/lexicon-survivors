@@ -26,4 +26,10 @@ assert.match(html, /id="hero-hud-portrait"[^>]*src="assets\/sprites\/upgrade_v1\
 assert.match(game, /heroPortrait\.src = portraitPath/, "Changing hero should update the HUD portrait asset");
 assert.match(html, /id="boss-hp-portrait"/, "The boss bar should have a framed portrait slot");
 assert.match(game, /portrait\.src = portraitPath/, "The live boss bar should use its matching authored portrait");
+assert.match(game, /const startAtFixedJoystick = \(clientX, clientY, identifier\) =>[\s\S]*?const rect = joystickZone\.getBoundingClientRect\(\)/,
+  "mobile movement should use the visible fixed joystick base as its origin");
+assert.doesNotMatch(game, /startFloatingAt|touch-joystick-surface/, "mobile movement must not relocate a floating joystick or capture the whole screen half");
+assert.match(html, /#joystick-zone\s*\{[^}]*left:\s*calc\(24px \+ env\(safe-area-inset-left/s,
+  "the fixed joystick should remain anchored to the lower-left safe area");
+assert.doesNotMatch(html, /id="touch-joystick-surface"/, "a transparent half-screen overlay must not intercept mobile taps");
 console.log("Movement/UI asset regression passed: quick braking, smooth reversal, Godot parity, hero and boss portraits.");

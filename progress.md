@@ -426,3 +426,12 @@ Original prompt: https://github.com/yasinkaya701/lexicon-survivors — bunu ince
 - Eclipse, Void Bloom, Split ve Return boss alan saldırıları kendi 64×64 pixel-art mühürlerini kullanıyor. Mühürler uyarı halkasında yavaşça dönüyor; işaret metni ve renk halkası görünür kalıyor. Dört SVG kaynak/build kopyası oluşturuldu ve oyunun sprite listesine bağlandı.
 - Mobil 390×844 Playwright dokunma akışı intro görünürken start düğmesine dokunup 1. turu açtı; karakter kartı seçimi, gadget, hızlı menü ve sanal joystick de tepki verdi. Canlı Pages üzerinde de emüle mobil gadget ve hızlı menü dokunuşları çalıştı. iOS WebKit bu makinede kurulu olmadığından Safari motoru fiziksel doğrulaması henüz yok.
 - Boss görseli canlı ön izlemesinde dört mühürün yüklenmesi ve telegraph çizimi doğrulandı; ağda 404 yok. Node boss/skill, zoom, hareket/UI, silah regresyonları ve SVG XML/source-build paritesi geçti.
+
+## Sabit mobil joystick, otomatik yakınlaştırma ve kare bütçesi — 2026-11-07
+
+- Dokunmatik joystick sol alt güvenli alana sabitlendi; parmak başlangıç noktası joystick merkezinden ölçülüyor. Ekranın yarısını kaplayan görünmez hareket yüzeyi kaldırıldı; pointer ve yerel touch olayları aynı kontrol durumuna bağlandı. Joystick yön verirken yer değiştirmiyor.
+- Mobil kameradaki varsayılan %4–8 yakınlaştırma kaldırıldı; arena artık 1:1 görünümle açılıyor. Oyuncunun Z/X kamera kontrolü ve tarayıcı pinch zoom serbest.
+- Canvas başlangıç çözünürlüğü mobilde 540px, masaüstünde 600px yüksekliğe indirildi. Adaptif kalite gerçek update/render süresiyle beraber görünür kare aralığını da izliyor; düşük FPS/GPU takılmasında 120ms içinde çözünürlüğü düşürüp %38 tabanına inebiliyor. HUD ve HTML arayüzünün metin netliği etkilenmiyor.
+- Sentetik 150 düşman/4 boss işareti/50 mermi profili ilk ölçümde 120 karenin 119'unda 33ms üstüne çıktı; kare aralığına göre adaptasyon sonrasında aynı profil 8/120 karede 33ms üstünü gördü, medyan 16.7ms ve canvas ölçeği 0.38 oldu. Bu headless Chromium/SwiftShader ölçümüdür; gerçek cihaz için FPS garantisi değildir.
+- Mobil 390×844 tarayıcıda joystick sabit (24px sol/alt), tutulurken hareket vektörü (1,0), bırakılınca sıfırlanıyor; karakter x konumu 47px ilerledi. Gadget ve hızlı menü dokunuşları da yanıt verdi; konsol hatası ve 404 yok.
+- `node --check`, zoom/viewport, hareket/UI, silah şeması, boss yetenekleri ve boss karşılaşma regresyonları geçti.

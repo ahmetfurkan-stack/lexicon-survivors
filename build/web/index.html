@@ -894,17 +894,6 @@
       z-index: 40;
       display: none;
     }
-    #touch-joystick-surface {
-      position: absolute;
-      top: 0;
-      left: 0;
-      width: 50%;
-      height: 100%;
-      pointer-events: auto;
-      touch-action: none;
-      z-index: 38;
-      -webkit-tap-highlight-color: transparent;
-    }
     #joystick-zone {
       position: absolute;
       bottom: calc(24px + env(safe-area-inset-bottom, 0px));
@@ -2661,10 +2650,7 @@
 
     <!-- VIRTUAL MOBILE TOUCH CONTROLS -->
     <div id="mobile-touch-controls">
-      <!-- Full Left-Half Floating Joystick Touch Surface -->
-      <div id="touch-joystick-surface"></div>
-
-      <!-- Virtual Joystick Base & Knob -->
+      <!-- Fixed lower-left joystick; only this visible control captures movement input. -->
       <div id="joystick-zone">
         <div id="joystick-base">
           <div id="joystick-knob"></div>
@@ -2870,6 +2856,6 @@
       window.startArchiveIntro();
     })();
   </script>
-  <script src="game.js?v=touch-perf-boss-sigils-20261107"></script>
+  <script src="game.js?v=fixed-touch-zoom-framebudget-20261107"></script>
 </body>
 </html>

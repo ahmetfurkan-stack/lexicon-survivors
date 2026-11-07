@@ -72,25 +72,28 @@
     });
     const beforeJoystick = readGame();
 
-    const joystickSurface = document.getElementById("touch-joystick-surface");
-    const rect = joystickSurface.getBoundingClientRect();
-    const startX = Math.max(12, Math.min(rect.width - 12, 70));
-    const startY = Math.round(rect.height * 0.62);
-    joystickSurface.dispatchEvent(new PointerEvent("pointerdown", {
+    const joystickZone = document.getElementById("joystick-zone");
+    const rect = joystickZone.getBoundingClientRect();
+    const startX = rect.left + rect.width / 2;
+    const startY = rect.top + rect.height / 2;
+    joystickZone.dispatchEvent(new PointerEvent("pointerdown", {
       bubbles: true, cancelable: true, pointerId: 712, pointerType: "touch", isPrimary: true,
-      clientX: rect.left + startX, clientY: rect.top + startY
+      clientX: startX, clientY: startY
     }));
     window.dispatchEvent(new PointerEvent("pointermove", {
       bubbles: true, cancelable: true, pointerId: 712, pointerType: "touch", isPrimary: true,
-      clientX: rect.left + startX + 36, clientY: rect.top + startY
+      clientX: startX + 36, clientY: startY
     }));
     await wait(320);
     window.dispatchEvent(new PointerEvent("pointerup", {
       bubbles: true, cancelable: true, pointerId: 712, pointerType: "touch", isPrimary: true,
-      clientX: rect.left + startX + 36, clientY: rect.top + startY
+      clientX: startX + 36, clientY: startY
     }));
     const moved = readGame();
     assert(moved.player.x > beforeJoystick.player.x + 10, "joystick movement did not resume after closing inventory");
+    const joystickAfter = joystickZone.getBoundingClientRect();
+    assert(Math.abs(joystickAfter.left - rect.left) < 0.5 && Math.abs(joystickAfter.top - rect.top) < 0.5,
+      "the joystick must stay fixed after touch input instead of relocating under the thumb");
 
     await new Promise((resolve, reject) => {
       const started = performance.now();

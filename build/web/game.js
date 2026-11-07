@@ -2063,7 +2063,9 @@ let lastFrameCosts = { updateMs: 0, renderMs: 0, totalMs: 0 };
 // Let slower integrated/mobile GPUs trade a little canvas resolution for a
 // steadier frame rate. Pixel-art sprites keep nearest-neighbour edges crisp;
 // HTML menus and HUD text remain at native resolution.
-const MIN_ADAPTIVE_CANVAS_SCALE = 0.35;
+const MIN_ADAPTIVE_CANVAS_SCALE = 0.38;
+const MOBILE_RENDER_HEIGHT = 540;
+const DESKTOP_RENDER_HEIGHT = 600;
 
 function setCanvasResolution(width, height) {
   const nextWidth = Math.max(1, Math.round(width * adaptiveCanvasScale));
@@ -2072,19 +2074,18 @@ function setCanvasResolution(width, height) {
   if (canvas.height !== nextHeight) canvas.height = nextHeight;
 }
 
-function adaptCanvasQuality(frameSeconds) {
+function adaptCanvasQuality(framePressureSeconds) {
   if (!state.is_wave_active || document.hidden || adaptiveCanvasScale <= MIN_ADAPTIVE_CANVAS_SCALE) return;
-  if (frameSeconds > 0.024) slowFrameSeconds += frameSeconds;
-  else slowFrameSeconds = Math.max(0, slowFrameSeconds - frameSeconds * 0.75);
-  // Start lowering the pixel-art render target after a short sustained dip;
-  // waiting nearly half a second makes slowdown visibly persist before the
-  // quality controller reacts on lower-end integrated GPUs.
-  if (slowFrameSeconds < 0.24) return;
+  // Use both update/render work and RAF spacing. GPU/compositor stalls can
+  // leave JS work timers deceptively low while the player sees dropped frames.
+  if (framePressureSeconds > 0.024) slowFrameSeconds += Math.min(0.05, framePressureSeconds);
+  else slowFrameSeconds = Math.max(0, slowFrameSeconds - Math.max(0.008, framePressureSeconds) * 1.5);
+  if (slowFrameSeconds < 0.12) return;
 
   // The CSS/HTML interface remains at full resolution; only the pixel-art
   // arena render target shrinks when sustained frame times miss the 33 ms
   // budget. Keep the scale for the run to avoid quality oscillation.
-  adaptiveCanvasScale = Math.max(MIN_ADAPTIVE_CANVAS_SCALE, adaptiveCanvasScale - (frameSeconds > 0.045 ? 0.28 : 0.20));
+  adaptiveCanvasScale = Math.max(MIN_ADAPTIVE_CANVAS_SCALE, adaptiveCanvasScale - (framePressureSeconds > 0.032 ? 0.24 : 0.16));
   slowFrameSeconds = 0;
   resizeGameCanvas();
 }
@@ -2101,12 +2102,12 @@ function resizeGameCanvas() {
     const isPortrait = h > w;
 
     if (isPortrait) {
-      setCanvasResolution(720, Math.round(720 * (h / Math.max(1, w))));
+      setCanvasResolution(MOBILE_RENDER_HEIGHT, Math.round(MOBILE_RENDER_HEIGHT * (h / Math.max(1, w))));
     } else {
-      setCanvasResolution(Math.round(720 * (w / Math.max(1, h))), 720);
+      setCanvasResolution(Math.round(MOBILE_RENDER_HEIGHT * (w / Math.max(1, h))), MOBILE_RENDER_HEIGHT);
     }
   } else {
-    setCanvasResolution(1280, 720);
+    setCanvasResolution(Math.round(DESKTOP_RENDER_HEIGHT * (16 / 9)), DESKTOP_RENDER_HEIGHT);
   }
 }
 window.addEventListener("resize", resizeGameCanvas);
@@ -2890,7 +2891,6 @@ function initTouchControls() {
   const joystickZone = document.getElementById("joystick-zone");
   const joystickBase = document.getElementById("joystick-base");
   const joystickKnob = document.getElementById("joystick-knob");
-  const touchSurface = document.getElementById("touch-joystick-surface");
   const touchWeaponBtn = document.getElementById("touch-weapon-btn");
   const touchGadgetBtn = document.getElementById("touch-gadget-btn");
   const touchInvBtn = document.getElementById("touch-inv-btn");
@@ -2977,54 +2977,31 @@ function initTouchControls() {
     joystickZone.style.opacity = "0.8";
   }
 
-  const startFloatingAt = (clientX, clientY, identifier) => {
+  const startAtFixedJoystick = (clientX, clientY, identifier) => {
     if (activeTouchId !== null) return;
     activeTouchId = identifier;
-
-    // Dynamically anchor joystick base directly to thumb position
-    const container = document.getElementById("game-container") || document.body;
-    const cRect = container.getBoundingClientRect();
-    const relX = clientX - cRect.left;
-    const relY = clientY - cRect.top;
-
-    joystickZone.style.left = (relX - 60) + "px";
-    joystickZone.style.top = (relY - 60) + "px";
-    joystickZone.style.bottom = "auto";
+    const rect = joystickZone.getBoundingClientRect();
+    centerX = rect.left + rect.width / 2;
+    centerY = rect.top + rect.height / 2;
     joystickZone.style.opacity = "1";
-
-    centerX = clientX;
-    centerY = clientY;
     updateJoystickPosition(clientX, clientY);
   };
 
-  const supportsPointerEvents = "PointerEvent" in window;
-  if (touchSurface) {
-    if (supportsPointerEvents) touchSurface.addEventListener("pointerdown", (e) => {
-      startFloatingAt(e.clientX, e.clientY, e.pointerId);
-      try { touchSurface.setPointerCapture(e.pointerId); } catch(err){}
-      e.preventDefault();
-    });
-    else touchSurface.addEventListener("touchstart", (e) => {
-      const touch = e.changedTouches[0];
-      startFloatingAt(touch.clientX, touch.clientY, touch.identifier);
-      e.preventDefault();
-    }, { passive: false });
-  }
-
   const onJoystickPointerDown = (e) => {
     if (activeTouchId !== null) return;
-    startFloatingAt(e.clientX, e.clientY, e.pointerId);
+    startAtFixedJoystick(e.clientX, e.clientY, e.pointerId);
     try { joystickZone.setPointerCapture(e.pointerId); } catch(err){}
     e.preventDefault();
   };
   const onJoystickTouchStart = (e) => {
     if (activeTouchId !== null || !e.changedTouches.length) return;
     const touch = e.changedTouches[0];
-    startFloatingAt(touch.clientX, touch.clientY, touch.identifier);
+    startAtFixedJoystick(touch.clientX, touch.clientY, touch.identifier);
     e.preventDefault();
   };
-  if (supportsPointerEvents) joystickZone.addEventListener("pointerdown", onJoystickPointerDown);
-  else joystickZone.addEventListener("touchstart", onJoystickTouchStart, { passive: false });
+  joystickZone.addEventListener("pointerdown", onJoystickPointerDown);
+  // Keep native touch events as a fallback for mobile Safari and embedded webviews.
+  joystickZone.addEventListener("touchstart", onJoystickTouchStart, { passive: false });
 
   const onPointerMove = (e) => {
     if (activeTouchId === e.pointerId) {
@@ -3043,18 +3020,16 @@ function initTouchControls() {
       }
     }
   };
-  if (supportsPointerEvents) window.addEventListener("pointermove", onPointerMove);
-  else window.addEventListener("touchmove", onTouchMove, { passive: false });
+  window.addEventListener("pointermove", onPointerMove);
+  window.addEventListener("touchmove", onTouchMove, { passive: false });
 
   const endPointer = (e) => {
     if (activeTouchId === e.pointerId) {
       resetJoystick();
     }
   };
-  if (supportsPointerEvents) {
-    window.addEventListener("pointerup", endPointer);
-    window.addEventListener("pointercancel", endPointer);
-  }
+  window.addEventListener("pointerup", endPointer);
+  window.addEventListener("pointercancel", endPointer);
 
   const endTouch = (e) => {
     if (activeTouchId === null) return;
@@ -3065,10 +3040,8 @@ function initTouchControls() {
       }
     }
   };
-  if (!supportsPointerEvents) {
-    window.addEventListener("touchend", endTouch);
-    window.addEventListener("touchcancel", endTouch);
-  }
+  window.addEventListener("touchend", endTouch);
+  window.addEventListener("touchcancel", endTouch);
 }
 
 // =========================================
@@ -7233,10 +7206,10 @@ function render(dt = 1 / 60) {
   }
   ctx.translate(cx + shakeX, cy + shakeY);
 
-  // Dynamic Camera Zoom: On mobile/tablets, zoom in so action is big, punchy and clear!
-  const isTouchOrSmall = window.innerWidth <= 1080 || ('ontouchstart' in window);
-  const baseZoom = isTouchOrSmall ? (window.innerWidth < 650 ? 1.08 : 1.04) : 1.0;
-  const zoom = baseZoom * (state.camera_zoom || 1.0);
+  // Keep the camera at a predictable 1:1 scale on every device. Players can
+  // still use the explicit Z/X controls; silently zooming mobile crops the
+  // arena and makes touch movement feel inaccurate.
+  const zoom = state.camera_zoom || 1.0;
   if (zoom !== 1.0) {
     ctx.scale(zoom, zoom);
   }
@@ -8054,7 +8027,6 @@ function gameLoop(now) {
   }
   const rawDt = Math.min(0.1, (now - lastTime) / 1000);
   lastTime = now;
-  adaptCanvasQuality(rawDt);
   const dt = rawDt * (state.game_speed || 1.0);
 
   const frameStarted = performance.now();
@@ -8067,6 +8039,7 @@ function gameLoop(now) {
     renderMs: Number((frameFinished - renderStarted).toFixed(2)),
     totalMs: Number((frameFinished - frameStarted).toFixed(2))
   };
+  adaptCanvasQuality(Math.max(rawDt, lastFrameCosts.totalMs / 1000));
   scheduleGameLoop();
 }
 
