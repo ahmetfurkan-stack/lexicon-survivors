@@ -404,3 +404,25 @@ Original prompt: https://github.com/yasinkaya701/lexicon-survivors — bunu ince
 - Kelime yankıları için boş yazı plakası ve üç tematik mühür SVG’si eklendi; gerçek kelime runtime’da plakaya yazılıyor. Godot mağaza/HUD menülerindeki emoji başlıkları yerel ikonlarla değiştirildi. Web görünümüne tarayıcı yakınlaştırması, dinamik mobil yükseklik ve kaydırılabilir katmanlar eklendi.
 - Doğrulama: Godot sahne kurulumu, köşe hareketi ve boss yankı regresyonu; Node boss, boss yetenekleri, ekonomi, silah ve zoom kontrolleri; JSON/asset paritesi geçti. Godot headless kapanışında daha önce var olan 2 ObjectDB/1 kaynak uyarısı devam ediyor. Hikâye runtime testi Node’da `window` beklediği için bu komutla çalıştırılamadı; önceki tarayıcı doğrulaması mevcut.
 - Kaynak commit `ddb2979` (`codex/perf-boss-ui-polish`) gönderildi. Pages commit `1344413`; workflow `42390648312` başarılı. Canlı HTML, JS, iki JSON kataloğu ve kelime yankı SVG'leri HTTP 200 verdi; HTML yeni cache anahtarını içeriyor. Canlı tarayıcı açılıp 1. tur başlığı ve altı karakter kartı görüldü.
+
+## Boşta ve düşük güçlü cihaz performansı — 2026-11-07
+
+- Dalga dışındaki tam 60 FPS simülasyon/render döngüsü menüde, mağazada, oyun sonu ekranında ve çanta açıkken gereksiz GPU/CPU tüketiyordu. Döngü bu durumlarda 180 ms zamanlayıcıya düşüyor; sekme gizliyken 500 ms'ye iniyor. Yeni dalga başlayınca veya çanta kapanınca oyun döngüsü hemen uyandırılıyor ve bekleme süresinin büyük `dt` üretmesi engelleniyor.
+- Uzun süren düşük kare hızında adaptif canvas ölçeğinin durduğu taban %42'den %35'e indirildi. Bu yalnız oyun canvas'ını etkiliyor; DOM menüleri/HUD netliklerini koruyor.
+- Web oyun skill Playwright istemcisiyle 8020 yerel build'de bir kare yakalandı; text-state `title`, silah görselleri `ready`, konsol/page hatası kaydı yok. İstemcinin seçim ekranı üstündeki hareketli katman sebebiyle `#start-game-btn` tıklaması zaman aşımına uğruyor; bu nedenle aktif dalga profili doğrulanamadı.
+- `node --check build/web/game.js` ve `git diff --check` geçti. Düşük donanımlı gerçek cihazda ölçüm henüz yok; bu dal değişikliği henüz yayınlanmadı.
+
+## Yoğun savaş performansı ve geri dönen mermi görseli — 2026-11-07
+
+- Adaptif çözünürlük denetleyicisi, sürdürülen 24 ms üstü karelerde yarım saniyeye yakın beklemek yerine 240 ms sonra kaliteyi düşürüyor. Düşüş yalnızca oyun canvas'ında; arayüz metni ve menüler native çözünürlükte kalıyor.
+- Rune Orb zincir hedefi seçimi ile ikincil quill/pistol/sniper hedef aramalarında geçici filtre dizileri kaldırıldı; hariç tutulan hedefler ve geçmiş vuruşlar aynı tek geçişte uygulanıyor. Boss dönüş mermisinin kayıp Web SVG kopyası da 404 üretmeyecek şekilde eklendi.
+- 150 düşmanın aynı kamera alanında olduğu, 50 mermili headless SwiftShader sahnesinde ölçüm: kare aralığı medyanı 16.7 ms, p95 33.4 ms; son profil turunda 120 karenin 7'si 33 ms'yi aştı. Render ölçeği otomatik olarak 0.44'e düştü. Bu kontrollü sentetik profil gerçek telefondaki FPS garantisi değildir; düşük güçlü fiziksel cihazda ayrıca ölçüm gerekir.
+- Doğrulama: JS sözdizimi ve diff kontrolü; boss yetenekleri/karşılaşması, zoom ve hareket/UI asset regresyonları; üç yeni SVG'nin XML parse'ı ve source/build byte paritesi geçti. Tarayıcı ağında 404 kalmadı.
+- Bu çalışma dalında kalıyor; bu turda yeni deploy başlatılmadı.
+
+## Mobil dokunma akışı ve boss uyarı mühürleri — 2026-11-07
+
+- İlk açılıştaki tam ekran arşiv animasyonu, başlık menüsünü 1.8 saniye boyunca görünmez bir dokunma katmanıyla kapatıyordu. Animasyon artık işaretleme/dokunma olaylarını menüye geçiriyor; “Geç” düğmesi kendi dokunuşunu almaya devam ediyor ve oyuna girerken animasyon hemen kapanıyor.
+- Eclipse, Void Bloom, Split ve Return boss alan saldırıları kendi 64×64 pixel-art mühürlerini kullanıyor. Mühürler uyarı halkasında yavaşça dönüyor; işaret metni ve renk halkası görünür kalıyor. Dört SVG kaynak/build kopyası oluşturuldu ve oyunun sprite listesine bağlandı.
+- Mobil 390×844 Playwright dokunma akışı intro görünürken start düğmesine dokunup 1. turu açtı; karakter kartı seçimi, gadget, hızlı menü ve sanal joystick de tepki verdi. Canlı Pages üzerinde de emüle mobil gadget ve hızlı menü dokunuşları çalıştı. iOS WebKit bu makinede kurulu olmadığından Safari motoru fiziksel doğrulaması henüz yok.
+- Boss görseli canlı ön izlemesinde dört mühürün yüklenmesi ve telegraph çizimi doğrulandı; ağda 404 yok. Node boss/skill, zoom, hareket/UI, silah regresyonları ve SVG XML/source-build paritesi geçti.

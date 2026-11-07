@@ -131,6 +131,13 @@
     assert(!api.canPlaceTurret("scroll_turret", 2), "base turret cap is enforced");
     const chain = api.pickRuneChainTargets({ x: 0, y: 0 }, ["a", "a", "b", "c", "d"], 3);
     assert(chain.length === 3 && new Set(chain).size === 3, "Rune Orb chains to a bounded set of unique targets");
+    const crowdedTargets = [
+      { id: "closest-hit", x: 1, y: 0, hp: 10, dead: false },
+      { id: "already-hit", x: 2, y: 0, hp: 10, dead: false },
+      { id: "next-free", x: 3, y: 0, hp: 10, dead: false }
+    ];
+    const nextFree = api.selectWeaponTarget({ id: "quill_blaster" }, crowdedTargets, { x: 0, y: 0 }, crowdedTargets[0], new Set([crowdedTargets[1]]));
+    assert(nextFree === crowdedTargets[2], "secondary hits skip prior targets without allocating a filtered enemy roster");
     const loom = api.wordLoomRuntimeContract();
     assert(loom.fieldCount === 2 && loom.hp < 50 && loom.slowFactor <= 0.46 && loom.linkedCount === 2, "Word Loom must slow caught enemies and link a second zone at its final evolution");
     assert(api.getMeleePhase("dictionary_blade", 0.11) === "active" && api.getMeleePhase("calligraphy_katana", 0.02) === "windup", "defensive blade and directional katana have distinct active timings");

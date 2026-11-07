@@ -18,5 +18,9 @@ assert.match(zoomRules, /position:\s*relative\s*!important/, "mobile page must n
 assert.match(zoomRules, /object-fit:\s*fill\s*!important/, "canvas bitmap must remain visible instead of cropping under narrow viewport ratios");
 assert.match(zoomRules, /\.dialog-panel\s*\{[^}]*overflow-y:\s*auto\s*!important/s, "zoomed dialogs must scroll within the dynamic viewport");
 assert.match(zoomRules, /\.screen-overlay\s*\{[^}]*overflow-y:\s*auto\s*!important/s, "screen overlays must scroll when zoom enlarges their contents");
+assert.match(html, /#archive-intro\s*\{[^}]*pointer-events:\s*none/s, "the decorative intro must not block taps on the title screen behind it");
+assert.match(html, /#archive-intro \.archive-intro-skip\s*\{[^}]*pointer-events:\s*auto/s, "the intro skip control must remain directly tappable");
+assert.match(fs.readFileSync(path.join(__dirname, "../build/web/game.js"), "utf8"), /const onStartGame = async \(e\) => \{[\s\S]*?finishArchiveIntro\?\.\(true\)/,
+  "starting a run should immediately dismiss the decorative intro after the tap passes through");
 
 console.log("Viewport zoom regression passed: pinch scale, dynamic height, safe areas, full canvas, and scrollable overlays.");
