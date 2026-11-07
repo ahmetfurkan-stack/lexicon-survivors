@@ -206,7 +206,7 @@ text = "Yadigârlar"
 [node name="MistakesTabButton" type="Button" parent="Panel/CategoryBar"]
 layout_mode = 2
 size_flags_horizontal = 3
-text = "📖 Hata Defteri"
+text = "Hata Defteri"
 
 [node name="ScrollArea" type="ScrollContainer" parent="Panel"]
 layout_mode = 1

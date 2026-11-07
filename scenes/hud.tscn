@@ -346,32 +346,32 @@ layout_mode = 2
 theme_override_constants/separation = 12
 
 [node name="SpeedButton" type="Button" parent="MarginContainer/VBox/ControlsRow"]
-custom_minimum_size = Vector2(90, 30)
+custom_minimum_size = Vector2(104, 30)
 layout_mode = 2
 theme_override_font_sizes/font_size = 12
-text = "⚡ Hız: 1.0x"
+text = "Hız · 1.0×"
 
 [node name="AutoTurButton" type="Button" parent="MarginContainer/VBox/ControlsRow"]
 custom_minimum_size = Vector2(110, 30)
 layout_mode = 2
 theme_override_font_sizes/font_size = 12
-text = "🔄 Oto-Tur: Açık"
+text = "Oto-Tur · Açık"
 
 [node name="AutoRunButton" type="Button" parent="MarginContainer/VBox/ControlsRow"]
 custom_minimum_size = Vector2(110, 30)
 layout_mode = 2
 theme_override_font_sizes/font_size = 12
-text = "🔁 Oto-Run: Açık"
+text = "Oto-Run · Açık"
 
 [node name="Spacer" type="Control" parent="MarginContainer/VBox/ControlsRow"]
 layout_mode = 2
 size_flags_horizontal = 3
 
 [node name="MistakesButton" type="Button" parent="MarginContainer/VBox/ControlsRow"]
-custom_minimum_size = Vector2(130, 30)
+custom_minimum_size = Vector2(148, 30)
 layout_mode = 2
 theme_override_font_sizes/font_size = 12
-text = "📖 Hata Defteri (0)"
+text = "Hatalar · 0"
 
 [node name="GadgetPanel" type="Panel" parent="."]
 anchors_preset = 2

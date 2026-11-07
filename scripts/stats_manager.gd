@@ -20,6 +20,7 @@ signal floating_text_requested(pos: Vector2, text: String, color: Color, size: i
 signal screen_shake_requested(duration: float, intensity: float)
 signal tactical_alert_requested(title: String, desc: String)
 signal mistakes_updated()
+signal character_progress_changed(char_id: String)
 
 # Configuration & Choices
 var selected_character: String = "inky"
@@ -54,6 +55,10 @@ var ink_count: int = 0
 var kill_count: int = 0
 var words_learned: Array = []
 var active_synergies: Dictionary = {}
+const SKILL_TREE_PATH := "res://assets/data/character_skill_trees.json"
+const CHARACTER_PROGRESS_PATH := "user://character_progress.cfg"
+var skill_tree_catalog: Dictionary = {}
+var character_progress: Dictionary = {}
 
 # Equipment & Inventory
 var equipped_weapons: Array = ["quill_blaster"]
@@ -419,6 +424,133 @@ func _ready() -> void:
 	load_weapon_economy()
 	load_utility_items()
 	load_game_economy()
+	load_character_skill_trees()
+	load_character_progress()
+
+func load_character_skill_trees() -> bool:
+	var file := FileAccess.open(SKILL_TREE_PATH, FileAccess.READ)
+	if file == null:
+		push_error("Missing character skill tree data: %s" % SKILL_TREE_PATH)
+		return false
+	var parsed: Variant = JSON.parse_string(file.get_as_text())
+	if not parsed is Dictionary or int(parsed.get("schema_version", 0)) != 1 or not parsed.get("characters", {}) is Dictionary:
+		push_error("Invalid character skill tree data")
+		return false
+	skill_tree_catalog = parsed
+	return true
+
+func load_character_progress() -> void:
+	var config := ConfigFile.new()
+	if config.load(CHARACTER_PROGRESS_PATH) == OK:
+		var saved: Variant = config.get_value("progress", "characters", {})
+		if saved is Dictionary:
+			character_progress = saved
+	for char_id in characters:
+		var record: Variant = character_progress.get(char_id, {})
+		if not record is Dictionary:
+			record = {}
+		character_progress[char_id] = {
+			"xp": maxi(0, int(record.get("xp", 0))),
+			"level": clampi(int(record.get("level", 1)), 1, _max_character_level()),
+			"skill_points": maxi(0, int(record.get("skill_points", 0))),
+			"unlocked_skills": record.get("unlocked_skills", []) if record.get("unlocked_skills", []) is Array else []
+		}
+
+func save_character_progress() -> void:
+	var config := ConfigFile.new()
+	config.set_value("progress", "characters", character_progress)
+	var error := config.save(CHARACTER_PROGRESS_PATH)
+	if error != OK:
+		push_error("Could not save character progression (%s)" % error)
+
+func _max_character_level() -> int:
+	return maxi(1, int(skill_tree_catalog.get("max_character_level", 18)))
+
+func get_character_progress(char_id: String) -> Dictionary:
+	if not character_progress.has(char_id):
+		character_progress[char_id] = {"xp": 0, "level": 1, "skill_points": 0, "unlocked_skills": []}
+	return character_progress[char_id]
+
+func get_xp_required_for_next_level(level: int) -> int:
+	# A 100-wave run typically earns several thousand XP; the curve rewards a
+	# focused run without granting every capstone in a single ordinary clear.
+	return 140 + maxi(1, level) * 48
+
+func add_character_xp(amount: int) -> void:
+	if amount <= 0:
+		return
+	var progress := get_character_progress(selected_character)
+	if int(progress["level"]) >= _max_character_level():
+		return
+	progress["xp"] = int(progress["xp"]) + amount
+	var level := int(progress["level"])
+	while level < _max_character_level() and int(progress["xp"]) >= get_xp_required_for_next_level(level):
+		progress["xp"] = int(progress["xp"]) - get_xp_required_for_next_level(level)
+		level += 1
+		progress["skill_points"] = int(progress["skill_points"]) + int(skill_tree_catalog.get("skill_points_per_level", 1))
+	progress["level"] = level
+	character_progress[selected_character] = progress
+	save_character_progress()
+	character_progress_changed.emit(selected_character)
+
+func _find_skill_node(char_id: String, node_id: String) -> Dictionary:
+	var character_tree: Dictionary = skill_tree_catalog.get("characters", {}).get(char_id, {})
+	for branch in character_tree.get("branches", []):
+		for node in branch.get("nodes", []):
+			if str(node.get("id", "")) == node_id:
+				return node
+	return {}
+
+func can_unlock_character_skill(char_id: String, node_id: String) -> bool:
+	var node := _find_skill_node(char_id, node_id)
+	if node.is_empty():
+		return false
+	var progress := get_character_progress(char_id)
+	var unlocked: Array = progress.get("unlocked_skills", [])
+	if unlocked.has(node_id) or int(progress.get("level", 1)) < int(node.get("required_level", 1)) or int(progress.get("skill_points", 0)) < int(node.get("point_cost", 1)):
+		return false
+	for prerequisite in node.get("prerequisites", []):
+		if not unlocked.has(prerequisite):
+			return false
+	return true
+
+func unlock_character_skill(char_id: String, node_id: String) -> bool:
+	if not can_unlock_character_skill(char_id, node_id):
+		return false
+	var node := _find_skill_node(char_id, node_id)
+	var progress := get_character_progress(char_id)
+	progress["skill_points"] = int(progress["skill_points"]) - int(node.get("point_cost", 1))
+	var unlocked: Array = progress.get("unlocked_skills", []).duplicate()
+	unlocked.append(node_id)
+	progress["unlocked_skills"] = unlocked
+	character_progress[char_id] = progress
+	save_character_progress()
+	character_progress_changed.emit(char_id)
+	return true
+
+func _apply_character_skill_effects(char_id: String) -> void:
+	var progress := get_character_progress(char_id)
+	var unlocked: Array = progress.get("unlocked_skills", [])
+	var character_tree: Dictionary = skill_tree_catalog.get("characters", {}).get(char_id, {})
+	for branch in character_tree.get("branches", []):
+		for node in branch.get("nodes", []):
+			if not unlocked.has(node.get("id", "")):
+				continue
+			var effects: Dictionary = node.get("effects", {})
+			for effect_key in effects:
+				var value := float(effects[effect_key])
+				match effect_key:
+					"damage": damage_mult += value
+					"attack_speed": add_attack_speed(value)
+					"armor": add_armor(value)
+					"move_speed": move_speed += value
+					"max_hp":
+						max_hp += value
+						hp += value
+					"crit_chance": crit_chance = clampf(crit_chance + value, 0.0, 0.8)
+					"projectile_count": projectile_count = mini(projectile_count + int(value), 6)
+					"pierce": pierce_count = mini(pierce_count + int(value), 16)
+					"pickup_radius": pickup_radius += value
 
 func load_game_economy() -> bool:
 	var file := FileAccess.open("res://assets/data/game_economy.json", FileAccess.READ)
@@ -600,6 +732,7 @@ func reset():
 	pickup_radius = 140.0
 	projectile_count = 1
 	pierce_count = 1
+	_apply_character_skill_effects(selected_character)
 
 	ink_mult = float(diff_data.get("ink_bonus_mult", 1.0))
 	if selected_character == "lexicon_alchemist":
@@ -654,6 +787,11 @@ func spend_ink(amount: int) -> bool:
 func register_kill():
 	kill_count += 1
 	emit_signal("kill_count_changed", kill_count)
+	# Every kill advances the selected hero. Boss waves grant a measured bonus.
+	var earned_xp := 2 + int(floor(float(maxi(0, current_wave - 1)) / 40.0))
+	if current_wave > 1 and current_wave % 5 == 0:
+		earned_xp += 12 + int(current_wave / 10)
+	add_character_xp(earned_xp)
 
 func heal(amount: float):
 	if amount <= 0:

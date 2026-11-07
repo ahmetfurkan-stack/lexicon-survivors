@@ -16,6 +16,9 @@ var boss_wave_active: bool = false
 var boss_spawned: bool = false
 var boss_overtime_level: int = 0
 var milestone_boss: Node2D = null
+var boss_defeated: bool = false
+var mistake_echo_queue: Array[Dictionary] = []
+const BOSS_ECHO_ACTIVE_CAP := 3
 const SPAWN_X_LIMIT := 1150.0
 const SPAWN_Y_LIMIT := 850.0
 const MILESTONE_BOSSES := [
@@ -46,6 +49,8 @@ func start_wave():
 	boss_spawned = false
 	boss_overtime_level = 0
 	milestone_boss = null
+	boss_defeated = false
+	mistake_echo_queue.clear()
 	time_left = wave_duration
 	is_wave_active = true
 	spawn_timer = 1.0 if boss_wave_active else 0.5
@@ -73,8 +78,16 @@ func _process(delta: float):
 			spawn_timer -= delta
 			if spawn_timer <= 0.0:
 				spawn_milestone_boss()
-		elif not is_instance_valid(milestone_boss) or milestone_boss.is_queued_for_deletion():
-			end_wave()
+		else:
+			if not is_instance_valid(milestone_boss) or milestone_boss.is_queued_for_deletion():
+				boss_defeated = true
+			_spawn_mistake_echo_batch()
+			var active_echoes := 0
+			for enemy in Enemy.get_active_enemies():
+				if is_instance_valid(enemy) and enemy.is_mistake_echo and not enemy.is_queued_for_deletion():
+					active_echoes += 1
+			if boss_defeated and mistake_echo_queue.is_empty() and active_echoes == 0:
+				end_wave()
 		return
 
 	var wave_enemy_cap := _get_wave_enemy_cap()
@@ -216,19 +229,36 @@ func spawn_milestone_boss() -> void:
 	boss_spawned = true
 	milestone_boss = boss
 	get_tree().current_scene.add_child(boss)
-	var unresolved: Array = StatsManager.mistake_words.duplicate(true)
-	unresolved.sort_custom(func(a: Dictionary, b: Dictionary) -> bool: return int(a.get("fail_count", 1)) > int(b.get("fail_count", 1)))
-	var echo_count := mini(4, unresolved.size())
-	for echo_index in range(echo_count):
-		var memory: Dictionary = unresolved[echo_index]
+	mistake_echo_queue.clear()
+	for memory in StatsManager.mistake_words:
+		if memory is Dictionary and not str(memory.get("word", "")).strip_edges().is_empty():
+			mistake_echo_queue.append(memory.duplicate(true))
+	mistake_echo_queue.sort_custom(func(a: Dictionary, b: Dictionary) -> bool: return int(a.get("fail_count", 1)) > int(b.get("fail_count", 1)))
+	_spawn_mistake_echo_batch(angle)
+	var echo_total := mistake_echo_queue.size() + _active_mistake_echo_count()
+	if echo_total > 0:
+		StatsManager.trigger_tactical_alert("HATA DEFTERİ · %d KELİME YANKISI" % echo_total, "Her birikmiş kelime yankısı bu düelloda sırayla gelir.")
+
+func _active_mistake_echo_count() -> int:
+	var count := 0
+	for enemy in Enemy.get_active_enemies():
+		if is_instance_valid(enemy) and enemy.is_mistake_echo and not enemy.is_queued_for_deletion():
+			count += 1
+	return count
+
+func _spawn_mistake_echo_batch(preferred_angle: float = 0.0) -> int:
+	var spawned := 0
+	while spawned < BOSS_ECHO_ACTIVE_CAP - _active_mistake_echo_count() and not mistake_echo_queue.is_empty():
+		var memory: Dictionary = mistake_echo_queue.pop_front()
 		var echo = enemy_scene.instantiate()
 		echo.enemy_type = "Spelling Spectre"
-		var echo_angle := angle + PI + echo_index * TAU / maxf(1.0, float(echo_count))
-		echo.global_position = get_arena_spawn_position(boss.global_position, 175.0 + echo_index * 24.0, echo_angle)
+		var angle := preferred_angle + PI + spawned * TAU / float(BOSS_ECHO_ACTIVE_CAP)
+		var origin := milestone_boss.global_position if is_instance_valid(milestone_boss) else player_ref.global_position
+		echo.global_position = get_arena_spawn_position(origin, 185.0 + spawned * 24.0, angle)
 		get_tree().current_scene.add_child(echo)
 		echo.configure_mistake_echo(str(memory.get("word", "?")), int(memory.get("fail_count", 1)))
-	if echo_count > 0:
-		StatsManager.trigger_tactical_alert("HATA DEFTERİ · %d KELİME YANKISI" % echo_count, "Yankıları düşür; sonraki yükseltmede doğru yanıtladığın kelime defterden silinir.")
+		spawned += 1
+	return spawned
 
 func end_wave():
 	# A milestone can only hand off to its story scene after its tracked boss
@@ -237,6 +267,8 @@ func end_wave():
 		if not boss_spawned:
 			return
 		if is_instance_valid(milestone_boss) and not milestone_boss.is_queued_for_deletion():
+			return
+		if not boss_defeated or not mistake_echo_queue.is_empty() or _active_mistake_echo_count() > 0:
 			return
 	is_wave_active = false
 	boss_wave_active = false

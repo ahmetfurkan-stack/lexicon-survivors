@@ -41,6 +41,7 @@ var suppress_rewards: bool = false
 var is_mistake_echo: bool = false
 var mistake_echo_word: String = ""
 var mistake_echo_fail_count: int = 1
+var mistake_word_frame: TextureRect = null
 var stun_timer: float = 0.0
 var slow_timer: float = 0.0
 var slow_factor: float = 1.0
@@ -189,8 +190,27 @@ func configure_mistake_echo(word: String, fail_count: int) -> void:
 	ink_reward = 0
 	if label:
 		label.text = mistake_echo_word
-		label.add_theme_font_size_override("font_size", 10)
-		label.add_theme_color_override("font_color", Color("#d7b9ef"))
+		label.offset_left = -68.0
+		label.offset_top = -45.0
+		label.offset_right = 68.0
+		label.offset_bottom = -21.0
+		label.add_theme_font_size_override("font_size", 11)
+		label.add_theme_color_override("font_color", Color("#f2e7cf"))
+		label.add_theme_color_override("font_outline_color", Color("#111714"))
+		label.add_theme_constant_override("outline_size", 4)
+		label.z_index = 2
+		if not is_instance_valid(mistake_word_frame):
+			mistake_word_frame = TextureRect.new()
+			mistake_word_frame.name = "MistakeWordFrame"
+			mistake_word_frame.texture = load("res://assets/sprites/upgrade_v1/word_echo/word_echo_title_frame.svg")
+			mistake_word_frame.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+			mistake_word_frame.stretch_mode = TextureRect.STRETCH_SCALE
+			mistake_word_frame.position = Vector2(-78.0, -54.0)
+			mistake_word_frame.size = Vector2(156.0, 47.0)
+			mistake_word_frame.mouse_filter = Control.MOUSE_FILTER_IGNORE
+			mistake_word_frame.z_index = 1
+			add_child(mistake_word_frame)
+			move_child(mistake_word_frame, label.get_index())
 	if sprite:
 		sprite.modulate = Color("#dfbdf5")
 

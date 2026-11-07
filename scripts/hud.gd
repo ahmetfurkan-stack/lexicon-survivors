@@ -95,6 +95,8 @@ func _ready():
 	arena_interaction_button.pressed.connect(func(): arena_interaction_requested.emit())
 	$TouchControls/ActionRow/WeaponTouchButton.pressed.connect(StatsManager.switch_next_weapon)
 	$TouchControls/ActionRow/InventoryTouchButton.pressed.connect(toggle_inventory)
+	speed_btn.icon = load("res://assets/ui/icons/speed.svg")
+	mistakes_btn.icon = load("res://assets/ui/icons/corrections.svg")
 	inventory_close_button.pressed.connect(func(): set_inventory_open(false))
 	inventory_weapons_tab.pressed.connect(func(): _set_inventory_category("weapons"))
 	inventory_gadgets_tab.pressed.connect(func(): _set_inventory_category("gadgets"))
@@ -603,22 +605,22 @@ func _on_auto_run_btn_pressed():
 
 func _on_game_speed_changed(spd: float):
 	if speed_btn:
-		speed_btn.text = "⚡ Hız: " + str(spd) + "x"
+		speed_btn.text = "Hız · " + str(spd) + "×"
 
 func _on_auto_new_tur_changed(enabled: bool):
 	if auto_tur_btn:
-		auto_tur_btn.text = "🔄 Oto-Tur: " + ("Açık" if enabled else "Kapalı")
+		auto_tur_btn.text = "Oto-Tur · " + ("Açık" if enabled else "Kapalı")
 		auto_tur_btn.modulate = Color(0.4, 1.0, 0.5) if enabled else Color(0.8, 0.8, 0.8)
 
 func _on_auto_new_run_changed(enabled: bool):
 	if auto_run_btn:
-		auto_run_btn.text = "🔁 Oto-Run: " + ("Açık" if enabled else "Kapalı")
+		auto_run_btn.text = "Oto-Run · " + ("Açık" if enabled else "Kapalı")
 		auto_run_btn.modulate = Color(0.4, 1.0, 0.5) if enabled else Color(0.8, 0.8, 0.8)
 
 func update_mistakes_button_text():
 	if mistakes_btn:
 		var count = StatsManager.mistake_words.size()
-		mistakes_btn.text = "📖 Hatalar (" + str(count) + ")"
+		mistakes_btn.text = "Hatalar · " + str(count)
 
 func open_mistakes_modal():
 	mistakes_modal.show()

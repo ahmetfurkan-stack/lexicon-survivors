@@ -131,7 +131,9 @@ func _ready():
 	weapons_tab_btn.icon = load("res://assets/ui/icons/weapons.svg")
 	gadgets_tab_btn.icon = load("res://assets/ui/icons/gadget.svg")
 	artifacts_tab_btn.icon = load("res://assets/ui/icons/artifact.svg")
+	mistakes_tab_btn.icon = load("res://assets/ui/icons/corrections.svg")
 	reroll_button.icon = load("res://assets/ui/icons/reroll.svg")
+	next_wave_button.icon = load("res://assets/ui/icons/next_wave.svg")
 	StatsManager.ink_changed.connect(_on_ink_changed)
 	StatsManager.synergy_activated.connect(_on_synergy_activated)
 	StatsManager.mistakes_updated.connect(update_mistakes_tab_title)
@@ -143,17 +145,17 @@ func _process(delta: float):
 	if StatsManager.auto_new_tur and not auto_tur_paused and not quiz_modal.visible and current_tab == "cards":
 		auto_tur_timer -= delta
 		if next_wave_button:
-			next_wave_button.text = "⚔ Sonraki Dalga (" + str(int(ceil(max(0.0, auto_tur_timer)))) + "s) ▶"
+			next_wave_button.text = "Sonraki Dalga (" + str(int(ceil(max(0.0, auto_tur_timer)))) + "s)"
 		if auto_tur_timer <= 0:
 			_on_next_wave_button_pressed()
 	else:
 		if next_wave_button:
-			next_wave_button.text = "⚔ Sonraki Dalgaya Başla ▶"
+			next_wave_button.text = "Sonraki Dalgaya Başla"
 
 func update_mistakes_tab_title():
 	if mistakes_tab_btn:
 		var count = StatsManager.mistake_words.size()
-		mistakes_tab_btn.text = "📖 Hata Defteri (" + str(count) + ")"
+		mistakes_tab_btn.text = "Hata Defteri · " + str(count)
 
 func open_shop():
 	show()

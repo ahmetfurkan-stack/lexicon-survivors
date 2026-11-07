@@ -17,6 +17,9 @@ var intro_overlay: ColorRect
 var intro_content: VBoxContainer
 var intro_active: bool = false
 var intro_seen_path: String = "user://archive_intro_seen.cfg"
+var skills_button: Button
+var skills_overlay: Control
+var skills_content: VBoxContainer
 
 const DIFFICULTY_DESCRIPTIONS = {
 	"easy": "Düşmanlar daha yavaş ve daha az dayanıklıdır. Başlangıç canı +40 HP.",
@@ -34,8 +37,230 @@ func _ready():
 	
 	build_character_cards()
 	_build_music_selector()
+	_build_skills_button()
+	StatsManager.character_progress_changed.connect(_on_character_progress_changed)
 	set_difficulty("normal")
 	start_intro()
+
+func _build_skills_button() -> void:
+	var vbox := get_node("Panel/VBox") as VBoxContainer
+	skills_button = Button.new()
+	skills_button.name = "SkillsButton"
+	skills_button.text = "KARAKTER YETENEKLERİ  ·  L1"
+	skills_button.custom_minimum_size = Vector2(0, 44)
+	skills_button.focus_mode = Control.FOCUS_ALL
+	skills_button.pressed.connect(open_skills_panel)
+	_style_difficulty_button(skills_button, false)
+	var start_index := vbox.get_children().find(start_button)
+	vbox.add_child(skills_button)
+	if start_index >= 0:
+		vbox.move_child(skills_button, start_index)
+	_refresh_skills_button()
+
+func _refresh_skills_button() -> void:
+	if not is_instance_valid(skills_button):
+		return
+	var progress := StatsManager.get_character_progress(selected_char)
+	skills_button.text = "KARAKTER YETENEKLERİ  ·  L%d  ·  %d PUAN" % [int(progress.get("level", 1)), int(progress.get("skill_points", 0))]
+
+func _on_character_progress_changed(char_id: String) -> void:
+	if char_id == selected_char:
+		_refresh_skills_button()
+		if is_instance_valid(skills_overlay) and skills_overlay.visible:
+			_refresh_skill_panel()
+
+func open_skills_panel() -> void:
+	if not is_instance_valid(skills_overlay):
+		_build_skills_panel()
+	_refresh_skill_panel()
+	skills_overlay.visible = true
+	var close_button := skills_overlay.get_node_or_null("SkillsPanel/SkillsVBox/SkillsCloseButton") as Button
+	if close_button:
+		close_button.grab_focus()
+	get_viewport().set_input_as_handled()
+
+func close_skills_panel() -> void:
+	if is_instance_valid(skills_overlay):
+		skills_overlay.visible = false
+		if is_instance_valid(skills_button):
+			skills_button.grab_focus()
+
+func _unhandled_key_input(event: InputEvent) -> void:
+	if is_instance_valid(skills_overlay) and skills_overlay.visible and event is InputEventKey and event.pressed and not event.echo and event.keycode == KEY_ESCAPE:
+		close_skills_panel()
+		get_viewport().set_input_as_handled()
+
+func _build_skills_panel() -> void:
+	skills_overlay = Control.new()
+	skills_overlay.name = "CharacterSkillsOverlay"
+	skills_overlay.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	skills_overlay.z_index = 50
+	skills_overlay.mouse_filter = Control.MOUSE_FILTER_STOP
+	add_child(skills_overlay)
+	var shade := ColorRect.new()
+	shade.color = Color(0.025, 0.04, 0.035, 0.94)
+	shade.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	shade.mouse_filter = Control.MOUSE_FILTER_STOP
+	skills_overlay.add_child(shade)
+	var panel := PanelContainer.new()
+	panel.name = "SkillsPanel"
+	panel.anchor_left = 0.04
+	panel.anchor_top = 0.035
+	panel.anchor_right = 0.96
+	panel.anchor_bottom = 0.965
+	panel.add_theme_stylebox_override("panel", _card_style(Color("#17211c"), Color("#b7a36b")))
+	skills_overlay.add_child(panel)
+	var outer := VBoxContainer.new()
+	outer.name = "SkillsVBox"
+	outer.add_theme_constant_override("separation", 10)
+	panel.add_child(outer)
+	var header := HBoxContainer.new()
+	header.add_theme_constant_override("separation", 12)
+	outer.add_child(header)
+	var title := Label.new()
+	title.text = "KAHRAMANIN YOLU"
+	title.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	title.add_theme_font_size_override("font_size", 22)
+	title.add_theme_color_override("font_color", Color("#f1e8d4"))
+	header.add_child(title)
+	var close_button := Button.new()
+	close_button.name = "SkillsCloseButton"
+	close_button.text = "KAPAT  ·  ESC"
+	close_button.custom_minimum_size = Vector2(150, 42)
+	close_button.focus_mode = Control.FOCUS_ALL
+	close_button.pressed.connect(close_skills_panel)
+	_style_difficulty_button(close_button, false)
+	header.add_child(close_button)
+	var status := Label.new()
+	status.name = "SkillProgressStatus"
+	status.add_theme_font_size_override("font_size", 15)
+	status.add_theme_color_override("font_color", Color("#d8c28b"))
+	outer.add_child(status)
+	var hint := Label.new()
+	hint.text = "Dalgaları oynayarak XP kazan. Seviye atladığında bir puan al; bir dalda ilerlemek için önceki beceriyi aç."
+	hint.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	hint.add_theme_font_size_override("font_size", 12)
+	hint.add_theme_color_override("font_color", Color("#aeb9aa"))
+	outer.add_child(hint)
+	var scroll := ScrollContainer.new()
+	scroll.name = "SkillScroll"
+	scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	scroll.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_AUTO
+	scroll.vertical_scroll_mode = ScrollContainer.SCROLL_MODE_AUTO
+	outer.add_child(scroll)
+	skills_content = VBoxContainer.new()
+	skills_content.add_theme_constant_override("separation", 10)
+	skills_content.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	scroll.add_child(skills_content)
+	var footer := Label.new()
+	footer.text = "Klavye / kumanda: odaklanmak için TAB veya yön tuşları, seçmek için ENTER."
+	footer.add_theme_font_size_override("font_size", 11)
+	footer.add_theme_color_override("font_color", Color("#8d9c8e"))
+	outer.add_child(footer)
+	skills_overlay.visible = false
+
+func _refresh_skill_panel() -> void:
+	if not is_instance_valid(skills_content):
+		return
+	for child in skills_content.get_children():
+		child.queue_free()
+	var progress := StatsManager.get_character_progress(selected_char)
+	var required := StatsManager.get_xp_required_for_next_level(int(progress.get("level", 1)))
+	var xp_text := "TAVAN" if int(progress.get("level", 1)) >= int(StatsManager.skill_tree_catalog.get("max_character_level", 18)) else "%d / %d XP" % [int(progress.get("xp", 0)), required]
+	var status := skills_overlay.get_node_or_null("SkillsPanel/SkillsVBox/SkillProgressStatus")
+	if status is Label:
+		status.text = "%s  ·  SEVİYE %d  ·  %s  ·  HARCANMAMIŞ PUAN: %d" % [StatsManager.characters.get(selected_char, {}).get("name", selected_char), int(progress.get("level", 1)), xp_text, int(progress.get("skill_points", 0))]
+	var char_tree: Dictionary = StatsManager.skill_tree_catalog.get("characters", {}).get(selected_char, {})
+	var unlocked: Array = progress.get("unlocked_skills", [])
+	for branch in char_tree.get("branches", []):
+		var branch_panel := PanelContainer.new()
+		branch_panel.add_theme_stylebox_override("panel", _card_style(Color("#202a24"), Color("#605d46")))
+		skills_content.add_child(branch_panel)
+		var branch_box := VBoxContainer.new()
+		branch_box.add_theme_constant_override("separation", 7)
+		branch_panel.add_child(branch_box)
+		var branch_title := Label.new()
+		branch_title.text = str(branch.get("name_tr", "Yetenek Dalı"))
+		branch_title.add_theme_font_size_override("font_size", 16)
+		branch_title.add_theme_color_override("font_color", Color("#e7d39b"))
+		branch_box.add_child(branch_title)
+		var branch_desc := Label.new()
+		branch_desc.text = str(branch.get("description_tr", ""))
+		branch_desc.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		branch_desc.add_theme_font_size_override("font_size", 11)
+		branch_desc.add_theme_color_override("font_color", Color("#b8c0b1"))
+		branch_box.add_child(branch_desc)
+		for node in branch.get("nodes", []):
+			var node_id := str(node.get("id", ""))
+			var learned := unlocked.has(node_id)
+			var eligible := StatsManager.can_unlock_character_skill(selected_char, node_id)
+			var node_box := HBoxContainer.new()
+			node_box.add_theme_constant_override("separation", 9)
+			branch_box.add_child(node_box)
+			var detail := VBoxContainer.new()
+			detail.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+			detail.add_theme_constant_override("separation", 2)
+			node_box.add_child(detail)
+			var node_title := Label.new()
+			node_title.text = ("✓  " if learned else "◇  ") + str(node.get("name_tr", node_id))
+			node_title.add_theme_font_size_override("font_size", 12)
+			node_title.add_theme_color_override("font_color", Color("#c9d8bc") if learned else Color("#eee9dc"))
+			detail.add_child(node_title)
+			var effects_line := _skill_effect_summary(node.get("effects", {}))
+			var req_line := "Seviye %d  ·  %d puan" % [int(node.get("required_level", 1)), int(node.get("point_cost", 1))]
+			var prereqs: Array = node.get("prerequisites", [])
+			if not prereqs.is_empty():
+				req_line += "  ·  Önce: " + _skill_prerequisite_names(char_tree, prereqs)
+			var node_desc := Label.new()
+			node_desc.text = "%s\n%s\n%s" % [str(node.get("description_tr", "")), effects_line, req_line]
+			node_desc.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+			node_desc.add_theme_font_size_override("font_size", 10)
+			node_desc.add_theme_color_override("font_color", Color("#aab5a8"))
+			detail.add_child(node_desc)
+			var unlock_button := Button.new()
+			unlock_button.custom_minimum_size = Vector2(116, 48)
+			unlock_button.focus_mode = Control.FOCUS_ALL
+			if learned:
+				unlock_button.text = "AÇILDI"
+				unlock_button.disabled = true
+			elif eligible:
+				unlock_button.text = "ÖĞREN\nENTER"
+			else:
+				unlock_button.text = "KİLİTLİ\nLv.%d" % int(node.get("required_level", 1))
+				unlock_button.disabled = true
+			_style_difficulty_button(unlock_button, eligible)
+			var captured_char := selected_char
+			var captured_node := node_id
+			unlock_button.pressed.connect(func():
+				if StatsManager.unlock_character_skill(captured_char, captured_node):
+					_refresh_skill_panel()
+			)
+			node_box.add_child(unlock_button)
+
+func _skill_prerequisite_names(char_tree: Dictionary, prerequisites: Array) -> String:
+	var labels: Array[String] = []
+	for branch in char_tree.get("branches", []):
+		for node in branch.get("nodes", []):
+			if prerequisites.has(node.get("id", "")):
+				labels.append(str(node.get("name_tr", node.get("id", ""))))
+	return ", ".join(labels)
+
+func _skill_effect_summary(effects: Dictionary) -> String:
+	var labels: Array[String] = []
+	for key in effects:
+		var value := float(effects[key])
+		match str(key):
+			"damage": labels.append("+%d%% hasar" % roundi(value * 100.0))
+			"attack_speed": labels.append("+%d%% saldırı hızı" % roundi(value * 100.0))
+			"armor": labels.append("+%d%% zırh" % roundi(value * 100.0))
+			"move_speed": labels.append("+%d hareket hızı" % roundi(value))
+			"max_hp": labels.append("+%d maksimum can" % roundi(value))
+			"crit_chance": labels.append("+%d%% kritik şansı" % roundi(value * 100.0))
+			"projectile_count": labels.append("+%d mermi" % roundi(value))
+			"pierce": labels.append("+%d delme" % roundi(value))
+			"pickup_radius": labels.append("+%d toplama menzili" % roundi(value))
+	return " · ".join(labels)
 
 func _build_music_selector() -> void:
 	var row := HBoxContainer.new()
@@ -347,6 +572,7 @@ func select_character(char_id: String):
 	selected_char = char_id
 	StatsManager.select_character(char_id)
 	update_character_selection_ui()
+	_refresh_skills_button()
 
 func update_character_selection_ui():
 	var children = char_cards_container.get_children()

@@ -10,10 +10,12 @@ assert.doesNotMatch(source, /Rare Wave 20\+ Mini-Boss|MINI-BOSS/, "non-milestone
 assert.match(source, /if \(state\.milestone_boss_delay === 0\) spawnMilestoneBoss\(state\.current_wave\);/, "milestone waves spawn their boss after the reveal delay");
 assert.match(source, /const \[type, sprite, name, color, skill\] = MILESTONE_BOSS_ROSTER/, "bosses define distinct visual identity and skill archetype");
 assert.match(source, /if \(e\.is_boss && state\.current_wave % 5 === 0\) milestoneBossDefeated = true;/, "defeating the milestone boss completes the wave");
-assert.match(source, /if \(milestoneBossDefeated && state\.is_wave_active\) endWave\(\);/, "boss defeat immediately enters the existing intermission flow");
-assert.match(source, /const unresolved = \[\.\.\.\(state\.mistake_words \|\| \[\]\)\]/, "boss encounters collect the accumulated mistake notebook");
-assert.match(source, /\.slice\(0, 4\)/, "each boss fight caps mistake echoes to four readable adds");
-assert.match(source, /is_mistake_echo: true, memory_word: memoryWord/, "echoes visibly name the vocabulary the player missed");
+assert.match(source, /if \(milestoneBossDefeated\) state\.boss_defeated = true;/, "boss defeat is tracked separately from clearing accumulated word echoes");
+assert.match(source, /if \(state\.boss_defeated && !livingBoss && !livingEcho && state\.boss_mistake_queue\.length === 0\) endWave\(\);/, "the existing intermission starts after the boss and all queued echoes are cleared");
+assert.match(source, /state\.boss_mistake_queue = \[\.\.\.\(state\.mistake_words \|\| \[\]\)\]/, "boss encounters collect the full accumulated mistake notebook");
+assert.match(source, /const BOSS_ECHO_ACTIVE_CAP = 3;/, "each boss fight keeps echo pressure readable with at most three active word enemies");
+assert.doesNotMatch(source, /boss_mistake_queue[\s\S]{0,240}\.slice\(0, 4\)/, "the accumulated word queue is not truncated to an arbitrary four entries");
+assert.ok(source.includes("is_mistake_echo: true") && source.includes("memory_word: memoryWord"), "echoes visibly name the vocabulary the player missed");
 assert.match(source, /if \(state\.current_wave % 5 !== 0\) \{\s*spawnTimer -= dt;/, "echoes do not enable regular horde spawning on boss waves");
 assert.match(source, /boss\.boss_phase < 2/);
 assert.match(source, /boss\.boss_phase < 3/);
@@ -22,4 +24,4 @@ for (const skill of ["judgment", "quake", "nova", "fan", "orbit", "charge", "mir
   assert.match(source, new RegExp(`\\b${skill}:`), `${skill} has a readable boss tell`);
 }
 
-console.log("Boss encounter regressions passed (single-boss 5-wave duels, 20 roster entries, phases, telegraphs, immediate story handoff).");
+console.log("Boss encounter regressions passed (single-boss 5-wave duels, full mistake queue, capped active echoes, phases, telegraphs, story handoff).");

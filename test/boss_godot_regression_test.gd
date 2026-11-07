@@ -2,6 +2,7 @@ extends Node
 
 const WaveManagerScript = preload("res://scripts/wave_manager.gd")
 const EnemyScene: PackedScene = preload("res://scenes/enemy.tscn")
+const PlayerScene: PackedScene = preload("res://scenes/player.tscn")
 
 func _ready() -> void:
 	call_deferred("_run")
@@ -15,9 +16,8 @@ func _run() -> void:
 	arena.name = "BossRegressionArena"
 	get_tree().root.add_child(arena)
 	get_tree().current_scene = arena
-	var player := CharacterBody2D.new()
+	var player = PlayerScene.instantiate()
 	player.name = "RegressionPlayer"
-	player.add_to_group("player")
 	arena.add_child(player)
 	var manager = WaveManagerScript.new()
 	manager.enemy_scene = EnemyScene
@@ -98,7 +98,11 @@ func _run() -> void:
 	stats.mistake_words = [
 		{"word":"Meticulous", "fail_count":3},
 		{"word":"Feasible", "fail_count":1},
-		{"word":"Corroborate", "fail_count":2}
+		{"word":"Corroborate", "fail_count":2},
+		{"word":"Nuance", "fail_count":1},
+		{"word":"Resilient", "fail_count":4},
+		{"word":"Convey", "fail_count":2},
+		{"word":"Subtle", "fail_count":1}
 	]
 	stats.current_wave = 10
 	manager.start_wave()
@@ -109,11 +113,27 @@ func _run() -> void:
 	for enemy in Enemy.get_active_enemies():
 		if enemy.is_mistake_echo:
 			echo_words.append(enemy.mistake_echo_word)
-	assert(echo_words.size() == 3 and "Meticulous" in echo_words and "Feasible" in echo_words and "Corroborate" in echo_words, "Each unresolved word should be visibly represented by an echo")
-	assert(manager._active_enemy_count() <= 5, "Echo count must stay bounded to keep the duel readable")
-	for enemy in Enemy.get_active_enemies(): enemy.despawn_without_rewards()
+	assert(echo_words.size() == 3 and "Meticulous" in echo_words and "Resilient" in echo_words and "Corroborate" in echo_words, "The highest-failure unresolved words should be represented first as named echoes")
+	assert(manager.mistake_echo_queue.size() == 4 and manager._active_enemy_count() <= 4, "All seven words should be queued while at most three echo enemies stay active")
+	manager.milestone_boss.despawn_without_rewards()
 	await get_tree().process_frame
 	manager._process(0.016)
+	assert(manager.is_wave_active and manager._active_mistake_echo_count() == 3 and manager.mistake_echo_queue.size() == 4, "Defeating the boss must not end the wave while word echoes remain")
+	for batch_index in range(2):
+		for enemy in Enemy.get_active_enemies():
+			if enemy.is_mistake_echo: enemy.despawn_without_rewards()
+		await get_tree().process_frame
+		manager._process(0.016)
+		if batch_index == 0:
+			assert(manager._active_mistake_echo_count() == 3 and manager.mistake_echo_queue.size() == 1, "The second trio should spawn after the first is cleared")
+		elif batch_index == 1:
+			assert(manager._active_mistake_echo_count() == 1 and manager.mistake_echo_queue.is_empty(), "The final queued word should spawn on its own")
+	assert(manager.is_wave_active and manager._active_mistake_echo_count() == 1, "The last word should still hold the milestone handoff")
+	for enemy in Enemy.get_active_enemies():
+		if enemy.is_mistake_echo: enemy.despawn_without_rewards()
+	await get_tree().process_frame
+	manager._process(0.016)
+	assert(not manager.is_wave_active, "The wave should end after every queued word echo has been cleared")
 	stats.mistake_words = []
 
 	# The dragon is reserved for its authored milestone rather than appearing as
