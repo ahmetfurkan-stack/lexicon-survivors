@@ -1,0 +1,51 @@
+# Alchemist story art drafts
+
+47 distinct high-resolution PNG scene drafts are currently saved. Each file is awaiting human review and is not approved for runtime use.
+
+- [story_lexicon_alchemist_wave_055_panel_01.png](story_lexicon_alchemist_wave_055_panel_01.png) — wave 55, panel 1/5, boss_palindrome_phantom
+- [story_lexicon_alchemist_wave_055_panel_02.png](story_lexicon_alchemist_wave_055_panel_02.png) — wave 55, panel 2/5, lexicon_alchemist
+- [story_lexicon_alchemist_wave_055_panel_03.png](story_lexicon_alchemist_wave_055_panel_03.png) — wave 55, panel 3/5, neris
+- [story_lexicon_alchemist_wave_055_panel_04.png](story_lexicon_alchemist_wave_055_panel_04.png) — wave 55, panel 4/5, lio_echo
+- [story_lexicon_alchemist_wave_055_panel_05.png](story_lexicon_alchemist_wave_055_panel_05.png) — wave 55, panel 5/5, lexicon_alchemist
+- [story_lexicon_alchemist_wave_060_panel_01.png](story_lexicon_alchemist_wave_060_panel_01.png) — wave 60, panel 1/5, boss_tautology_twin
+- [story_lexicon_alchemist_wave_060_panel_02.png](story_lexicon_alchemist_wave_060_panel_02.png) — wave 60, panel 2/5, neris
+- [story_lexicon_alchemist_wave_060_panel_03.png](story_lexicon_alchemist_wave_060_panel_03.png) — wave 60, panel 3/5, tavi
+- [story_lexicon_alchemist_wave_060_panel_04.png](story_lexicon_alchemist_wave_060_panel_04.png) — wave 60, panel 4/5, lio_echo
+- [story_lexicon_alchemist_wave_060_panel_05.png](story_lexicon_alchemist_wave_060_panel_05.png) — wave 60, panel 5/5, lexicon_alchemist
+- [story_lexicon_alchemist_wave_065_panel_01.png](story_lexicon_alchemist_wave_065_panel_01.png) — wave 65, panel 1/5, boss_dangling_modifier
+- [story_lexicon_alchemist_wave_065_panel_02.png](story_lexicon_alchemist_wave_065_panel_02.png) — wave 65, panel 2/5, lexicon_alchemist
+- [story_lexicon_alchemist_wave_065_panel_03.png](story_lexicon_alchemist_wave_065_panel_03.png) — wave 65, panel 3/5, lio_echo
+- [story_lexicon_alchemist_wave_065_panel_04.png](story_lexicon_alchemist_wave_065_panel_04.png) — wave 65, panel 4/5, neris
+- [story_lexicon_alchemist_wave_065_panel_05.png](story_lexicon_alchemist_wave_065_panel_05.png) — wave 65, panel 5/5, lexicon_alchemist
+- [story_lexicon_alchemist_wave_070_panel_01.png](story_lexicon_alchemist_wave_070_panel_01.png) — wave 70, panel 1/5, boss_spelling_spectre
+- [story_lexicon_alchemist_wave_070_panel_02.png](story_lexicon_alchemist_wave_070_panel_02.png) — wave 70, panel 2/5, lexicon_alchemist
+- [story_lexicon_alchemist_wave_070_panel_03.png](story_lexicon_alchemist_wave_070_panel_03.png) — wave 70, panel 3/5, neris
+- [story_lexicon_alchemist_wave_070_panel_04.png](story_lexicon_alchemist_wave_070_panel_04.png) — wave 70, panel 4/5, lio_echo
+- [story_lexicon_alchemist_wave_070_panel_05.png](story_lexicon_alchemist_wave_070_panel_05.png) — wave 70, panel 5/5, lexicon_alchemist
+- [story_lexicon_alchemist_wave_075_panel_01.png](story_lexicon_alchemist_wave_075_panel_01.png) — wave 75, panel 1/5, boss_idiom_imp
+- [story_lexicon_alchemist_wave_075_panel_02.png](story_lexicon_alchemist_wave_075_panel_02.png) — wave 75, panel 2/5, lexicon_alchemist
+- [story_lexicon_alchemist_wave_075_panel_03.png](story_lexicon_alchemist_wave_075_panel_03.png) — wave 75, panel 3/5, neris
+- [story_lexicon_alchemist_wave_075_panel_04.png](story_lexicon_alchemist_wave_075_panel_04.png) — wave 75, panel 4/5, echo_name_eater
+- [story_lexicon_alchemist_wave_075_panel_05.png](story_lexicon_alchemist_wave_075_panel_05.png) — wave 75, panel 5/5, lexicon_alchemist
+- [story_lexicon_alchemist_wave_080_panel_01.png](story_lexicon_alchemist_wave_080_panel_01.png) — wave 80, panel 1/5, boss_red_pen_boss
+- [story_lexicon_alchemist_wave_080_panel_02.png](story_lexicon_alchemist_wave_080_panel_02.png) — wave 80, panel 2/5, lexicon_alchemist
+- [story_lexicon_alchemist_wave_080_panel_03.png](story_lexicon_alchemist_wave_080_panel_03.png) — wave 80, panel 3/5, neris
+- [story_lexicon_alchemist_wave_080_panel_04.png](story_lexicon_alchemist_wave_080_panel_04.png) — wave 80, panel 4/5, tavi
+- [story_lexicon_alchemist_wave_080_panel_05.png](story_lexicon_alchemist_wave_080_panel_05.png) — wave 80, panel 5/5, lexicon_alchemist
+- [story_lexicon_alchemist_wave_085_panel_01.png](story_lexicon_alchemist_wave_085_panel_01.png) — wave 85, panel 1/5, boss_oxymoron_ogre
+- [story_lexicon_alchemist_wave_085_panel_02.png](story_lexicon_alchemist_wave_085_panel_02.png) — wave 85, panel 2/5, lexicon_alchemist
+- [story_lexicon_alchemist_wave_085_panel_03.png](story_lexicon_alchemist_wave_085_panel_03.png) — wave 85, panel 3/5, neris
+- [story_lexicon_alchemist_wave_085_panel_04.png](story_lexicon_alchemist_wave_085_panel_04.png) — wave 85, panel 4/5, blank_page
+- [story_lexicon_alchemist_wave_085_panel_05.png](story_lexicon_alchemist_wave_085_panel_05.png) — wave 85, panel 5/5, lexicon_alchemist
+- [story_lexicon_alchemist_wave_090_panel_01.png](story_lexicon_alchemist_wave_090_panel_01.png) — wave 90, panel 1/5, boss_malapropism_mimic
+- [story_lexicon_alchemist_wave_090_panel_02.png](story_lexicon_alchemist_wave_090_panel_02.png) — wave 90, panel 2/5, tavi
+- [story_lexicon_alchemist_wave_090_panel_03.png](story_lexicon_alchemist_wave_090_panel_03.png) — wave 90, panel 3/5, neris
+- [story_lexicon_alchemist_wave_090_panel_04.png](story_lexicon_alchemist_wave_090_panel_04.png) — wave 90, panel 4/5, lio_echo
+- [story_lexicon_alchemist_wave_090_panel_05.png](story_lexicon_alchemist_wave_090_panel_05.png) — wave 90, panel 5/5, lexicon_alchemist
+- [story_lexicon_alchemist_wave_095_panel_01.png](story_lexicon_alchemist_wave_095_panel_01.png) — wave 95, panel 1/5, boss_vocabulary_void
+- [story_lexicon_alchemist_wave_095_panel_02.png](story_lexicon_alchemist_wave_095_panel_02.png) — wave 95, panel 2/5, lio_echo
+- [story_lexicon_alchemist_wave_095_panel_03.png](story_lexicon_alchemist_wave_095_panel_03.png) — wave 95, panel 3/5, neris
+- [story_lexicon_alchemist_wave_095_panel_04.png](story_lexicon_alchemist_wave_095_panel_04.png) — wave 95, panel 4/5, lio_echo
+- [story_lexicon_alchemist_wave_095_panel_05.png](story_lexicon_alchemist_wave_095_panel_05.png) — wave 95, panel 5/5, lexicon_alchemist
+- [story_lexicon_alchemist_wave_100_panel_01.png](story_lexicon_alchemist_wave_100_panel_01.png) — wave 100, panel 1/5, boss_lexicon_dragon_boss
+- [story_lexicon_alchemist_wave_100_panel_02.png](story_lexicon_alchemist_wave_100_panel_02.png) — wave 100, panel 2/5, lexicon_alchemist

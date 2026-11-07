@@ -1,0 +1,56 @@
+# Quillmaster story art drafts
+
+52 distinct high-resolution PNG scene drafts are currently saved. Each file is awaiting human review and is not approved for runtime use.
+
+- [story_quillmaster_wave_005_panel_01.png](story_quillmaster_wave_005_panel_01.png) — wave 5, panel 1/5, boss_red_pen_boss
+- [story_quillmaster_wave_005_panel_02.png](story_quillmaster_wave_005_panel_02.png) — wave 5, panel 2/5, hero
+- [story_quillmaster_wave_005_panel_03.png](story_quillmaster_wave_005_panel_03.png) — wave 5, panel 3/5, neris
+- [story_quillmaster_wave_055_panel_01.png](story_quillmaster_wave_055_panel_01.png) — wave 55, panel 1/5, boss_palindrome_phantom
+- [story_quillmaster_wave_055_panel_02.png](story_quillmaster_wave_055_panel_02.png) — wave 55, panel 2/5, hero
+- [story_quillmaster_wave_055_panel_03.png](story_quillmaster_wave_055_panel_03.png) — wave 55, panel 3/5, neris
+- [story_quillmaster_wave_055_panel_04.png](story_quillmaster_wave_055_panel_04.png) — wave 55, panel 4/5, sera
+- [story_quillmaster_wave_055_panel_05.png](story_quillmaster_wave_055_panel_05.png) — wave 55, panel 5/5, hero
+- [story_quillmaster_wave_060_panel_01.png](story_quillmaster_wave_060_panel_01.png) — wave 60, panel 1/5, boss_tautology_twin
+- [story_quillmaster_wave_060_panel_02.png](story_quillmaster_wave_060_panel_02.png) — wave 60, panel 2/5, hero
+- [story_quillmaster_wave_060_panel_03.png](story_quillmaster_wave_060_panel_03.png) — wave 60, panel 3/5, neris
+- [story_quillmaster_wave_060_panel_04.png](story_quillmaster_wave_060_panel_04.png) — wave 60, panel 4/5, shadow_double
+- [story_quillmaster_wave_060_panel_05.png](story_quillmaster_wave_060_panel_05.png) — wave 60, panel 5/5, hero
+- [story_quillmaster_wave_065_panel_01.png](story_quillmaster_wave_065_panel_01.png) — wave 65, panel 1/5, boss_dangling_modifier
+- [story_quillmaster_wave_065_panel_02.png](story_quillmaster_wave_065_panel_02.png) — wave 65, panel 2/5, hero
+- [story_quillmaster_wave_065_panel_03.png](story_quillmaster_wave_065_panel_03.png) — wave 65, panel 3/5, neris
+- [story_quillmaster_wave_065_panel_04.png](story_quillmaster_wave_065_panel_04.png) — wave 65, panel 4/5, whisper
+- [story_quillmaster_wave_065_panel_05.png](story_quillmaster_wave_065_panel_05.png) — wave 65, panel 5/5, hero
+- [story_quillmaster_wave_070_panel_01.png](story_quillmaster_wave_070_panel_01.png) — wave 70, panel 1/5, boss_spelling_spectre
+- [story_quillmaster_wave_070_panel_02.png](story_quillmaster_wave_070_panel_02.png) — wave 70, panel 2/5, hero
+- [story_quillmaster_wave_070_panel_03.png](story_quillmaster_wave_070_panel_03.png) — wave 70, panel 3/5, neris
+- [story_quillmaster_wave_070_panel_04.png](story_quillmaster_wave_070_panel_04.png) — wave 70, panel 4/5, whisper
+- [story_quillmaster_wave_070_panel_05.png](story_quillmaster_wave_070_panel_05.png) — wave 70, panel 5/5, hero
+- [story_quillmaster_wave_075_panel_01.png](story_quillmaster_wave_075_panel_01.png) — wave 75, panel 1/5, boss_idiom_imp
+- [story_quillmaster_wave_075_panel_02.png](story_quillmaster_wave_075_panel_02.png) — wave 75, panel 2/5, hero
+- [story_quillmaster_wave_075_panel_03.png](story_quillmaster_wave_075_panel_03.png) — wave 75, panel 3/5, neris
+- [story_quillmaster_wave_075_panel_04.png](story_quillmaster_wave_075_panel_04.png) — wave 75, panel 4/5, echo_unsealed_judge
+- [story_quillmaster_wave_075_panel_05.png](story_quillmaster_wave_075_panel_05.png) — wave 75, panel 5/5, hero
+- [story_quillmaster_wave_080_panel_01.png](story_quillmaster_wave_080_panel_01.png) — wave 80, panel 1/5, boss_red_pen_boss
+- [story_quillmaster_wave_080_panel_02.png](story_quillmaster_wave_080_panel_02.png) — wave 80, panel 2/5, hero
+- [story_quillmaster_wave_080_panel_03.png](story_quillmaster_wave_080_panel_03.png) — wave 80, panel 3/5, sera
+- [story_quillmaster_wave_080_panel_04.png](story_quillmaster_wave_080_panel_04.png) — wave 80, panel 4/5, neris
+- [story_quillmaster_wave_080_panel_05.png](story_quillmaster_wave_080_panel_05.png) — wave 80, panel 5/5, hero
+- [story_quillmaster_wave_085_panel_01.png](story_quillmaster_wave_085_panel_01.png) — wave 85, panel 1/5, boss_oxymoron_ogre
+- [story_quillmaster_wave_085_panel_02.png](story_quillmaster_wave_085_panel_02.png) — wave 85, panel 2/5, hero
+- [story_quillmaster_wave_085_panel_03.png](story_quillmaster_wave_085_panel_03.png) — wave 85, panel 3/5, neris
+- [story_quillmaster_wave_085_panel_04.png](story_quillmaster_wave_085_panel_04.png) — wave 85, panel 4/5, whisper
+- [story_quillmaster_wave_085_panel_05.png](story_quillmaster_wave_085_panel_05.png) — wave 85, panel 5/5, hero
+- [story_quillmaster_wave_090_panel_01.png](story_quillmaster_wave_090_panel_01.png) — wave 90, panel 1/5, boss_malapropism_mimic
+- [story_quillmaster_wave_090_panel_02.png](story_quillmaster_wave_090_panel_02.png) — wave 90, panel 2/5, hero
+- [story_quillmaster_wave_090_panel_03.png](story_quillmaster_wave_090_panel_03.png) — wave 90, panel 3/5, neris
+- [story_quillmaster_wave_090_panel_04.png](story_quillmaster_wave_090_panel_04.png) — wave 90, panel 4/5, whisper
+- [story_quillmaster_wave_090_panel_05.png](story_quillmaster_wave_090_panel_05.png) — wave 90, panel 5/5, hero
+- [story_quillmaster_wave_095_panel_01.png](story_quillmaster_wave_095_panel_01.png) — wave 95, panel 1/5, boss_vocabulary_void
+- [story_quillmaster_wave_095_panel_02.png](story_quillmaster_wave_095_panel_02.png) — wave 95, panel 2/5, hero
+- [story_quillmaster_wave_095_panel_03.png](story_quillmaster_wave_095_panel_03.png) — wave 95, panel 3/5, neris
+- [story_quillmaster_wave_095_panel_04.png](story_quillmaster_wave_095_panel_04.png) — wave 95, panel 4/5, ada
+- [story_quillmaster_wave_095_panel_05.png](story_quillmaster_wave_095_panel_05.png) — wave 95, panel 5/5, hero
+- [story_quillmaster_wave_100_panel_01.png](story_quillmaster_wave_100_panel_01.png) — wave 100, panel 1/5, boss_lexicon_dragon_boss
+- [story_quillmaster_wave_100_panel_02.png](story_quillmaster_wave_100_panel_02.png) — wave 100, panel 2/5, hero
+- [story_quillmaster_wave_100_panel_03.png](story_quillmaster_wave_100_panel_03.png) — wave 100, panel 3/5, neris
+- [story_quillmaster_wave_100_panel_04.png](story_quillmaster_wave_100_panel_04.png) — wave 100, panel 4/5, blank_page

@@ -1,8 +1,6 @@
-# Inky story art drafts — waves 5–50
+# Inky story art drafts
 
-50 distinct scene panels were generated as high-resolution PNG drafts for the first ten five-wave story episodes. The compositions vary by scene and story beat; these files are review drafts, not runtime assets. All are marked `awaiting_human_review`. The runtime preparation script will reject them until an artist reviews character identity, story beat, pixel edges, UI-safe composition, and text/icon exclusions.
-
-Each file is a separate 1672×941 PNG master draft. Runtime WebP exports remain uncreated until human review and explicit approval.
+100 distinct high-resolution PNG scene drafts are currently saved. Each file is awaiting human review and is not approved for runtime use.
 
 - [story_inky_wave_005_panel_01.png](story_inky_wave_005_panel_01.png) — wave 5, panel 1/5, boss_red_pen_boss
 - [story_inky_wave_005_panel_02.png](story_inky_wave_005_panel_02.png) — wave 5, panel 2/5, hero
@@ -54,3 +52,53 @@ Each file is a separate 1672×941 PNG master draft. Runtime WebP exports remain 
 - [story_inky_wave_050_panel_03.png](story_inky_wave_050_panel_03.png) — wave 50, panel 3/5, neris
 - [story_inky_wave_050_panel_04.png](story_inky_wave_050_panel_04.png) — wave 50, panel 4/5, echo_mirror_copyist
 - [story_inky_wave_050_panel_05.png](story_inky_wave_050_panel_05.png) — wave 50, panel 5/5, hero
+- [story_inky_wave_055_panel_01.png](story_inky_wave_055_panel_01.png) — wave 55, panel 1/5, boss_palindrome_phantom
+- [story_inky_wave_055_panel_02.png](story_inky_wave_055_panel_02.png) — wave 55, panel 2/5, hero
+- [story_inky_wave_055_panel_03.png](story_inky_wave_055_panel_03.png) — wave 55, panel 3/5, neris
+- [story_inky_wave_055_panel_04.png](story_inky_wave_055_panel_04.png) — wave 55, panel 4/5, ink_child
+- [story_inky_wave_055_panel_05.png](story_inky_wave_055_panel_05.png) — wave 55, panel 5/5, hero
+- [story_inky_wave_060_panel_01.png](story_inky_wave_060_panel_01.png) — wave 60, panel 1/5, boss_tautology_twin
+- [story_inky_wave_060_panel_02.png](story_inky_wave_060_panel_02.png) — wave 60, panel 2/5, hero
+- [story_inky_wave_060_panel_03.png](story_inky_wave_060_panel_03.png) — wave 60, panel 3/5, neris
+- [story_inky_wave_060_panel_04.png](story_inky_wave_060_panel_04.png) — wave 60, panel 4/5, whisper
+- [story_inky_wave_060_panel_05.png](story_inky_wave_060_panel_05.png) — wave 60, panel 5/5, hero
+- [story_inky_wave_065_panel_01.png](story_inky_wave_065_panel_01.png) — wave 65, panel 1/5, boss_dangling_modifier
+- [story_inky_wave_065_panel_02.png](story_inky_wave_065_panel_02.png) — wave 65, panel 2/5, hero
+- [story_inky_wave_065_panel_03.png](story_inky_wave_065_panel_03.png) — wave 65, panel 3/5, neris
+- [story_inky_wave_065_panel_04.png](story_inky_wave_065_panel_04.png) — wave 65, panel 4/5, whisper
+- [story_inky_wave_065_panel_05.png](story_inky_wave_065_panel_05.png) — wave 65, panel 5/5, hero
+- [story_inky_wave_070_panel_01.png](story_inky_wave_070_panel_01.png) — wave 70, panel 1/5, boss_spelling_spectre
+- [story_inky_wave_070_panel_02.png](story_inky_wave_070_panel_02.png) — wave 70, panel 2/5, hero
+- [story_inky_wave_070_panel_03.png](story_inky_wave_070_panel_03.png) — wave 70, panel 3/5, neris
+- [story_inky_wave_070_panel_04.png](story_inky_wave_070_panel_04.png) — wave 70, panel 4/5, whisper
+- [story_inky_wave_070_panel_05.png](story_inky_wave_070_panel_05.png) — wave 70, panel 5/5, hero
+- [story_inky_wave_075_panel_01.png](story_inky_wave_075_panel_01.png) — wave 75, panel 1/5, boss_idiom_imp
+- [story_inky_wave_075_panel_02.png](story_inky_wave_075_panel_02.png) — wave 75, panel 2/5, hero
+- [story_inky_wave_075_panel_03.png](story_inky_wave_075_panel_03.png) — wave 75, panel 3/5, neris
+- [story_inky_wave_075_panel_04.png](story_inky_wave_075_panel_04.png) — wave 75, panel 4/5, echo_direction_thief
+- [story_inky_wave_075_panel_05.png](story_inky_wave_075_panel_05.png) — wave 75, panel 5/5, hero
+- [story_inky_wave_080_panel_01.png](story_inky_wave_080_panel_01.png) — wave 80, panel 1/5, boss_red_pen_boss
+- [story_inky_wave_080_panel_02.png](story_inky_wave_080_panel_02.png) — wave 80, panel 2/5, hero
+- [story_inky_wave_080_panel_03.png](story_inky_wave_080_panel_03.png) — wave 80, panel 3/5, yel
+- [story_inky_wave_080_panel_04.png](story_inky_wave_080_panel_04.png) — wave 80, panel 4/5, neris
+- [story_inky_wave_080_panel_05.png](story_inky_wave_080_panel_05.png) — wave 80, panel 5/5, hero
+- [story_inky_wave_085_panel_01.png](story_inky_wave_085_panel_01.png) — wave 85, panel 1/5, boss_oxymoron_ogre
+- [story_inky_wave_085_panel_02.png](story_inky_wave_085_panel_02.png) — wave 85, panel 2/5, hero
+- [story_inky_wave_085_panel_03.png](story_inky_wave_085_panel_03.png) — wave 85, panel 3/5, neris
+- [story_inky_wave_085_panel_04.png](story_inky_wave_085_panel_04.png) — wave 85, panel 4/5, whisper
+- [story_inky_wave_085_panel_05.png](story_inky_wave_085_panel_05.png) — wave 85, panel 5/5, hero
+- [story_inky_wave_090_panel_01.png](story_inky_wave_090_panel_01.png) — wave 90, panel 1/5, boss_malapropism_mimic
+- [story_inky_wave_090_panel_02.png](story_inky_wave_090_panel_02.png) — wave 90, panel 2/5, hero
+- [story_inky_wave_090_panel_03.png](story_inky_wave_090_panel_03.png) — wave 90, panel 3/5, yel
+- [story_inky_wave_090_panel_04.png](story_inky_wave_090_panel_04.png) — wave 90, panel 4/5, neris
+- [story_inky_wave_090_panel_05.png](story_inky_wave_090_panel_05.png) — wave 90, panel 5/5, hero
+- [story_inky_wave_095_panel_01.png](story_inky_wave_095_panel_01.png) — wave 95, panel 1/5, boss_vocabulary_void
+- [story_inky_wave_095_panel_02.png](story_inky_wave_095_panel_02.png) — wave 95, panel 2/5, hero
+- [story_inky_wave_095_panel_03.png](story_inky_wave_095_panel_03.png) — wave 95, panel 3/5, neris
+- [story_inky_wave_095_panel_04.png](story_inky_wave_095_panel_04.png) — wave 95, panel 4/5, mira
+- [story_inky_wave_095_panel_05.png](story_inky_wave_095_panel_05.png) — wave 95, panel 5/5, hero
+- [story_inky_wave_100_panel_01.png](story_inky_wave_100_panel_01.png) — wave 100, panel 1/5, boss_lexicon_dragon_boss
+- [story_inky_wave_100_panel_02.png](story_inky_wave_100_panel_02.png) — wave 100, panel 2/5, hero
+- [story_inky_wave_100_panel_03.png](story_inky_wave_100_panel_03.png) — wave 100, panel 3/5, neris
+- [story_inky_wave_100_panel_04.png](story_inky_wave_100_panel_04.png) — wave 100, panel 4/5, blank_page
+- [story_inky_wave_100_panel_05.png](story_inky_wave_100_panel_05.png) — wave 100, panel 5/5, hero
