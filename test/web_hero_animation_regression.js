@@ -54,13 +54,13 @@
       movingRecovery.base, movingRecovery.upperBody,
       standingRanged.base, standingRanged.upperBody
     ];
-    if (expectedLayers.join(",") !== "run,ranged,run,attack,run,,ranged,") {
-      throw new Error(`Moving attacks must blend action poses over the continuous run cycle. Expected run,ranged,run,attack,run,,ranged,; got ${expectedLayers}`);
+    if (expectedLayers.join(",") !== "run,,run,,run,,ranged,") {
+      throw new Error(`Moving attacks must keep one clean run sprite; stationary attacks use their full action pose. Expected run,,run,,run,,ranged,; got ${expectedLayers}`);
     }
     const animationFrames = [movingRanged.baseFrame, movingRanged.upperBodyFrame,
       movingMelee.baseFrame, movingMelee.upperBodyFrame, movingRecovery.baseFrame, standingRanged.baseFrame];
-    if (animationFrames.join(",") !== "3,0,3,2,3,0") {
-      throw new Error(`The run base must keep its stride while upper-body attacks use their own frames. Expected 3,0,3,2,3,0; got ${animationFrames}`);
+    if (animationFrames.join(",") !== "3,,3,,3,0") {
+      throw new Error(`Moving attacks must not stack a second full-body sprite over the gait. Expected 3,,3,,3,0; got ${animationFrames}`);
     }
 
     const heroAnimationKeys = {
