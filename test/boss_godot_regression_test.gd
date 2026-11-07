@@ -9,6 +9,8 @@ func _ready() -> void:
 func _run() -> void:
 	var stats = get_node("/root/StatsManager")
 	var original_wave: int = stats.current_wave
+	var original_mistakes: Array = stats.mistake_words.duplicate(true)
+	stats.mistake_words.clear()
 	var arena := Node2D.new()
 	arena.name = "BossRegressionArena"
 	get_tree().root.add_child(arena)
@@ -91,6 +93,29 @@ func _run() -> void:
 	manager._process(0.016)
 	assert(not manager.is_wave_active, "Defeating the solo boss must finish the wave")
 
+	# Unresolved vocabulary follows the player into milestone duels as a small,
+	# capped group of named echoes rather than restarting the regular horde.
+	stats.mistake_words = [
+		{"word":"Meticulous", "fail_count":3},
+		{"word":"Feasible", "fail_count":1},
+		{"word":"Corroborate", "fail_count":2}
+	]
+	stats.current_wave = 10
+	manager.start_wave()
+	manager._process(1.1)
+	await get_tree().process_frame
+	assert(manager._active_enemy_count() == 4, "A boss duel should add only the accumulated named mistake echoes")
+	var echo_words: Array[String] = []
+	for enemy in Enemy.get_active_enemies():
+		if enemy.is_mistake_echo:
+			echo_words.append(enemy.mistake_echo_word)
+	assert(echo_words.size() == 3 and "Meticulous" in echo_words and "Feasible" in echo_words and "Corroborate" in echo_words, "Each unresolved word should be visibly represented by an echo")
+	assert(manager._active_enemy_count() <= 5, "Echo count must stay bounded to keep the duel readable")
+	for enemy in Enemy.get_active_enemies(): enemy.despawn_without_rewards()
+	await get_tree().process_frame
+	manager._process(0.016)
+	stats.mistake_words = []
+
 	# The dragon is reserved for its authored milestone rather than appearing as
 	# a random regular-wave enemy.
 	stats.current_wave = 25
@@ -102,5 +127,6 @@ func _run() -> void:
 	await get_tree().process_frame
 	manager._process(0.016)
 	stats.current_wave = original_wave
+	stats.mistake_words = original_mistakes
 	print("Godot boss regression passed (off-cycle guard, solo milestone, boss-death handoff, authored dragon milestone).")
 	get_tree().quit(0)

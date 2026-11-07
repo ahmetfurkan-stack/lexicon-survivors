@@ -687,8 +687,14 @@ func record_mistake(card: Dictionary):
 		return
 	for m in mistake_words:
 		if m.get("word", "") == w:
+			m["fail_count"] = int(m.get("fail_count", 1)) + 1
+			m["last_failed_wave"] = current_wave
+			emit_signal("mistakes_updated")
 			return
-	mistake_words.append(card.duplicate(true))
+	var recorded := card.duplicate(true)
+	recorded["fail_count"] = 1
+	recorded["last_failed_wave"] = current_wave
+	mistake_words.append(recorded)
 	emit_signal("mistakes_updated")
 
 func remove_mistake(word: String):

@@ -25,6 +25,14 @@ for (const [characterId, character] of Object.entries(data.characters)) {
     const episode = character.episodes[index];
     assert.equal(episode.wave, data.episodes[index].wave, `${characterId} scene matches the milestone wave`);
     assert.equal(episode.beats.length, 5, `${characterId} wave ${episode.wave} has five comic panels`);
+    assert.equal(episode.panel_art.length, 5, `${characterId} wave ${episode.wave} resolves art for every comic panel`);
+    for (const panelPath of episode.panel_art) {
+      const sourcePanel = path.join('assets/sprites/story', panelPath);
+      const webPanel = path.join('build/web/assets/sprites/story', panelPath);
+      assert.ok(fs.existsSync(sourcePanel), `${characterId} wave ${episode.wave} panel art exists: ${panelPath}`);
+      assert.ok(fs.existsSync(webPanel), `${characterId} wave ${episode.wave} web art exists: ${panelPath}`);
+      assert.deepEqual(fs.readFileSync(webPanel), fs.readFileSync(sourcePanel), `${panelPath} source/web art must match`);
+    }
     assert.ok(episode.scene && episode.location && episode.title, `${characterId} wave ${episode.wave} has scene art direction`);
     assert.equal(episode.backdrop, `scenes/${characterId}/episode_${String(index + 1).padStart(2, '0')}.png`, `${characterId} wave ${episode.wave} points at its own authored scene`);
     assert.ok(!backdropPaths.has(episode.backdrop), `${characterId} wave ${episode.wave} must not reuse another scene path`);

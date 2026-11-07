@@ -784,26 +784,32 @@ func get_random_cards(wave: int, difficulty: String = "normal", count: int = 4) 
 		var lvl = w.get("level", "A1")
 		match difficulty:
 			"easy":
-				if wave <= 3:
-					if lvl in ["A1", "A2"]: pool.append(w)
-				elif wave <= 6:
+				if wave > 60:
+					if lvl in ["B2", "C1", "C2"]: pool.append(w)
+				elif wave > 40:
+					if lvl in ["B1", "B2", "C1"]: pool.append(w)
+				elif wave > 20:
+					if lvl in ["A2", "B1", "B2"]: pool.append(w)
+				elif wave > 10:
 					if lvl in ["A1", "A2", "B1"]: pool.append(w)
 				else:
-					if lvl in ["A2", "B1"]: pool.append(w)
-			"hard":
-				if wave <= 2:
-					if lvl in ["A2", "B1", "B2"]: pool.append(w)
-				elif wave <= 5:
-					if lvl in ["B1", "B2", "C1"]: pool.append(w)
-				else:
-					if lvl in ["B2", "C1"]: pool.append(w)
-			_: # "normal"
-				if wave <= 3:
 					if lvl in ["A1", "A2"]: pool.append(w)
-				elif wave <= 6:
+			"hard":
+				if wave > 30:
+					if lvl in ["B2", "C1", "C2"]: pool.append(w)
+				elif wave > 12:
+					if lvl in ["B1", "B2", "C1"]: pool.append(w)
+				else:
+					if lvl in ["A2", "B1", "B2"]: pool.append(w)
+			_: # "normal"
+				if wave > 40:
+					if lvl in ["B2", "C1", "C2"]: pool.append(w)
+				elif wave > 24:
+					if lvl in ["B1", "B2", "C1"]: pool.append(w)
+				elif wave > 10:
 					if lvl in ["A2", "B1"]: pool.append(w)
 				else:
-					if lvl in ["B1", "B2", "C1"]: pool.append(w)
+					if lvl in ["A1", "A2"]: pool.append(w)
 
 	# Prioritize unlearned words to keep questions fresh
 	var unlearned = []
@@ -855,25 +861,31 @@ func _ready():
 	load_from_json()
 
 func load_from_json():
-	if FileAccess.file_exists("res://build/web/questions.json"):
-		var f = FileAccess.open("res://build/web/questions.json", FileAccess.READ)
+	var question_path := "res://assets/data/questions.json"
+	if not FileAccess.file_exists(question_path):
+		question_path = "res://build/web/questions.json"
+	if FileAccess.file_exists(question_path):
+		var f = FileAccess.open(question_path, FileAccess.READ)
 		if f:
 			var text = f.get_as_text()
 			f.close()
 			var json = JSON.parse_string(text)
 			if json and json is Array and json.size() > 0:
-				# Keep the authored Godot fallback cards available when the exported web
-				# question file is older or has been curated independently.
-				var fallback_words := words.duplicate(true)
-				var merged_words: Array = json.duplicate(true)
-				var seen_words := {}
-				for card in merged_words:
-					var key := str(card.get("word", "")).strip_edges().to_lower()
-					if not key.is_empty():
-						seen_words[key] = true
-				for card in fallback_words:
-					var key := str(card.get("word", "")).strip_edges().to_lower()
-					if not key.is_empty() and not seen_words.has(key):
-						merged_words.append(card)
-						seen_words[key] = true
-				words = merged_words
+				if json.size() >= 200:
+					# The complete authored campaign bank is the single source for both runtimes.
+					words = json.duplicate(true)
+				else:
+					# Older exported banks can still be supplemented from the embedded fallback.
+					var fallback_words := words.duplicate(true)
+					var merged_words: Array = json.duplicate(true)
+					var seen_words := {}
+					for card in merged_words:
+						var key := str(card.get("word", "")).strip_edges().to_lower()
+						if not key.is_empty():
+							seen_words[key] = true
+					for card in fallback_words:
+						var key := str(card.get("word", "")).strip_edges().to_lower()
+						if not key.is_empty() and not seen_words.has(key):
+							merged_words.append(card)
+							seen_words[key] = true
+					words = merged_words

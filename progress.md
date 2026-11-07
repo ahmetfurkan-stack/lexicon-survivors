@@ -378,3 +378,12 @@ Original prompt: https://github.com/yasinkaya701/lexicon-survivors — bunu ince
 - Doğrulama: browser’da nesne etkileşimi, boss çan sersemletmesi, SVG yüklemesi ve müzik kaynağı; Godot sahne/oynanış/boss testleri; ses manifesti, boss yetenekleri, web silah şeması, JS syntax ve `git diff --check` geçti. Headless Godot testleri kapanışta önceki 2 ObjectDB/1 kaynak sızıntı uyarısını hâlâ veriyor.
 - Yayın öncesi cache anahtarı `perf-boss-audio-arena-20261107-2` olarak güncellendi. Bu bölümün canlı Pages doğrulaması deploy sonrasında eklenecek.
 - GitHub Pages `gh-pages` commit `6c4b7b7` ile yayımlandı; workflow `42382732414` başarılı. Canlı index, cache bust'lı JS, dört yeni müzik ve üç arena SVG'si HTTP 200 verdi. Canlı Chrome'da oyun 1. dalgada açıldı; beş müzik seçeneği ve üç sprite yüklemesi doğrulandı; JS/page hatası yok.
+
+## Soru kampanyası ve hikâye görseli ön izlemesi — 2026-11-07
+
+- Soru havuzu 160'tan 200 karta çıkarıldı. Yeni kartlar A1–C2 aralığına dağıtıldı; 4 önek sorusu mevcut Prefix sinerjisini destekliyor. Tekrarlanan iki yazım sorusu ayırt edildi, soru/kelime kimlikleri tekilleştirildi ve doğru yanıt konumları 50/50/50/50 dengelendi.
+- Web ve Godot artık aynı 200 kartlık JSON'u kullanıyor. Eski Godot fallback kartları yalnızca eski/kısmi JSON'da birleştiriliyor. Zorluk kademeleri dalgalarla B1/B2/C1/C2'ye ilerliyor; kolay mod geç açılıyor, zor mod üst seviyelere daha erken ulaşıyor.
+- Yanlış cevaplar hata defterinde fail_count biriktiriyor. Her beşinci dalgada boss'un yanına en fazla dört, sözcüğü üstünde görünen Spelling Spectre yankısı geliyor; can/hız/temas hasarı tekrar hata sayısına göre ölçekleniyor. Boss olmayan turların düşman akışı değişmedi.
+- Sanat dalındaki hazır 242/600 kare 1280×720, kalite 83 WebP'ye optimize edildi (yaklaşık 623 MiB PNG kaynak → 52 MiB WebP). Her çizgi roman paneli kendi hazırlanmış kare yolunu kullanıyor, üretilmemiş paneller önceki sahne fonuna geri düşüyor. Manifestteki insan inceleme ve QA durumları beklemede kaldı; bu erken ön izleme onay anlamına gelmiyor.
+- Testler: 200 kart/CEFR/cevap dengesi, boss yankı davranışı, 6×20 sahne beş panel eşleşmesi, 242 dosya source-web paritesi; Godot boss, native port, sahne oluşturma ve tam runtime testleri geçti. Yerel web build tarayıcıda açıldı; konsolda hata/uyarı yok, oyun başlangıcı ve temel HUD görüldü. Godot headless testleri daha önceden görülen nesne/kaynak sızıntısı kapanış uyarısını veriyor.
+- Bu sürümün GitHub Pages deploy ve canlı kontrolü bu satırdan sonra yapılacak.

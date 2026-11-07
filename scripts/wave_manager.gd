@@ -215,6 +215,19 @@ func spawn_milestone_boss() -> void:
 	boss_spawned = true
 	milestone_boss = boss
 	get_tree().current_scene.add_child(boss)
+	var unresolved: Array = StatsManager.mistake_words.duplicate(true)
+	unresolved.sort_custom(func(a: Dictionary, b: Dictionary) -> bool: return int(a.get("fail_count", 1)) > int(b.get("fail_count", 1)))
+	var echo_count := mini(4, unresolved.size())
+	for echo_index in range(echo_count):
+		var memory: Dictionary = unresolved[echo_index]
+		var echo = enemy_scene.instantiate()
+		echo.enemy_type = "Spelling Spectre"
+		var echo_angle := angle + PI + echo_index * TAU / maxf(1.0, float(echo_count))
+		echo.global_position = get_arena_spawn_position(boss.global_position, 175.0 + echo_index * 24.0, echo_angle)
+		get_tree().current_scene.add_child(echo)
+		echo.configure_mistake_echo(str(memory.get("word", "?")), int(memory.get("fail_count", 1)))
+	if echo_count > 0:
+		StatsManager.trigger_tactical_alert("HATA DEFTERİ · %d KELİME YANKISI" % echo_count, "Yankıları düşür; sonraki yükseltmede doğru yanıtladığın kelime defterden silinir.")
 
 func end_wave():
 	# A milestone can only hand off to its story scene after its tracked boss

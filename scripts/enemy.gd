@@ -38,6 +38,9 @@ var recovery_timer: float = 0.0
 var attack_direction: Vector2 = Vector2.RIGHT
 var telegraph_target_position: Vector2 = Vector2.ZERO
 var suppress_rewards: bool = false
+var is_mistake_echo: bool = false
+var mistake_echo_word: String = ""
+var mistake_echo_fail_count: int = 1
 var stun_timer: float = 0.0
 var slow_timer: float = 0.0
 var slow_factor: float = 1.0
@@ -174,6 +177,22 @@ func _exit_tree() -> void:
 	if _active_enemies.has(self):
 		_active_enemies.erase(self)
 		_active_enemy_count = maxi(0, _active_enemy_count - 1)
+
+func configure_mistake_echo(word: String, fail_count: int) -> void:
+	is_mistake_echo = true
+	mistake_echo_word = word
+	mistake_echo_fail_count = clampi(fail_count, 1, 5)
+	max_health *= 0.72 + mistake_echo_fail_count * 0.16
+	health = max_health
+	speed *= 0.82 + mistake_echo_fail_count * 0.08
+	damage_to_player *= 0.62 + mistake_echo_fail_count * 0.12
+	ink_reward = 0
+	if label:
+		label.text = mistake_echo_word
+		label.add_theme_font_size_override("font_size", 10)
+		label.add_theme_color_override("font_color", Color("#d7b9ef"))
+	if sprite:
+		sprite.modulate = Color("#dfbdf5")
 
 func setup_type():
 	var diff_data = StatsManager.difficulties.get(StatsManager.difficulty, StatsManager.difficulties["normal"])

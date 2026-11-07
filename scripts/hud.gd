@@ -381,7 +381,9 @@ func _render_story_panel() -> void:
 	_story_speaker.text = _get_story_speaker_name(speaker_id, char_id)
 	_story_copy.text = dialogue_text
 	_story_counter.text = "%d / 5" % [_story_panel_index + 1]
-	_story_scene_image.texture = load("res://assets/sprites/story/" + str(episode.get("backdrop", "story_library.png")))
+	var panel_art: Array = episode.get("panel_art", [])
+	var panel_path := str(panel_art[_story_panel_index]) if _story_panel_index < panel_art.size() else str(episode.get("backdrop", "story_library.png"))
+	_story_scene_image.texture = load("res://assets/sprites/story/" + panel_path)
 	var reward: Dictionary = episode.get("boss_reward", {}) if episode.get("boss_reward", null) is Dictionary else {}
 	var show_reward := _story_panel_index == 4 and not reward.is_empty()
 	(_story_memory.get_parent() as HBoxContainer).visible = show_reward

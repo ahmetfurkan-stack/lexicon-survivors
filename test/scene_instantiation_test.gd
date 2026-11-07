@@ -39,7 +39,7 @@ func _test_story_intermission(main_node: Node) -> void:
 	assert(hud._story_speaker.text == "Kırmızı Müfettiş", "Wave 5 comic must open with the defeated boss's testimony")
 	assert(hud._story_copy.text == "O kırmızı çizgiyi itirazı susturmak için çektim. Yangının emrini ben yazmadım; ama soruyu da ben kestim.", "Wave 5 must show the authored boss confession")
 	assert(hud._story_actor.texture.resource_path.ends_with("/boss_red_inquisitor.png"), "Wave 5 boss testimony must show the matching portrait")
-	assert(hud._story_scene_image.texture.resource_path.ends_with("/scenes/inky/episode_01.png"), "Wave 5 must load its unique Inky scene art")
+	assert(hud._story_scene_image.texture.resource_path.ends_with("/panels_600/inky/wave_005_panel_01.webp"), "Wave 5 must load its unique Inky scene art")
 	hud._advance_story_panel()
 	await get_tree().process_frame
 	assert(overlay.visible and hud._story_panel_index == 1, "Enter must advance one comic panel at a time")

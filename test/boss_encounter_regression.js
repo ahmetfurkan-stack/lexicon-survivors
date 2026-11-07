@@ -11,6 +11,10 @@ assert.match(source, /if \(state\.milestone_boss_delay === 0\) spawnMilestoneBos
 assert.match(source, /const \[type, sprite, name, color, skill\] = MILESTONE_BOSS_ROSTER/, "bosses define distinct visual identity and skill archetype");
 assert.match(source, /if \(e\.is_boss && state\.current_wave % 5 === 0\) milestoneBossDefeated = true;/, "defeating the milestone boss completes the wave");
 assert.match(source, /if \(milestoneBossDefeated && state\.is_wave_active\) endWave\(\);/, "boss defeat immediately enters the existing intermission flow");
+assert.match(source, /const unresolved = \[\.\.\.\(state\.mistake_words \|\| \[\]\)\]/, "boss encounters collect the accumulated mistake notebook");
+assert.match(source, /\.slice\(0, 4\)/, "each boss fight caps mistake echoes to four readable adds");
+assert.match(source, /is_mistake_echo: true, memory_word: memoryWord/, "echoes visibly name the vocabulary the player missed");
+assert.match(source, /if \(state\.current_wave % 5 !== 0\) \{\s*spawnTimer -= dt;/, "echoes do not enable regular horde spawning on boss waves");
 assert.match(source, /boss\.boss_phase < 2/);
 assert.match(source, /boss\.boss_phase < 3/);
 assert.match(source, /const BOSS_TELEGRAPH_GUIDANCE = \{/);
