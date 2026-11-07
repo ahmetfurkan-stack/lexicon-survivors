@@ -258,7 +258,7 @@ func _process(delta: float):
 			flame_vent_timer = maxf(0.0, flame_vent_timer - delta)
 			return
 		if shoot_timer <= 0.0:
-			var interval := maxf(0.08, 0.12 / maxf(0.1, StatsManager.attack_speed_mult * _tier_cooldown_multiplier()))
+			var interval := maxf(StatsManager.get_stat_limit("weapon_min_cooldown_seconds"), 0.12 / maxf(0.1, StatsManager.attack_speed_mult * _tier_cooldown_multiplier()))
 			shoot_timer = interval
 			flame_burst_elapsed += interval
 			shoot()
@@ -279,7 +279,7 @@ func _process(delta: float):
 	if is_active_focus:
 		effective_attack_speed *= 1.25 # Quick-Draw bonus for switched active weapon
 		
-	var effective_cooldown = max(0.08, base_cooldown * _tier_cooldown_multiplier() / effective_attack_speed)
+	var effective_cooldown = max(StatsManager.get_stat_limit("weapon_min_cooldown_seconds"), base_cooldown * _tier_cooldown_multiplier() / effective_attack_speed)
 	if shoot_timer <= 0:
 		shoot_timer = effective_cooldown
 		shoot()

@@ -22,6 +22,8 @@ var _biome_themes: Array[AudioStream] = []
 var _effect_stream_cache: Dictionary = {}
 var _ambience_stream_cache: Dictionary = {}
 var _last_effect_variant: Dictionary = {}
+var _last_weapon_cue_at: Dictionary = {}
+var _last_any_weapon_cue_msec: int = 0
 var _boss_mode := false
 var music_choice := "auto"
 const BIOME_THEME_PATHS := [
@@ -131,6 +133,12 @@ func _ready() -> void:
 func play_effect(key: String) -> void:
 	if not _effect_paths.has(key) or _sfx_players.is_empty():
 		return
+	if _is_weapon_cue(key):
+		var now := Time.get_ticks_msec()
+		if now - int(_last_weapon_cue_at.get(key, -10000)) < 120 or now - _last_any_weapon_cue_msec < 55:
+			return
+		_last_weapon_cue_at[key] = now
+		_last_any_weapon_cue_msec = now
 	var configured_paths: Variant = _effect_paths[key]
 	var paths: Array = configured_paths if configured_paths is Array else [configured_paths]
 	if paths.is_empty():
@@ -154,6 +162,9 @@ func play_effect(key: String) -> void:
 	_sfx_cursor += 1
 	player.stream = stream
 	player.play()
+
+func _is_weapon_cue(key: String) -> bool:
+	return key in ["quill_blaster", "syllable_shotgun", "lexicon_beam", "punctuation_bomb", "dictionary_blade", "crossword_crossbow", "hyphen_boomerang", "ink_flamethrower", "thesaurus_rocket", "quote_pistols", "calligraphy_katana", "scroll_turret", "scroll_turret_fire", "rune_orb", "grammar_sniper", "word_loom"]
 
 func set_biome(stage_index: int, boss_wave: bool = false) -> void:
 	var stage := clampi(stage_index, 0, 3)

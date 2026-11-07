@@ -85,7 +85,7 @@ func _process(delta: float):
 		return
 
 	spawn_timer -= delta
-	var diff_factor = 1.15 if StatsManager.difficulty == "easy" else (0.80 if StatsManager.difficulty == "hard" else 1.0)
+	var diff_factor = 1.15 if StatsManager.difficulty == "easy" else (float(StatsManager.game_economy.get("stat_limits", {}).get("hard_spawn_interval_factor", 0.92)) if StatsManager.difficulty == "hard" else 1.0)
 	var spawn_interval = max(0.12, (0.60 - (StatsManager.current_wave * 0.04)) * diff_factor)
 	if spawn_timer <= 0:
 		spawn_timer = spawn_interval
@@ -100,7 +100,8 @@ func _active_enemy_count() -> int:
 func _get_wave_enemy_cap() -> int:
 	# Early waves keep readable space around the player; later waves build into
 	# the larger horde the pacing promises, with a performance ceiling at 220.
-	return mini(max_active_enemies, 48 + maxi(0, StatsManager.current_wave - 1) * 2)
+	var starting_cap := int(StatsManager.game_economy.get("stat_limits", {}).get("starting_enemy_cap", 32))
+	return mini(max_active_enemies, starting_cap + maxi(0, StatsManager.current_wave - 1) * 2)
 
 func get_arena_spawn_position(origin: Vector2, min_distance: float = 560.0, preferred_angle: Variant = null) -> Vector2:
 	# Keep spawns inside the visible room and away from a player standing at a shelf corner.

@@ -35,6 +35,7 @@ var current_cards: Array = []
 var active_quiz_card: Dictionary = {}
 var active_card_index: int = -1
 var displayed_option_indices: Array[int] = []
+var rerolls_this_shop: int = 0
 
 const SHOP_SERIF_FONT = preload("res://assets/fonts/ibm-plex/IBMPlexSerif-SemiBold.ttf")
 const SHOP_MONO_FONT = preload("res://assets/fonts/ibm-plex/IBMPlexMono-Medium.ttf")
@@ -156,6 +157,7 @@ func update_mistakes_tab_title():
 
 func open_shop():
 	show()
+	rerolls_this_shop = 0
 	quiz_modal.hide()
 	current_tab = "cards"
 	highlight_tab_buttons()
@@ -201,7 +203,13 @@ func update_synergy_display():
 		synergy_label.add_theme_color_override("font_color", Color(0.39, 0.22, 0.15, 1))
 
 func refresh_cards():
-	current_cards = WordDatabase.get_random_cards(StatsManager.current_wave, StatsManager.difficulty, 4)
+	var cards: Array = WordDatabase.get_random_cards(StatsManager.current_wave, StatsManager.difficulty, 4)
+	current_cards.clear()
+	for card in cards:
+		var priced: Dictionary = card.duplicate(true)
+		priced["shop_cost"] = StatsManager.get_shop_price(int(priced.get("cost", 0)), "card")
+		current_cards.append(priced)
+	reroll_button.text = "YENİLE · %d" % StatsManager.get_card_reroll_cost(rerolls_this_shop)
 	render_current_view()
 
 func _on_cards_tab_pressed():
@@ -300,7 +308,7 @@ func render_gadgets():
 		vbox.add_child(spacer)
 
 		var owned: bool = gadget_id in StatsManager.owned_gadgets
-		var cost := int(gadget.get("cost", 0))
+		var cost := StatsManager.get_shop_price(int(gadget.get("cost", 0)), "equipment" )
 		vbox.add_child(make_shop_price_label("KUŞANILDI" if StatsManager.active_gadget == gadget_id else ("SAHİP" if owned else str(cost) + "  ·  MÜREKKEP")))
 
 		var buy_btn = Button.new()
@@ -371,11 +379,11 @@ func render_cards():
 		var spacer = Control.new()
 		spacer.size_flags_vertical = Control.SIZE_EXPAND_FILL
 		vbox.add_child(spacer)
-		vbox.add_child(make_shop_price_label(str(card["cost"]) + "  ·  MÜREKKEP"))
+		var cost: int = int(card.get("shop_cost", card["cost"]))
+		vbox.add_child(make_shop_price_label(str(cost) + "  ·  MÜREKKEP"))
 
 		# Buy / Quiz Button
 		var buy_btn = Button.new()
-		var cost = card["cost"]
 		buy_btn.text = "Sınavı başlat"
 		buy_btn.custom_minimum_size = Vector2(0, 42)
 		style_shop_action(buy_btn)
@@ -432,7 +440,8 @@ func render_weapons():
 		var owned_for_price = StatsManager.has_weapon(w["id"])
 		var weapon_tier: int = StatsManager.get_weapon_tier(w["id"]) if owned_for_price else 0
 		var upgrade_cost: int = StatsManager.get_weapon_tier_cost(w["id"]) if owned_for_price else 0
-		vbox.add_child(make_shop_price_label(("T%d / EFSANEVİ" % weapon_tier) if (owned_for_price and weapon_tier >= 4) else (("T%d → T%d  ·  %d MÜREKKEP" % [weapon_tier, weapon_tier + 1, upgrade_cost]) if owned_for_price else str(w["cost"]) + "  ·  MÜREKKEP")))
+		var weapon_cost := StatsManager.get_shop_price(int(w["cost"]), "equipment")
+		vbox.add_child(make_shop_price_label(("T%d / EFSANEVİ" % weapon_tier) if (owned_for_price and weapon_tier >= 4) else (("T%d → T%d  ·  %d MÜREKKEP" % [weapon_tier, weapon_tier + 1, upgrade_cost]) if owned_for_price else str(weapon_cost) + "  ·  MÜREKKEP")))
 
 		var buy_btn = Button.new()
 		buy_btn.custom_minimum_size = Vector2(0, 44)
@@ -456,7 +465,7 @@ func render_weapons():
 						update_top_bar()
 				)
 		else:
-			var cost = w["cost"]
+			var cost = StatsManager.get_shop_price(int(w["cost"]), "equipment")
 			buy_btn.text = "Kuşan"
 			if StatsManager.equipped_weapons.size() >= StatsManager.max_weapon_slots:
 				buy_btn.disabled = true
@@ -517,9 +526,11 @@ func render_artifacts():
 		var is_owned := StatsManager.has_artifact(art_id)
 		if art_id == "slot_expansion":
 			is_owned = StatsManager.max_weapon_slots >= 6
-			vbox.add_child(make_shop_price_label("YUVA %d / 6" % StatsManager.max_weapon_slots))
+			var slot_cost := StatsManager.get_shop_price(int(art["cost"]), "equipment")
+			vbox.add_child(make_shop_price_label("YUVA %d / 6  ·  %d MÜREKKEP" % [StatsManager.max_weapon_slots, slot_cost]))
 		else:
-			vbox.add_child(make_shop_price_label("SAHİP" if is_owned else str(art["cost"]) + "  ·  MÜREKKEP"))
+			var art_cost := StatsManager.get_shop_price(int(art["cost"]), "equipment")
+			vbox.add_child(make_shop_price_label("SAHİP" if is_owned else str(art_cost) + "  ·  MÜREKKEP"))
 
 		var buy_btn = Button.new()
 		buy_btn.custom_minimum_size = Vector2(0, 44)
@@ -529,7 +540,7 @@ func render_artifacts():
 			buy_btn.text = "TÜM YUVALAR AÇIK" if art_id == "slot_expansion" else "SATIN ALINDI"
 			buy_btn.disabled = true
 		else:
-			var cost = art["cost"]
+			var cost = StatsManager.get_shop_price(int(art["cost"]), "equipment")
 			buy_btn.text = "Satın al"
 			if StatsManager.ink_count < cost:
 				buy_btn.disabled = true
@@ -642,7 +653,7 @@ func answer_quiz(selected_index: int):
 	if selected_index < 0 or selected_index >= displayed_option_indices.size():
 		return
 	var is_correct = (displayed_option_indices[selected_index] == active_quiz_card["correct_index"])
-	var base_cost = active_quiz_card["cost"]
+	var base_cost = int(active_quiz_card.get("shop_cost", active_quiz_card["cost"]))
 	var is_redemption = active_quiz_card.get("is_redemption", false)
 
 	if is_correct:
@@ -678,7 +689,9 @@ func _on_continue_button_pressed():
 	render_current_view()
 
 func _on_reroll_button_pressed():
-	if StatsManager.spend_ink(5):
+	var cost := StatsManager.get_card_reroll_cost(rerolls_this_shop)
+	if StatsManager.spend_ink(cost):
+		rerolls_this_shop += 1
 		refresh_cards()
 		update_top_bar()
 

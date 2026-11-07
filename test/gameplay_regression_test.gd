@@ -20,13 +20,29 @@ func _run() -> void:
 	var alchemist_ink_before: int = stats_manager.ink_count
 	stats_manager.add_ink(10)
 	var normal_ink_multiplier: float = stats_manager.difficulties.normal.ink_bonus_mult
-	assert(stats_manager.ink_count == alchemist_ink_before + ceili(10.0 * normal_ink_multiplier * 1.4), "Alchemist's advertised 40% ink gain must affect every collected reward")
+	assert(stats_manager.ink_count == alchemist_ink_before + ceili(10.0 * normal_ink_multiplier * 1.15), "Alchemist's shared ink bonus must affect every collected reward")
 	stats_manager.selected_character = "inky"
 	stats_manager.reset()
 	var inky_ink_before: int = stats_manager.ink_count
 	stats_manager.add_ink(10)
 	assert(stats_manager.ink_count == inky_ink_before + ceili(10.0 * normal_ink_multiplier), "The Alchemist passive must not leak into other characters")
 	stats_manager.selected_character = original_character
+	stats_manager.reset()
+	stats_manager.attack_speed_mult = 2.0
+	stats_manager.add_attack_speed(0.2)
+	assert(is_equal_approx(stats_manager.attack_speed_mult, 2.135), "Attack speed should soften gains after the 2.1x threshold")
+	stats_manager.add_attack_speed(20.0)
+	assert(is_equal_approx(stats_manager.attack_speed_mult, 2.75), "Attack speed must never exceed its hard cap")
+	stats_manager.armor = 0.4
+	stats_manager.add_armor(0.2)
+	assert(is_equal_approx(stats_manager.armor, 0.5025), "Armor should soften gains after the 45% threshold")
+	stats_manager.add_armor(20.0)
+	assert(is_equal_approx(stats_manager.armor, 0.65), "Armor must never exceed its hard cap")
+	stats_manager.reset()
+	assert(stats_manager.get_shop_price(10, "card") == 10, "Wave 1 cards should retain their base price")
+	stats_manager.current_wave = 20
+	assert(stats_manager.get_shop_price(10, "card") == 33, "Late-wave cards should use the shared progression price")
+	assert(stats_manager.get_card_reroll_cost(1) > stats_manager.get_card_reroll_cost(0), "Repeated rerolls should become a deliberate currency sink")
 	stats_manager.reset()
 
 	# The native utility catalog must hydrate from the shared versioned source,
@@ -459,8 +475,8 @@ func _run() -> void:
 		wave_manager.spawn_enemy()
 	await process_frame
 	var active_enemies = get_nodes_in_group("enemies").size()
-	assert(active_enemies == 48, "Wave 1 must use its lower wave-based enemy cap")
-	assert(wave_manager._get_wave_enemy_cap() == 48, "Wave 1 cap should be derived from the current wave")
+	assert(active_enemies == 32, "Wave 1 must keep a readable early-wave enemy cap")
+	assert(wave_manager._get_wave_enemy_cap() == 32, "Wave 1 cap should be derived from shared balance data")
 	for enemy in get_nodes_in_group("enemies"):
 		enemy.queue_free()
 	await process_frame
@@ -469,8 +485,8 @@ func _run() -> void:
 		wave_manager.spawn_enemy()
 	await process_frame
 	active_enemies = get_nodes_in_group("enemies").size()
-	assert(active_enemies == 70, "Wave 12 must allow a larger horde than wave 1")
-	assert(wave_manager._get_wave_enemy_cap() == 70, "Wave 12 cap should continue scaling with the wave")
+	assert(active_enemies == 54, "Wave 12 must allow a larger horde than wave 1")
+	assert(wave_manager._get_wave_enemy_cap() == 54, "Wave 12 cap should continue scaling with the wave")
 
 	var kills_before_cleanup = stats_manager.kill_count
 	var ink_before_cleanup = stats_manager.ink_count

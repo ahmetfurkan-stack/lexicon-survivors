@@ -34,10 +34,11 @@ var attack_speed_mult: float = 1.0
 var pickup_radius: float = 140.0
 var projectile_count: int = 1
 var pierce_count: int = 1
-var armor: float = 0.0 # Damage reduction percentage (0.0 - 0.85)
+var armor: float = 0.0 # Damage reduction percentage (0.0 - 0.65)
 var crit_chance: float = 0.05
 var ink_mult: float = 1.0
 var game_economy: Dictionary = {}
+const DEFAULT_STAT_LIMITS := {"attack_speed_mult": 2.75, "attack_speed_soft_cap": 2.1, "armor": 0.65, "armor_soft_cap": 0.45}
 var gadget_cooldown_base: float = 4.0
 var gadget_cooldown_mult: float = 1.0
 var max_weapon_slots: int = 4
@@ -139,7 +140,7 @@ var characters: Dictionary = {
 		"id": "lexicon_alchemist",
 		"name": "Alchemist",
 		"title": "Arşiv Simyacısı",
-		"desc": "+%40 Mürekkep Kazanımı, Gramer Mıknatısı ve Mürekkep Alevi.",
+		"desc": "+%15 Mürekkep Çarpanı, Gramer Mıknatısı ve Mürekkep Alevi.",
 		"hp": 115.0,
 		"move_speed": 240.0,
 		"damage_mult": 1.10,
@@ -179,7 +180,7 @@ var difficulties: Dictionary = {
 		"enemy_hp_mult": 0.65,
 		"enemy_damage_mult": 0.60,
 		"player_hp_bonus": 40.0,
-		"ink_bonus_mult": 1.40
+		"ink_bonus_mult": 1.05
 	},
 	"normal": {
 		"id": "normal",
@@ -189,7 +190,7 @@ var difficulties: Dictionary = {
 		"enemy_hp_mult": 0.85,
 		"enemy_damage_mult": 0.80,
 		"player_hp_bonus": 15.0,
-		"ink_bonus_mult": 1.20
+		"ink_bonus_mult": 1.0
 	},
 	"hard": {
 		"id": "hard",
@@ -199,7 +200,7 @@ var difficulties: Dictionary = {
 		"enemy_hp_mult": 1.15,
 		"enemy_damage_mult": 1.15,
 		"player_hp_bonus": 0.0,
-		"ink_bonus_mult": 1.35
+		"ink_bonus_mult": 1.10
 	}
 }
 
@@ -441,7 +442,40 @@ func load_game_economy() -> bool:
 			push_error("Enemy %s has an invalid ink reward" % enemy_type)
 			return false
 	game_economy = parsed
+	var shared_multipliers: Dictionary = parsed.get("difficulty_ink_multiplier", {})
+	for diff_id in difficulties:
+		if shared_multipliers.has(diff_id):
+			difficulties[diff_id]["ink_bonus_mult"] = float(shared_multipliers[diff_id])
 	return true
+
+func get_stat_limit(key: String) -> float:
+	var limits: Dictionary = game_economy.get("stat_limits", {})
+	return float(limits.get(key, DEFAULT_STAT_LIMITS.get(key, 1.0)))
+
+func add_attack_speed(value: float) -> void:
+	var cap := get_stat_limit("attack_speed_mult")
+	var soft := minf(cap, get_stat_limit("attack_speed_soft_cap"))
+	var current := clampf(attack_speed_mult, 0.0, cap)
+	var direct := clampf(value, 0.0, maxf(0.0, soft - current))
+	attack_speed_mult = minf(cap, current + direct + maxf(0.0, value - direct) * 0.35)
+
+func add_armor(value: float) -> void:
+	var cap := get_stat_limit("armor")
+	var soft := minf(cap, get_stat_limit("armor_soft_cap"))
+	var current := clampf(armor, 0.0, cap)
+	var direct := clampf(value, 0.0, maxf(0.0, soft - current))
+	armor = minf(cap, current + direct + maxf(0.0, value - direct) * 0.35)
+
+func get_shop_price(base_cost: int, category: String = "equipment") -> int:
+	var rates: Dictionary = game_economy.get("shop_pricing", {})
+	var wave_rate := float(rates.get(category + "_wave_rate", 0.1))
+	return maxi(0, ceili(float(base_cost) * (1.0 + wave_rate * float(maxi(0, current_wave - 1)))))
+
+func get_card_reroll_cost(rerolls_this_shop: int) -> int:
+	var rates: Dictionary = game_economy.get("shop_pricing", {})
+	var wave_rate := float(rates.get("reroll_wave_rate", 0.15))
+	var repeat_rate := float(rates.get("repeat_reroll_rate", 0.65))
+	return ceili(5.0 * (1.0 + wave_rate * float(maxi(0, current_wave - 1))) * (1.0 + repeat_rate * float(maxi(0, rerolls_this_shop))))
 
 func get_enemy_ink_reward(enemy_type: String, fallback: int = 1) -> int:
 	var rewards: Dictionary = game_economy.get("enemy_ink_rewards", {})
@@ -532,7 +566,7 @@ func buy_gadget(gadget_id: String) -> bool:
 	gadget_id = normalize_gadget_id(gadget_id)
 	if not gadgets_catalog.has(gadget_id) or gadget_id in owned_gadgets:
 		return false
-	var cost = gadgets_catalog[gadget_id]["cost"]
+	var cost = get_shop_price(int(gadgets_catalog[gadget_id]["cost"]), "equipment")
 	if spend_ink(cost):
 		owned_gadgets.append(gadget_id)
 		active_gadget = gadget_id
@@ -569,7 +603,7 @@ func reset():
 
 	ink_mult = float(diff_data.get("ink_bonus_mult", 1.0))
 	if selected_character == "lexicon_alchemist":
-		ink_mult *= 1.4
+		ink_mult *= float(game_economy.get("difficulty_ink_multiplier", {}).get("alchemist_character", 1.15))
 	gadget_cooldown_base = 4.0
 	gadget_cooldown_mult = 1.0
 	if is_inside_tree():
@@ -636,7 +670,7 @@ func heal(amount: float):
 			add_floating_text(players[0].global_position + Vector2(0, -25), "+" + str(int(healed_val)) + " HP", Color(0.25, 1.0, 0.4), 18)
 
 func take_damage(amount: float):
-	var reduction = clamp(armor, 0.0, 0.85)
+	var reduction = clampf(armor, 0.0, get_stat_limit("armor"))
 	var final_dmg = max(1.0, amount * (1.0 - reduction))
 	hp = max(0.0, hp - final_dmg)
 	emit_signal("hp_changed", hp, max_hp)
@@ -730,7 +764,8 @@ func get_weapon_tier_cost(weapon_id: String) -> int:
 		return 0
 	# Buying the next duplicate tier in the web recipe costs 2^(tier-1) copies;
 	# charge that same copy-equivalent amount directly in the native between-wave shop.
-	return int(weapons_catalog[weapon_id].get("cost", 0)) * (1 << (tier - 1))
+	var base_cost := int(weapons_catalog[weapon_id].get("cost", 0)) * (1 << (tier - 1))
+	return get_shop_price(base_cost, "upgrade")
 
 func upgrade_weapon_tier(weapon_id: String) -> bool:
 	var upgrade_cost := get_weapon_tier_cost(weapon_id)
@@ -779,7 +814,7 @@ func buy_artifact(art_id: String) -> bool:
 		return false
 
 	var art = artifacts_catalog[art_id]
-	if spend_ink(art["cost"]):
+	if spend_ink(get_shop_price(int(art["cost"]), "equipment")):
 		if is_slot_expansion:
 			slot_expansion_count += 1
 		else:
@@ -797,9 +832,9 @@ func buy_artifact(art_id: String) -> bool:
 				"damage":
 					damage_mult += val
 				"attack_speed":
-					attack_speed_mult += val
+					add_attack_speed(float(val))
 				"armor":
-					armor = clamp(armor + val, 0.0, 0.85)
+					add_armor(float(val))
 				"crit_chance":
 					crit_chance = clamp(crit_chance + val, 0.0, 1.0)
 				"ink_mult":
@@ -831,8 +866,8 @@ func grant_story_relic(relic: Dictionary) -> bool:
 				emit_signal("hp_changed", hp, max_hp)
 			"move_speed": move_speed += value
 			"damage": damage_mult += value
-			"attack_speed": attack_speed_mult += value
-			"armor": armor = clamp(armor + value, 0.0, 0.85)
+			"attack_speed": add_attack_speed(value)
+			"armor": add_armor(value)
 			"crit_chance": crit_chance = clamp(crit_chance + value, 0.0, 1.0)
 			"ink_mult": ink_mult += value
 			"gadget_cooldown_mult": gadget_cooldown_mult = maxf(0.25, gadget_cooldown_mult + value)
@@ -924,7 +959,7 @@ func apply_card_upgrade(card_data: Dictionary, quiz_bonus: bool = false):
 		"damage":
 			damage_mult += val
 		"attack_speed":
-			attack_speed_mult += val
+			add_attack_speed(float(val))
 		"pickup_radius":
 			pickup_radius += val
 		"pierce":
@@ -932,7 +967,7 @@ func apply_card_upgrade(card_data: Dictionary, quiz_bonus: bool = false):
 		"projectile_count":
 			projectile_count += int(val)
 		"armor":
-			armor = clamp(armor + val, 0.0, 0.85)
+			add_armor(float(val))
 		"crit_chance":
 			crit_chance = clamp(crit_chance + val, 0.0, 1.0)
 
@@ -979,11 +1014,11 @@ func check_synergies():
 	var grammar_count = type_counts.get("Grammar", 0) + type_counts.get("Grammar Pattern", 0) + type_counts.get("Conjunction", 0) + type_counts.get("Preposition", 0)
 	if grammar_count >= 3 and not active_synergies.has("Syntax Guardian"):
 		active_synergies["Syntax Guardian"] = true
-		armor = clamp(armor + 0.15, 0.0, 0.85)
+		add_armor(0.15)
 		emit_signal("synergy_activated", "Syntax Guardian", "+%15 Zırh & Hasar Direnci (3 Dilbilgisi Kombosu)")
 
 	# 2 Collocations = Word Weaver (+%20 Attack Speed)
 	if type_counts.get("Collocation", 0) >= 2 and not active_synergies.has("Word Weaver"):
 		active_synergies["Word Weaver"] = true
-		attack_speed_mult += 0.20
+		add_attack_speed(0.20)
 		emit_signal("synergy_activated", "Word Weaver", "+%20 Saldırı Hızı (2 Kalıp İfade Kombosu)")
