@@ -435,3 +435,9 @@ Original prompt: https://github.com/yasinkaya701/lexicon-survivors — bunu ince
 - Sentetik 150 düşman/4 boss işareti/50 mermi profili ilk ölçümde 120 karenin 119'unda 33ms üstüne çıktı; kare aralığına göre adaptasyon sonrasında aynı profil 8/120 karede 33ms üstünü gördü, medyan 16.7ms ve canvas ölçeği 0.38 oldu. Bu headless Chromium/SwiftShader ölçümüdür; gerçek cihaz için FPS garantisi değildir.
 - Mobil 390×844 tarayıcıda joystick sabit (24px sol/alt), tutulurken hareket vektörü (1,0), bırakılınca sıfırlanıyor; karakter x konumu 47px ilerledi. Gadget ve hızlı menü dokunuşları da yanıt verdi; konsol hatası ve 404 yok.
 - `node --check`, zoom/viewport, hareket/UI, silah şeması, boss yetenekleri ve boss karşılaşma regresyonları geçti.
+
+## iPad viewport ve performans değişikliklerinin birleştirilmesi — 2026-11-07
+
+- `codex/mobile-ipad-touch-layout` dalındaki iPad `visualViewport`, güvenli alan, responsive HUD ve 58px dokunma hedefleri `codex/perf-boss-ui-polish` dalına alındı.
+- Kare bütçesine göre canvas çözünürlüğü, sabit joystick, otomatik zoom kapatma, aura ve mermi uzamsal ızgaraları ile yoğun render azaltımı korunarak birleştirildi. Oyun JS cache anahtarı birleştirilmiş sürüm için yenilendi.
+- Performans optimizasyonları zaten yayımlanmış build'de vardı; bu birleştirme iPad viewport/dokunma düzeltmelerini aynı güncel build'e taşıyor.
