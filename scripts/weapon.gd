@@ -10,6 +10,8 @@ const WORD_LOOM_FIELD_SCRIPT: Script = preload("res://scripts/word_loom_field.gd
 
 var shoot_timer: float = 0.0
 var target_enemy: Node2D = null
+const TARGET_REACQUIRE_INTERVAL: float = 0.10
+var target_reacquire_timer: float = 0.0
 var is_melee_slashing: bool = false
 var slash_angle: float = 0.0
 var is_active_focus: bool = false
@@ -239,7 +241,9 @@ func get_weapon_evolution_key() -> String:
 
 func _process(delta: float):
 	shoot_timer -= delta
-	find_nearest_enemy()
+	var attack_due := shoot_timer <= 0.0 and (weapon_id != "ink_flamethrower" or flame_vent_timer <= 0.0)
+	var beam_tick_due := beam_active_timer > 0.0 and beam_tick_timer <= delta
+	_update_target_cache(delta, attack_due or beam_tick_due)
 	if beam_active_timer > 0.0:
 		beam_active_timer = maxf(0.0, beam_active_timer - delta)
 		beam_tick_timer -= delta
@@ -282,30 +286,55 @@ func _process(delta: float):
 	if weapon_id == "scroll_turret":
 		_process_deployed_turrets(delta)
 
+func _update_target_cache(delta: float, force_refresh: bool = false) -> void:
+	target_reacquire_timer = maxf(0.0, target_reacquire_timer - delta)
+	if target_enemy != null and not _is_cached_target_in_range():
+		target_enemy = null
+		force_refresh = true
+	if force_refresh or target_reacquire_timer <= 0.0:
+		find_nearest_enemy()
+
+func _is_cached_target_in_range() -> bool:
+	if not is_instance_valid(target_enemy) or not target_enemy.is_in_group("enemies"):
+		return false
+	var offset := target_enemy.global_position - global_position
+	if offset.length_squared() >= detection_range * detection_range:
+		return false
+	var target_health: Variant = target_enemy.get("health")
+	if (target_health is float or target_health is int) and float(target_health) <= 0.0:
+		return false
+	return true
+
 func find_nearest_enemy():
 	if not is_inside_tree():
 		return
 	var enemies = get_tree().get_nodes_in_group("enemies")
 	var closest: Node2D = null
-	var min_dist: float = detection_range
+	var min_dist_squared: float = detection_range * detection_range
 	var best_priority := -INF
 	for e in enemies:
-		if is_instance_valid(e):
-			var d = global_position.distance_to(e.global_position)
+		if is_instance_valid(e) and e is Node2D:
+			var enemy_health: Variant = e.get("health")
+			if (enemy_health is float or enemy_health is int) and float(enemy_health) <= 0.0:
+				continue
+			var offset: Vector2 = e.global_position - global_position
+			var distance_squared := offset.length_squared()
+			if distance_squared >= detection_range * detection_range:
+				continue
 			if weapon_id == "grammar_sniper" or StatsManager.has_artifact("archivist_compass"):
-				if d < detection_range:
-					var priority := StatsManager.get_relic_target_priority(e)
-					if weapon_id == "grammar_sniper":
-						priority += 100000.0 if e.get("enemy_type") in ["Red Pen Boss", "Lexicon Dragon Boss"] else 0.0
-					if priority > best_priority:
-						best_priority = priority
-						closest = e
+				var priority := StatsManager.get_relic_target_priority(e)
+				if weapon_id == "grammar_sniper":
+					priority += 100000.0 if e.get("enemy_type") in ["Red Pen Boss", "Lexicon Dragon Boss"] else 0.0
+				if priority > best_priority:
+					best_priority = priority
+					closest = e
 			else:
-				if d < min_dist:
-					min_dist = d
+				if distance_squared < min_dist_squared:
+					min_dist_squared = distance_squared
 					closest = e
 				
 	target_enemy = closest
+	target_reacquire_timer = TARGET_REACQUIRE_INTERVAL
 
 func shoot():
 	if weapon_id in ["dictionary_blade", "calligraphy_katana"]:

@@ -637,14 +637,14 @@ func _phantom_movement(dir: Vector2, distance_to_player: float) -> Vector2:
 func _milestone_boss_movement(delta: float, dir: Vector2, distance_to_player: float) -> Vector2:
 	if health <= max_health * 0.66 and boss_phase == 1:
 		boss_phase = 2
-		boss_skill_interval *= 0.88
+		boss_skill_interval = maxf(3.9, boss_skill_interval * 0.82)
 		speed *= 1.08
 		boss_phase_tint = boss_custom_color.lightened(0.22)
 		modulate = boss_phase_tint
 		queue_redraw()
 	elif health <= max_health * 0.32 and boss_phase == 2:
 		boss_phase = 3
-		boss_skill_interval *= 0.78
+		boss_skill_interval = maxf(3.2, boss_skill_interval * 0.78)
 		speed *= 1.12
 		boss_phase_tint = boss_custom_color.lightened(0.42)
 		modulate = boss_phase_tint
@@ -666,7 +666,7 @@ func _milestone_boss_movement(delta: float, dir: Vector2, distance_to_player: fl
 	if boss_skill_cooldown <= 0.0:
 		boss_attack_angle = dir.angle()
 		boss_target_position = target_player.global_position + target_player.velocity * 0.28
-		boss_telegraph_timer = 0.98 if boss_phase == 1 else 0.82
+		boss_telegraph_timer = _boss_telegraph_duration()
 		boss_skill_cooldown = boss_skill_interval
 		if label:
 			label.text = _boss_skill_label()
@@ -680,6 +680,10 @@ func _milestone_boss_movement(delta: float, dir: Vector2, distance_to_player: fl
 			return dir * speed * 0.65
 		return Vector2(-dir.y, dir.x) * speed * 0.38
 	return dir * speed * (0.78 if boss_phase == 1 else 0.9)
+
+func _boss_telegraph_duration() -> float:
+	# Phase three is faster, but still leaves a clear reaction window for a dash.
+	return 0.96 if boss_phase == 1 else (0.84 if boss_phase == 2 else 0.74)
 
 func _boss_skill_label() -> String:
 	var labels := {"judgment":"YARGI ÇİZGİSİ", "quake":"TAŞ HALKASI", "nova":"MÜHÜR PATLAMASI", "fan":"KIRIK TÜYLER", "orbit":"YAZI ÇEMBERİ", "charge":"HÜKÜM ATILIMI", "mirror":"AYNA KIRILMASI", "gravity":"BOŞLUK ÇEKİMİ", "crossfire":"ÇAPRAZ BASKI", "rift":"YARIK SIÇRAMASI", "return":"GERİ DÖNEN İZ", "echo":"YANKI SALVOSU", "snare":"MÜREKKEP TUZAĞI", "shards":"SÖZCÜK KIRINTILARI", "embers":"KOR İŞARETLERİ", "sever":"KESİK SATIR", "split":"İKİYE AYRILAN CÜMLE", "eclipse":"TUTULMA MÜHRÜ", "void_bloom":"BOŞLUK ÇİÇEĞİ", "finale":"SON SATIR"}
@@ -700,7 +704,8 @@ func _perform_boss_skill() -> void:
 			var center := global_position if boss_skill_id in ["quake", "orbit"] else boss_target_position
 			var radius := 138.0 if boss_skill_id == "nova" else (210.0 if boss_skill_id in ["quake", "gravity"] else 170.0)
 			if center.distance_to(target_player.global_position) <= radius and not target_player.is_dashing:
-				target_player.take_damage(damage_to_player * (0.48 if boss_phase < 3 else 0.62))
+				var phase_damage := 0.48 if boss_phase == 1 else (0.54 if boss_phase == 2 else 0.68)
+				target_player.take_damage(damage_to_player * phase_damage)
 				if boss_skill_id == "gravity" and target_player.has_method("apply_slow"):
 					target_player.apply_slow(0.9, 0.56)
 			if boss_skill_id == "snare":
@@ -717,7 +722,8 @@ func _perform_boss_skill() -> void:
 			var center := boss_target_position if boss_skill_id == "eclipse" else global_position
 			var radius := 188.0 if boss_phase == 1 else 224.0
 			if center.distance_to(target_player.global_position) <= radius and not target_player.is_dashing:
-				target_player.take_damage(damage_to_player * (0.52 if boss_phase < 3 else 0.66))
+				var phase_damage := 0.52 if boss_phase == 1 else (0.58 if boss_phase == 2 else 0.72)
+				target_player.take_damage(damage_to_player * phase_damage)
 			_fire_boss_ring(10 if boss_phase == 1 else 14, 0.30)
 			if boss_skill_id == "void_bloom":
 				_spawn_ink_puddle(center + Vector2(104.0, 0.0).rotated(boss_attack_angle))
@@ -766,7 +772,8 @@ func _fire_boss_bolt(angle: float, damage_factor: float) -> void:
 func _fire_boss_fan(count: int, spread: float) -> void:
 	for index in range(count):
 		var t := 0.0 if count <= 1 else float(index) / float(count - 1)
-		_fire_boss_bolt(boss_attack_angle - spread * 0.5 + spread * t, 0.34 if boss_phase == 1 else 0.42)
+		var phase_damage := 0.34 if boss_phase == 1 else (0.41 if boss_phase == 2 else 0.49)
+		_fire_boss_bolt(boss_attack_angle - spread * 0.5 + spread * t, phase_damage)
 
 func _fire_boss_ring(count: int, damage_factor: float) -> void:
 	for index in range(count):

@@ -73,7 +73,7 @@ func _process(delta: float):
 			spawn_timer -= delta
 			if spawn_timer <= 0.0:
 				spawn_milestone_boss()
-		elif _active_enemy_count() == 0:
+		elif not is_instance_valid(milestone_boss) or milestone_boss.is_queued_for_deletion():
 			end_wave()
 		return
 
@@ -136,6 +136,10 @@ func find_player():
 func spawn_enemy():
 	if not is_inside_tree():
 		return
+	# Keep the milestone contract true even if a future caller asks for a
+	# regular spawn during a boss encounter.
+	if StatsManager.current_wave % 5 == 0:
+		return
 	if _active_enemy_count() >= _get_wave_enemy_cap():
 		return
 	find_player()
@@ -185,7 +189,7 @@ func spawn_enemy():
 	get_tree().current_scene.add_child(enemy)
 
 func spawn_milestone_boss() -> void:
-	if boss_spawned or not is_inside_tree():
+	if boss_spawned or not is_inside_tree() or StatsManager.current_wave % 5 != 0:
 		return
 	find_player()
 	if not is_instance_valid(player_ref):
@@ -213,6 +217,13 @@ func spawn_milestone_boss() -> void:
 	get_tree().current_scene.add_child(boss)
 
 func end_wave():
+	# A milestone can only hand off to its story scene after its tracked boss
+	# has left the tree. Timeouts and stray callers must not open the shop early.
+	if boss_wave_active:
+		if not boss_spawned:
+			return
+		if is_instance_valid(milestone_boss) and not milestone_boss.is_queued_for_deletion():
+			return
 	is_wave_active = false
 	boss_wave_active = false
 	milestone_boss = null
