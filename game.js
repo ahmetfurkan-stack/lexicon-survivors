@@ -315,7 +315,7 @@ function ensureWeaponVisualStatus() {
 function setWeaponVisualStatus(message, isError = false) {
   const node = ensureWeaponVisualStatus();
   if (!node) return;
-  node.replaceChildren();
+  if (typeof node.replaceChildren === "function") node.replaceChildren(); else node.innerHTML = "";
   node.style.display = message ? "block" : "none";
   node.style.borderColor = isError ? "#9c4038" : "#8b6b2e";
   node.style.color = isError ? "#7a2621" : "#402c18";
@@ -552,33 +552,147 @@ class SoundManager {
       hit: "enemy_hit_light", death: "enemy_defeat", pickup: "ink_pickup", wave: "wave_start",
       gadget: "gadget_eraser_dash", mine: "weapon_punctuation_mine_detonation", rocket: "weapon_thesaurus_rocket_impact"
     };
+
+    // Granular Audio Channels (0.0 to 1.0)
+    this.masterVolume = 1.0;
+    this.masterMuted = false;
+    this.sfxVolume = 1.0;
+    this.sfxMuted = false;
+    this.bgmVolume = 1.0;
+    this.bgmMuted = false;
+    this.menuVolume = 1.0;
+    this.menuMuted = false;
+
+    this.loadAudioSettings();
   }
+
+  loadAudioSettings() {
+    try {
+      const saved = localStorage.getItem("lexicon_granular_audio");
+      if (saved) {
+        const p = JSON.parse(saved);
+        if (typeof p.masterVolume === "number") this.masterVolume = p.masterVolume;
+        if (typeof p.masterMuted === "boolean") this.masterMuted = p.masterMuted;
+        if (typeof p.sfxVolume === "number") this.sfxVolume = p.sfxVolume;
+        if (typeof p.sfxMuted === "boolean") this.sfxMuted = p.sfxMuted;
+        if (typeof p.bgmVolume === "number") this.bgmVolume = p.bgmVolume;
+        if (typeof p.bgmMuted === "boolean") this.bgmMuted = p.bgmMuted;
+        if (typeof p.menuVolume === "number") this.menuVolume = p.menuVolume;
+        if (typeof p.menuMuted === "boolean") this.menuMuted = p.menuMuted;
+      }
+    } catch (_) {}
+  }
+
+  saveAudioSettings() {
+    try {
+      localStorage.setItem("lexicon_granular_audio", JSON.stringify({
+        masterVolume: this.masterVolume,
+        masterMuted: this.masterMuted,
+        sfxVolume: this.sfxVolume,
+        sfxMuted: this.sfxMuted,
+        bgmVolume: this.bgmVolume,
+        bgmMuted: this.bgmMuted,
+        menuVolume: this.menuVolume,
+        menuMuted: this.menuMuted,
+      }));
+    } catch (_) {}
+    this.applyMusicVolume();
+  }
+
+  applyMusicVolume() {
+    if (this.music) {
+      const eff = (this.masterMuted || this.bgmMuted) ? 0 : Math.max(0, Math.min(1, this.masterVolume * this.bgmVolume * 0.24));
+      this.music.volume = eff;
+      this.music.muted = (this.masterMuted || this.bgmMuted);
+    }
+  }
+
+  getEffectiveSfxVolume(baseVolume = 0.72) {
+    if (this.masterMuted || this.sfxMuted) return 0;
+    return Math.max(0, Math.min(1, baseVolume * this.masterVolume * this.sfxVolume));
+  }
+
+  getEffectiveBgmGain(baseGain = 0.24) {
+    if (this.masterMuted || this.bgmMuted) return 0;
+    return Math.max(0, Math.min(1, baseGain * this.masterVolume * this.bgmVolume));
+  }
+
+  getEffectiveMenuVolume(baseVolume = 0.42) {
+    if (this.masterMuted || this.menuMuted) return 0;
+    return Math.max(0, Math.min(1, baseVolume * this.masterVolume * this.menuVolume));
+  }
+
+  getPooledAudio(src) {
+    if (!this.audioPools) this.audioPools = {};
+    if (!this.audioPools[src]) {
+      this.audioPools[src] = { pool: [], index: 0, maxSize: 3 };
+    }
+    const entry = this.audioPools[src];
+    if (entry.pool.length < entry.maxSize) {
+      const audio = new Audio(src);
+      entry.pool.push(audio);
+      return audio;
+    }
+    const audio = entry.pool[entry.index];
+    entry.index = (entry.index + 1) % entry.pool.length;
+    return audio;
+  }
+
   playAsset(key, volume = 0.72) {
     const asset = this.assetPaths[key];
     if (!asset) return false;
+    const eff = this.getEffectiveSfxVolume(volume);
+    if (eff <= 0) return true;
+
+    // Rate-limiting throttle to prevent audio decoder exhaustion and mobile stutter
+    if (!this.lastSoundTime) this.lastSoundTime = {};
+    const minIntervals = { hit: 48, pickup: 40, death: 45, select: 35, mine: 80, rocket: 80 };
+    const now = performance.now();
+    const interval = minIntervals[key];
+    if (interval && now - (this.lastSoundTime[key] || 0) < interval) {
+      return true;
+    }
+    this.lastSoundTime[key] = now;
+
     try {
-      const voice = new Audio(`assets/audio/${key === "gadget" ? "abilities" : key === "hit" || key === "death" || key === "pickup" || key === "wave" ? "gameplay" : "weapons"}/${asset}.wav`);
-      voice.volume = volume;
+      const subfolder = key === "gadget" ? "abilities" : (key === "hit" || key === "death" || key === "pickup" || key === "wave" ? "gameplay" : "weapons");
+      const voice = this.getPooledAudio(`assets/audio/${subfolder}/${asset}.wav`);
+      voice.volume = eff;
+      voice.currentTime = 0;
       voice.play().catch(() => {});
-      this.assetVoices.push(voice);
-      if (this.assetVoices.length > 24) this.assetVoices.splice(0, this.assetVoices.length - 24);
       return true;
     } catch (_) { return false; }
   }
+
   startMusic() {
-    if (!this.music) { this.music = new Audio("assets/audio/music/main_theme.mp3"); this.music.loop = true; this.music.volume = 0.24; }
+    if (!this.music) {
+      this.music = new Audio("assets/audio/music/main_theme.mp3");
+      this.music.loop = true;
+    }
+    this.applyMusicVolume();
     this.music.play().catch(() => {});
   }
+
   setMusicSource(path) {
-    if (!this.music) { this.music = new Audio(); this.music.loop = true; this.music.volume = 0.24; }
-    if (!this.music.src.endsWith(path)) {
+    if (!this.music) {
+      this.music = new Audio();
+      this.music.loop = true;
+    }
+    if (!this.music.src || !this.music.src.endsWith(path)) {
       this.music.src = path;
       this.music.loop = true;
-      this.music.muted = Boolean(window.gameMusicMuted);
+      this.applyMusicVolume();
       this.music.play().catch(() => {});
+    } else {
+      this.applyMusicVolume();
     }
   }
-  setMusicMuted(muted) { if (this.music) this.music.muted = muted; }
+
+  setMusicMuted(muted) {
+    this.bgmMuted = muted;
+    this.saveAudioSettings();
+  }
+
   init() {
     if (!this.ctx) {
       const AudioContext = window.AudioContext || window.webkitAudioContext;
@@ -588,14 +702,17 @@ class SoundManager {
       this.ctx.resume();
     }
   }
+
   playTone(freq, type, duration, gainVal = 0.15) {
     if (!this.ctx) return;
+    const effGain = this.getEffectiveSfxVolume(gainVal);
+    if (effGain <= 0) return;
     try {
       const osc = this.ctx.createOscillator();
       const gain = this.ctx.createGain();
       osc.type = type;
       osc.frequency.setValueAtTime(freq, this.ctx.currentTime);
-      gain.gain.setValueAtTime(gainVal, this.ctx.currentTime);
+      gain.gain.setValueAtTime(effGain, this.ctx.currentTime);
       gain.gain.exponentialRampToValueAtTime(0.0001, this.ctx.currentTime + duration);
       osc.connect(gain);
       gain.connect(this.ctx.destination);
@@ -634,29 +751,19 @@ class SoundManager {
         this.playTone(95, "sawtooth", 0.25, 0.25);
         break;
       case "quote_pistols":
+        this.playTone(440, "triangle", 0.08, 0.22);
+        break;
       case "scroll_turret":
-        this.playTone(620, "triangle", 0.06, 0.12);
+        this.playTone(380, "sine", 0.12, 0.15);
         break;
       case "rune_orb":
-        this.playTone(740, "sine", 0.12, 0.18);
-        break;
       case "word_loom":
-        this.playTone(610, "sine", 0.18, 0.16);
+        this.playTone(620, "sine", 0.16, 0.24);
         break;
       default:
-        this.playTone(420, "triangle", 0.08, 0.12);
+        this.playTone(320, "triangle", 0.10, 0.18);
         break;
     }
-  }
-  enemyShoot() {
-    if (this.playAsset("hit", 0.4)) return;
-    this.init();
-    this.playTone(210, "sawtooth", 0.14, 0.15);
-  }
-  detonateMine() {
-    if (this.playAsset("mine", 0.82)) return;
-    this.init();
-    this.playTone(80, "square", 0.28, 0.3);
   }
   rocketBlast() {
     if (this.playAsset("rocket", 0.78)) return;
@@ -666,7 +773,18 @@ class SoundManager {
   gadget(id = "eraser_dash") {
     const gadgetFiles = { eraser_dash: "gadget_eraser_dash", ink_cataclysm: "gadget_ink_cataclysm", chrono_comma: "gadget_chrono_comma", lexicon_aegis: "gadget_lexicon_aegis", grammar_magnet: "gadget_grammar_magnet" };
     const gadgetAsset = gadgetFiles[id];
-    if (gadgetAsset) { try { const voice = new Audio(`assets/audio/abilities/${gadgetAsset}.wav`); voice.volume = 0.8; voice.play().catch(() => {}); return; } catch (_) {} }
+    if (gadgetAsset) {
+      const eff = this.getEffectiveSfxVolume(0.8);
+      if (eff > 0) {
+        try {
+          const voice = this.getPooledAudio(`assets/audio/abilities/${gadgetAsset}.wav`);
+          voice.volume = eff;
+          voice.currentTime = 0;
+          voice.play().catch(() => {});
+          return;
+        } catch (_) {}
+      }
+    }
     this.init();
     this.playTone(520, "sine", 0.18, 0.25);
     setTimeout(() => this.playTone(780, "triangle", 0.22, 0.25), 80);
@@ -702,15 +820,27 @@ class SoundManager {
     this.playTone(190, "sawtooth", 0.2, 0.2);
     setTimeout(() => this.playTone(140, "sawtooth", 0.35, 0.25), 180);
   }
+  enemyShoot() {
+    this.init();
+    this.playTone(280, "sawtooth", 0.08, 0.14);
+  }
+  detonateMine() {
+    if (this.playAsset("mine", 0.72)) return;
+    this.init();
+    this.playTone(130, "triangle", 0.22, 0.25);
+  }
 }
 const sounds = new SoundManager();
 document.addEventListener("click", (event) => {
   const control = event.target.closest("button,[role=tab]");
   if (!control || control.disabled) return;
   const file = control.classList.contains("shop-buy") ? "purchase" : control.id?.startsWith("tab-") ? "tab" : "select";
+  const eff = sounds.getEffectiveMenuVolume(0.42);
+  if (eff <= 0) return;
   try {
-    const voice = new Audio(`assets/audio/ui/ui_${file}.wav`);
-    voice.volume = 0.42;
+    const voice = sounds.getPooledAudio(`assets/audio/ui/ui_${file}.wav`);
+    voice.volume = eff;
+    voice.currentTime = 0;
     voice.play().catch(() => {});
   } catch (_) {}
 }, true);
@@ -859,10 +989,11 @@ class MedievalBGM {
     const semitones = [0, -2, 5, -3][this.biome] || 0;
     const transpose = Math.pow(2, semitones / 12);
 
-    if (!this.isMuted && this.volume > 0) {
+    const effBgm = this.sm.getEffectiveBgmGain(this.volume);
+    if (!this.isMuted && effBgm > 0) {
       const now = ctx.currentTime;
       if (currentNoteName && this.notes[currentNoteName]) {
-        this.playPluckedString(this.notes[currentNoteName] * transpose, now, stepDuration * 2.5, 0.08 * this.volume);
+        this.playPluckedString(this.notes[currentNoteName] * transpose, now, stepDuration * 2.5, 0.08 * effBgm);
       }
 
       if (this.step % 16 === 0) {
@@ -870,23 +1001,23 @@ class MedievalBGM {
         const bList = this.bassNotes[this.mode] || this.bassNotes.peaceful;
         const bNote = bList[barIdx % bList.length];
         if (bNote && this.notes[bNote]) {
-          this.playBassDrone(this.notes[bNote] * transpose, now, stepDuration * 15, 0.12 * this.volume);
+          this.playBassDrone(this.notes[bNote] * transpose, now, stepDuration * 15, 0.12 * effBgm);
         }
         if (this.step % 64 === 0) {
-          this.playAmbientBed([110, 98, 130.81, 87.31][this.biome], now, stepDuration * 60, 0.025 * this.volume);
+          this.playAmbientBed([110, 98, 130.81, 87.31][this.biome], now, stepDuration * 60, 0.025 * effBgm);
         }
       }
 
       if (this.mode !== "peaceful") {
         const stepInBar = this.step % 16;
         if (stepInBar === 0 || stepInBar === 8) {
-          this.playDrumKick(now, 0.13 * this.volume);
+          this.playDrumKick(now, 0.13 * effBgm);
         }
         if (stepInBar === 4 || stepInBar === 12) {
-          this.playPercTick(now, 0.06 * this.volume);
+          this.playPercTick(now, 0.06 * effBgm);
         }
         if (this.mode === "boss" && (stepInBar === 6 || stepInBar === 14)) {
-          this.playPercTick(now, 0.08 * this.volume);
+          this.playPercTick(now, 0.08 * effBgm);
         }
       }
     }
@@ -1544,13 +1675,18 @@ function triggerHaptic(type = "light") {
 }
 
 function triggerScreenShake(duration = 0.16, intensity = 6.0) {
+  if (state.screen_shake_disabled) return;
   state.screen_shake = Math.max(state.screen_shake, duration);
   state.shake_intensity = Math.max(state.shake_intensity, intensity);
 }
 
 function addFloatingText(x, y, text, color = "#ffffff", size = 13) {
+  if (window.gameSettings && window.gameSettings.damageNumbers === false) return;
   if (!state.floating_texts) state.floating_texts = [];
-  if (state.floating_texts.length > 50) state.floating_texts.shift();
+  const maxTexts = ('ontouchstart' in window || window.innerWidth <= 1080) ? 25 : 45;
+  if (state.floating_texts.length >= maxTexts) {
+    state.floating_texts.splice(0, state.floating_texts.length - maxTexts + 1);
+  }
   state.floating_texts.push({
     x, y,
     text,
@@ -3378,7 +3514,6 @@ function updatePlayer(dt) {
         const earned = Math.ceil(drop.value * state.ink_mult);
         state.ink_count += earned;
         addFloatingText(p.x + (Math.random() - 0.5) * 20, p.y - 20, `+${earned}`, "#a9c6b6", 12);
-        updateHUD();
       }
     }
   });
@@ -3410,7 +3545,6 @@ function updatePlayer(dt) {
           x: p.x, y: p.y, radius: 10, max_radius: 50,
           alpha: 1.0, color: "rgba(34, 197, 94, "
         });
-        updateHUD();
       }
     }
   });
@@ -3986,45 +4120,66 @@ function applyWeaponHitSignature(projectile, enemy, effectiveDamage) {
   }
 }
 
-// Broad-phase spatial hash: heavy waves test only enemies near each projectile.
-const COLLISION_CELL_SIZE = 160;
-function buildEnemyCollisionGrid(enemies) {
-  const buckets = new Map();
-  let maxEnemyHalfSize = 0;
-  for (let index = 0; index < enemies.length; index++) {
-    const enemy = enemies[index];
-    if (!enemy || enemy.dead) continue;
-    maxEnemyHalfSize = Math.max(maxEnemyHalfSize, (enemy.size || 34) / 2);
-    const cellX = Math.floor(enemy.x / COLLISION_CELL_SIZE);
-    const cellY = Math.floor(enemy.y / COLLISION_CELL_SIZE);
-    const key = `${cellX},${cellY}`;
-    let bucket = buckets.get(key);
-    if (!bucket) { bucket = []; buckets.set(key, bucket); }
-    bucket.push(index);
-  }
-  return { buckets, maxEnemyHalfSize };
-}
-function getNearbyEnemyIndices(grid, x, y, projectileHalfSize) {
-  const radius = projectileHalfSize + grid.maxEnemyHalfSize;
-  const minX = Math.floor((x - radius) / COLLISION_CELL_SIZE);
-  const maxX = Math.floor((x + radius) / COLLISION_CELL_SIZE);
-  const minY = Math.floor((y - radius) / COLLISION_CELL_SIZE);
-  const maxY = Math.floor((y + radius) / COLLISION_CELL_SIZE);
-  const result = [];
-  for (let cy = minY; cy <= maxY; cy++) {
-    for (let cx = minX; cx <= maxX; cx++) {
-      const bucket = grid.buckets.get(`${cx},${cy}`);
-      if (bucket) result.push(...bucket);
+// ============================================================================
+// HIGH-PERFORMANCE ZERO-ALLOCATION SPATIAL HASH GRID (Mobile 60fps Optimization)
+// ============================================================================
+const SPATIAL_CELL = 160;
+const SPATIAL_COLS = 16;
+const SPATIAL_ROWS = 12;
+const SPATIAL_OFFSET_X = 1280;
+const SPATIAL_OFFSET_Y = 960;
+const spatialBuckets = Array.from({ length: 256 }, () => []);
+
+function rebuildSpatialGrid(enemies) {
+  for (let i = 0; i < 256; i++) spatialBuckets[i].length = 0;
+  for (let i = 0; i < enemies.length; i++) {
+    const enemy = enemies[i];
+    if (!enemy || enemy.dead || enemy.hp <= 0) continue;
+    const col = Math.floor((enemy.x + SPATIAL_OFFSET_X) / SPATIAL_CELL);
+    const row = Math.floor((enemy.y + SPATIAL_OFFSET_Y) / SPATIAL_CELL);
+    if (col >= 0 && col < SPATIAL_COLS && row >= 0 && row < SPATIAL_ROWS) {
+      spatialBuckets[(row << 4) | col].push(i);
     }
   }
-  result.sort((a, b) => a - b);
+}
+
+function forEachNearbyEnemy(x, y, radius, enemies, callback) {
+  const minCol = Math.max(0, Math.floor((x - radius + SPATIAL_OFFSET_X) / SPATIAL_CELL));
+  const maxCol = Math.min(SPATIAL_COLS - 1, Math.floor((x + radius + SPATIAL_OFFSET_X) / SPATIAL_CELL));
+  const minRow = Math.max(0, Math.floor((y - radius + SPATIAL_OFFSET_Y) / SPATIAL_CELL));
+  const maxRow = Math.min(SPATIAL_ROWS - 1, Math.floor((y + radius + SPATIAL_OFFSET_Y) / SPATIAL_CELL));
+  const radSq = radius * radius;
+  for (let r = minRow; r <= maxRow; r++) {
+    const rowOffset = r << 4;
+    for (let c = minCol; c <= maxCol; c++) {
+      const bucket = spatialBuckets[rowOffset | c];
+      for (let i = 0; i < bucket.length; i++) {
+        const enemy = enemies[bucket[i]];
+        if (enemy && !enemy.dead && enemy.hp > 0) {
+          const dx = enemy.x - x;
+          const dy = enemy.y - y;
+          if (dx * dx + dy * dy <= radSq) {
+            if (callback(enemy, bucket[i]) === false) return;
+          }
+        }
+      }
+    }
+  }
+}
+
+function getNearbyEnemyIndices(grid, x, y, projectileHalfSize) {
+  const result = [];
+  const radius = projectileHalfSize + 34;
+  forEachNearbyEnemy(x, y, radius, state.enemies, (enemy, index) => {
+    result.push(index);
+  });
   return result;
 }
 
 function updateProjectiles(dt) {
   const p = state.player;
-  const spatialGrid = state.enemies.length >= 32 && state.projectiles.length >= 8
-    ? buildEnemyCollisionGrid(state.enemies) : null;
+  rebuildSpatialGrid(state.enemies);
+  const spatialGrid = true;
 
   state.projectiles.forEach(pr => {
     if ((pr.delay || 0) > 0) {
@@ -4180,12 +4335,10 @@ function updateProjectiles(dt) {
               x: pr.x, y: pr.y, radius: 15, max_radius: blastRadius,
               alpha: 1.0, color: "rgba(171, 71, 188, "
             });
-            state.enemies.forEach(target => {
-              if (Math.hypot(target.x - pr.x, target.y - pr.y) < blastRadius) {
-                target.hp -= pr.dmg * 0.75;
-                const ang = Math.atan2(target.y - pr.y, target.x - pr.x);
-                applyHitFeedback(target, { x: Math.cos(ang), y: Math.sin(ang) }, "heavy", !!pr.crit, true, 320);
-              }
+            forEachNearbyEnemy(pr.x, pr.y, blastRadius, state.enemies, target => {
+              target.hp -= pr.dmg * 0.75;
+              const ang = Math.atan2(target.y - pr.y, target.x - pr.x);
+              applyHitFeedback(target, { x: Math.cos(ang), y: Math.sin(ang) }, "heavy", !!pr.crit, true, 320);
             });
       if ((pr.type === "rocket" || pr.type === "rocket_cluster") && pr.tier >= 3 && !pr.cluster_child) {
               const clusterCount = pr.tier >= 4 ? 4 : (getWeaponArchetype("thesaurus_rocket")?.limits?.cluster_rockets || 3);
@@ -4232,7 +4385,10 @@ function addAliveEnemy(enemy) {
   // Keep radial spawns and boss formations inside the playable bounds.
   enemy.x = Math.max(-1150, Math.min(1150, enemy.x));
   enemy.y = Math.max(-850, Math.min(850, enemy.y));
-  const aliveCount = state.enemies.reduce((count, current) => count + (current.dead ? 0 : 1), 0);
+  let aliveCount = 0;
+  for (let i = 0; i < state.enemies.length; i++) {
+    if (!state.enemies[i].dead) aliveCount++;
+  }
   if (aliveCount < getWaveEnemyCap()) {
     state.enemies.push(enemy);
     return true;
@@ -4567,9 +4723,16 @@ function updateEnemies(dt) {
     if (spawnTimer <= 0) {
       spawnTimer = interval;
       const batchCount = state.current_wave >= 25 ? 3 : (state.current_wave >= 8 ? 2 : 1);
+      let livingCount = 0;
+      for (let i = 0; i < state.enemies.length; i++) {
+        if (!state.enemies[i].dead) livingCount++;
+      }
+      const enemyCap = getWaveEnemyCap();
       for (let s = 0; s < batchCount; s++) {
-        const livingCount = state.enemies.reduce((count, enemy) => count + (enemy.dead ? 0 : 1), 0);
-        if (livingCount < getWaveEnemyCap()) spawnEnemy();
+        if (livingCount < enemyCap) {
+          spawnEnemy();
+          livingCount++;
+        }
       }
     }
   }
@@ -4577,14 +4740,12 @@ function updateEnemies(dt) {
   const p = state.player;
   const chronoMult = state.chrono_timer > 0 ? 0.15 : 1.0;
 
-  // Commander Aura buff reset & calculation
+  // Commander Aura buff reset & calculation (O(N) with spatial hash broadphase)
   state.enemies.forEach(e => { e.is_buffed = false; });
   state.enemies.forEach(e => {
     if (e.affix === "commander" && !e.dead) {
-      state.enemies.forEach(other => {
-        if (other !== e && Math.hypot(other.x - e.x, other.y - e.y) < 160) {
-          other.is_buffed = true;
-        }
+      forEachNearbyEnemy(e.x, e.y, 160, state.enemies, other => {
+        if (other !== e) other.is_buffed = true;
       });
     }
   });
@@ -4611,9 +4772,9 @@ function updateEnemies(dt) {
       if (e.burn_timer === 0) {
         if (e.burn_ignition_pending) {
           const radius = 76;
-          state.particles.push({ x: e.x, y: e.y, radius: 8, max_radius: radius, alpha: 0.9, color: "rgba(255, 104, 48, " });
-          state.enemies.forEach(other => {
-            if (other !== e && !other.dead && Math.hypot(other.x - e.x, other.y - e.y) <= radius) {
+          if (state.particles.length < 35) state.particles.push({ x: e.x, y: e.y, radius: 8, max_radius: radius, alpha: 0.9, color: "rgba(255, 104, 48, " });
+          forEachNearbyEnemy(e.x, e.y, radius, state.enemies, other => {
+            if (other !== e && !other.dead) {
               other.hp -= (e.burn_damage || 0) * 0.55;
               applyHitFeedback(other, { x: other.x - e.x, y: other.y - e.y }, "heavy", false, false, 60);
             }
@@ -4929,11 +5090,11 @@ function updateEnemies(dt) {
       spawnInkDrop(e.x, e.y, inkReward);
 
       if (state.selected_char === "rune_sorceress") {
-        state.particles.push({x:e.x,y:e.y,radius:12,max_radius:128,alpha:0.95,color:"rgba(166, 119, 255, "});
-        state.enemies.forEach(other => {
-          const burstDist = Math.hypot(other.x - e.x, other.y - e.y);
-          if (other !== e && !other.dead && burstDist < 118) {
+        if (state.particles.length < 35) state.particles.push({x:e.x,y:e.y,radius:12,max_radius:128,alpha:0.95,color:"rgba(166, 119, 255, "});
+        forEachNearbyEnemy(e.x, e.y, 118, state.enemies, other => {
+          if (other !== e && !other.dead) {
             other.hp -= 34 * state.damage_mult;
+            const burstDist = Math.hypot(other.x - e.x, other.y - e.y);
             const knock = burstDist > 0.001 ? 220 / burstDist : 0;
             other.vx += (other.x - e.x) * knock;
             other.vy += (other.y - e.y) * knock;
@@ -4953,13 +5114,11 @@ function updateEnemies(dt) {
               x: exX, y: exY, radius: 15, max_radius: 130, alpha: 1.0,
               color: "rgba(249, 115, 22, "
             });
-            state.enemies.forEach(other => {
-              if (Math.hypot(other.x - exX, other.y - exY) < 125) {
-                other.hp -= 140;
-                addFloatingText(other.x, other.y - 12, "140", "#f97316", 15);
-                const a = Math.atan2(other.y - exY, other.x - exX);
-                other.vx = Math.cos(a) * 320; other.vy = Math.sin(a) * 320;
-              }
+            forEachNearbyEnemy(exX, exY, 125, state.enemies, other => {
+              other.hp -= 140;
+              addFloatingText(other.x, other.y - 12, "140", "#f97316", 15);
+              const a = Math.atan2(other.y - exY, other.x - exX);
+              other.vx = Math.cos(a) * 320; other.vy = Math.sin(a) * 320;
             });
             if (Math.hypot(p.x - exX, p.y - exY) < 125 && p.invuln_timer <= 0 && !p.is_dashing) {
               takePlayerDamage(28);
@@ -5341,7 +5500,7 @@ function saveLocalLeaderboard(row) {
 function renderLeaderboard(rows) {
   const list = leaderboardNode("leaderboard-entries");
   if (!list) return;
-  list.replaceChildren();
+  if (typeof list.replaceChildren === "function") list.replaceChildren(); else list.innerHTML = "";
   if (!rows.length) {
     const empty = document.createElement("li"); empty.textContent = "Henüz kayıt yok."; list.appendChild(empty); return;
   }
@@ -5974,7 +6133,7 @@ function renderInventoryView() {
   gadgetsTab.setAttribute("aria-selected", String(showingGadgets));
   if (showingGadgets) {
     const gadgetList = document.getElementById("inv-gadgets-list");
-    gadgetList.replaceChildren();
+    if (typeof gadgetList.replaceChildren === "function") gadgetList.replaceChildren(); else gadgetList.innerHTML = "";
     for (const gadgetId of state.owned_gadgets) {
       const gadget = GADGETS_CATALOG[gadgetId];
       if (!gadget) continue;
@@ -6256,6 +6415,15 @@ function render() {
   }
   ctx.translate(-p.x, -p.y);
 
+  // Viewport Culling Bounds (Skips off-screen entities to maximize mobile 60fps)
+  const halfViewW = (canvas.width / zoom) * 0.5 + 130;
+  const halfViewH = (canvas.height / zoom) * 0.5 + 130;
+  const camX = p.x;
+  const camY = p.y;
+  const isEntityVisible = (ex, ey, margin = 40) => {
+    return Math.abs(ex - camX) <= halfViewW + margin && Math.abs(ey - camY) <= halfViewH + margin;
+  };
+
   // 4 Dynamic Biomes based on progression across 100 Waves
   let frameSprite = "upgrade_v1/arena_frame_library.png";
   let runeSprite = "magical_rune_circle.png";
@@ -6321,6 +6489,7 @@ function render() {
   const now = performance.now();
   const cornerProps = [[-900, -650], [900, -650], [-900, 650], [900, 650]];
   cornerProps.forEach(([bx, by], idx) => {
+    if (!isEntityVisible(bx, by, 110)) return;
     // Floor ambient radial glow
     const bGlow = ctx.createRadialGradient(bx, by - 12, 10, bx, by - 12, 96);
     bGlow.addColorStop(0, brazierFlameColor + "0.20)");
@@ -6438,8 +6607,9 @@ function render() {
     ctx.restore();
   });
 
-  // Turrets
+  // Turrets (with viewport culling)
   state.turrets.forEach(t => {
+    if (!isEntityVisible(t.x, t.y, 44)) return;
     ctx.save();
     ctx.translate(t.x, t.y);
     const spr = images["scroll_turret.png"];
@@ -6447,8 +6617,9 @@ function render() {
     ctx.restore();
   });
 
-  // Ink drops
+  // Ink drops (with viewport culling)
   state.ink_drops.forEach(drop => {
+    if (!isEntityVisible(drop.x, drop.y, 24)) return;
     if (images["ink_drop.png"]) {
       ctx.drawImage(images["ink_drop.png"], drop.x - 10, drop.y - 10, 20, 20);
     } else {
@@ -6457,8 +6628,9 @@ function render() {
     }
   });
 
-  // Health drops (Şifa Parşömeni)
+  // Health drops (Şifa Parşömeni) (with viewport culling)
   state.health_drops.forEach(drop => {
+    if (!isEntityVisible(drop.x, drop.y, 28)) return;
     ctx.save();
     ctx.translate(drop.x, drop.y);
     const pulse = 1.0 + Math.sin(Date.now() * 0.007) * 0.18;
@@ -6484,8 +6656,9 @@ function render() {
     ctx.restore();
   });
 
-  // Mines
+  // Mines (with viewport culling)
   state.punctuation_mines.forEach(mine => {
+    if (!isEntityVisible(mine.x, mine.y, 36)) return;
     ctx.save();
     ctx.translate(mine.x, mine.y);
     const s = 1.0 + Math.sin(mine.pulse) * 0.16;
@@ -6518,11 +6691,11 @@ function render() {
     ctx.restore();
   });
 
-  // Shockwaves
+  // Shockwaves (with viewport culling & dynamic particle cap)
   state.particles.forEach(pt => {
     pt.radius += 5.5;
     pt.alpha -= 0.05;
-    if (pt.alpha > 0) {
+    if (pt.alpha > 0 && isEntityVisible(pt.x, pt.y, pt.radius + 10)) {
       ctx.save();
       ctx.strokeStyle = pt.color + Math.max(0, pt.alpha) + ")";
       ctx.lineWidth = 3;
@@ -6531,14 +6704,19 @@ function render() {
     }
   });
   state.particles = state.particles.filter(pt => pt.alpha > 0);
+  if (state.particles.length > 35) state.particles = state.particles.slice(-35);
 
-  // Enemy Projectiles
+  // Enemy Projectiles (with viewport culling & mobile shadow optimization)
   state.enemy_projectiles.forEach(ep => {
+    if (!isEntityVisible(ep.x, ep.y, 28)) return;
     ctx.save();
     ctx.translate(ep.x, ep.y);
     if (ep.color) {
       const r = ep.radius || 10;
-      ctx.shadowColor = ep.color; ctx.shadowBlur = 13;
+      if (!isTouchOrSmall) {
+        ctx.shadowColor = ep.color;
+        ctx.shadowBlur = 10;
+      }
       ctx.fillStyle = ep.color;
       ctx.strokeStyle = "rgba(255,244,220,.9)"; ctx.lineWidth = 1.3;
       ctx.beginPath();
@@ -6559,8 +6737,9 @@ function render() {
   // Labels are reserved for nearby elites and bosses to keep crowds readable.
   const enemyLabelBoxes = [];
 
-  // Enemies
+  // Enemies (with viewport culling)
   state.enemies.forEach(e => {
+    if (!isEntityVisible(e.x, e.y, (e.size || 40) + 40)) return;
     if (e.behavior_phase === "windup" && (e.type === "Homophone Harpy" || e.type === "Run-on Reaper")) {
       const length = e.type === "Homophone Harpy" ? 340 : 280;
       const color = e.type === "Homophone Harpy" ? "rgba(255, 191, 71, 0.9)" : "rgba(248, 72, 76, 0.9)";
@@ -6664,9 +6843,13 @@ function render() {
     const sz = e.size || 36;
     const spriteSize = sz * 1.55;
     if (spr) {
-      if (e.hit_flash_timer > 0) ctx.filter = `brightness(${1 + Math.min(1.6, e.hit_flash_timer * 14)}) saturate(0.72)`;
-      ctx.drawImage(spr, -spriteSize / 2, -spriteSize / 2, spriteSize, spriteSize);
-      ctx.filter = "none";
+      if (e.hit_flash_timer > 0) {
+        ctx.globalAlpha = 0.68;
+        ctx.drawImage(spr, -spriteSize / 2, -spriteSize / 2, spriteSize, spriteSize);
+        ctx.globalAlpha = 1.0;
+      } else {
+        ctx.drawImage(spr, -spriteSize / 2, -spriteSize / 2, spriteSize, spriteSize);
+      }
     }
 
     if (e.is_elite && images["elite_crown.png"]) {
@@ -6719,8 +6902,9 @@ function render() {
     }
   });
 
-  // Projectiles
+  // Projectiles (with viewport culling & shadowBlur optimization)
   state.projectiles.forEach(pr => {
+    if (!isEntityVisible(pr.x, pr.y, 24)) return;
     ctx.save();
     ctx.translate(pr.x, pr.y);
     ctx.rotate(Math.atan2(pr.dy, pr.dx));
@@ -6731,8 +6915,10 @@ function render() {
       ctx.drawImage(prSpr, -sz / 2, -sz / 2, sz, sz);
     } else {
       ctx.fillStyle = pr.crit ? "#ffd700" : pr.color;
-      ctx.shadowColor = pr.color;
-      ctx.shadowBlur = pr.crit ? 14 : 6;
+      if (!isTouchOrSmall) {
+        ctx.shadowColor = pr.color;
+        ctx.shadowBlur = pr.crit ? 12 : 5;
+      }
       ctx.fillRect(-8, -3, 16, 6);
     }
     ctx.restore();
@@ -6926,6 +7112,11 @@ function render() {
 // 17. MAIN GAME LOOP
 // =========================================
 function gameLoop(now) {
+  if (window.isGamePaused) {
+    lastTime = now;
+    requestAnimationFrame(gameLoop);
+    return;
+  }
   const rawDt = Math.min(0.1, (now - lastTime) / 1000);
   lastTime = now;
   const dt = rawDt * (state.game_speed || 1.0);
@@ -7192,4 +7383,299 @@ loadAssets(() => {
   initTitleScreen();
   initTouchControls();
   requestAnimationFrame(gameLoop);
+});
+
+// =========================================
+// 18. PAUSE, GRANULAR AUDIO & SETTINGS ENGINE
+// =========================================
+window.isGamePaused = false;
+
+function toggleGamePause(forceState) {
+  const titleScreen = document.getElementById("title-screen");
+  const gameOverScreen = document.getElementById("game-over-screen");
+  const isTitleOpen = titleScreen && titleScreen.style.display !== "none";
+  const isGameOverOpen = gameOverScreen && gameOverScreen.style.display !== "none";
+  if (isTitleOpen || isGameOverOpen) return;
+
+  if (typeof forceState === "boolean") {
+    window.isGamePaused = forceState;
+  } else {
+    window.isGamePaused = !window.isGamePaused;
+  }
+
+  const pauseModal = document.getElementById("pause-modal");
+  if (pauseModal) {
+    pauseModal.style.display = window.isGamePaused ? "flex" : "none";
+  }
+  if (window.isGamePaused) {
+    syncAudioSettingsUI();
+  }
+}
+
+function returnToMainMenuFromPause() {
+  window.isGamePaused = false;
+  const pauseModal = document.getElementById("pause-modal");
+  if (pauseModal) pauseModal.style.display = "none";
+  const shopScreen = document.getElementById("shop-screen");
+  if (shopScreen) shopScreen.style.display = "none";
+  const gameOverScreen = document.getElementById("game-over-screen");
+  if (gameOverScreen) gameOverScreen.style.display = "none";
+  const quizModal = document.getElementById("quiz-modal");
+  if (quizModal) quizModal.style.display = "none";
+
+  // Stop active combat music and effects
+  bgm.stop();
+  state.is_wave_active = false;
+  state.enemies = [];
+  state.projectiles = [];
+  state.enemy_projectiles = [];
+  state.pickups = [];
+  state.hit_effects = [];
+  state.floating_texts = [];
+
+  // Reset stats & show title screen cleanly
+  document.getElementById("title-screen").style.display = "flex";
+  initTitleScreen();
+  syncMobileControlsVisibility();
+}
+
+function openSettingsModalFromTitle() {
+  const pauseModal = document.getElementById("pause-modal");
+  if (!pauseModal) return;
+  const titleEl = document.getElementById("pause-modal-title");
+  if (titleEl) titleEl.textContent = "SES VE OYUN AYARLARI";
+  const resumeBtn = document.getElementById("resume-game-btn");
+  if (resumeBtn) resumeBtn.style.display = "none";
+  const returnBtn = document.getElementById("pause-return-to-menu-btn");
+  if (returnBtn) returnBtn.style.display = "none";
+  pauseModal.style.display = "flex";
+  syncAudioSettingsUI();
+}
+
+function closeSettingsModalToTitle() {
+  const pauseModal = document.getElementById("pause-modal");
+  if (pauseModal) pauseModal.style.display = "none";
+  const resumeBtn = document.getElementById("resume-game-btn");
+  if (resumeBtn) resumeBtn.style.display = "";
+  const returnBtn = document.getElementById("pause-return-to-menu-btn");
+  if (returnBtn) returnBtn.style.display = "";
+}
+
+function syncAudioSettingsUI() {
+  // Master
+  const masterSlider = document.getElementById("master-vol-slider");
+  const masterLabel = document.getElementById("master-vol-label");
+  const masterBtn = document.getElementById("master-mute-toggle");
+  if (masterSlider) masterSlider.value = Math.round(sounds.masterVolume * 100);
+  if (masterLabel) masterLabel.textContent = `${Math.round(sounds.masterVolume * 100)}%`;
+  if (masterBtn) {
+    masterBtn.textContent = sounds.masterMuted ? "Sessiz" : "Açık";
+    masterBtn.className = sounds.masterMuted ? "btn btn-crimson" : "btn btn-emerald";
+  }
+
+  // SFX
+  const sfxSlider = document.getElementById("sfx-vol-slider");
+  const sfxLabel = document.getElementById("sfx-vol-label");
+  const sfxBtn = document.getElementById("sfx-mute-toggle");
+  if (sfxSlider) sfxSlider.value = Math.round(sounds.sfxVolume * 100);
+  if (sfxLabel) sfxLabel.textContent = `${Math.round(sounds.sfxVolume * 100)}%`;
+  if (sfxBtn) {
+    sfxBtn.textContent = sounds.sfxMuted ? "Sessiz" : "Açık";
+    sfxBtn.className = sounds.sfxMuted ? "btn btn-crimson" : "btn btn-emerald";
+  }
+
+  // BGM
+  const bgmSlider = document.getElementById("bgm-vol-slider");
+  const bgmLabel = document.getElementById("bgm-vol-label");
+  const bgmBtn = document.getElementById("bgm-mute-toggle");
+  if (bgmSlider) bgmSlider.value = Math.round(sounds.bgmVolume * 100);
+  if (bgmLabel) bgmLabel.textContent = `${Math.round(sounds.bgmVolume * 100)}%`;
+  if (bgmBtn) {
+    bgmBtn.textContent = sounds.bgmMuted ? "Sessiz" : "Açık";
+    bgmBtn.className = sounds.bgmMuted ? "btn btn-crimson" : "btn btn-emerald";
+  }
+
+  // Menu Music
+  const menuSlider = document.getElementById("menu-vol-slider");
+  const menuLabel = document.getElementById("menu-vol-label");
+  const menuBtn = document.getElementById("menu-mute-toggle");
+  if (menuSlider) menuSlider.value = Math.round(sounds.menuVolume * 100);
+  if (menuLabel) menuLabel.textContent = `${Math.round(sounds.menuVolume * 100)}%`;
+  if (menuBtn) {
+    menuBtn.textContent = sounds.menuMuted ? "Sessiz" : "Açık";
+    menuBtn.className = sounds.menuMuted ? "btn btn-crimson" : "btn btn-emerald";
+  }
+
+  // All mute button
+  const allMuteBtn = document.getElementById("audio-mute-all-btn");
+  if (allMuteBtn) {
+    const isAllMuted = sounds.masterMuted;
+    allMuteBtn.textContent = isAllMuted ? "Tümünü Aç" : "Tümünü Sustur";
+  }
+}
+
+// Hook all UI buttons and sliders on DOMContentLoaded
+window.addEventListener("DOMContentLoaded", () => {
+  // Pause button on HUD
+  const pauseBtn = document.getElementById("pause-btn");
+  if (pauseBtn) {
+    pauseBtn.onclick = (e) => {
+      e.stopPropagation();
+      toggleGamePause();
+    };
+  }
+
+  // Resume button
+  const resumeBtn = document.getElementById("resume-game-btn");
+  if (resumeBtn) {
+    resumeBtn.onclick = () => toggleGamePause(false);
+  }
+
+  // Return to main menu from pause
+  const pauseReturnBtn = document.getElementById("pause-return-to-menu-btn");
+  if (pauseReturnBtn) {
+    pauseReturnBtn.onclick = returnToMainMenuFromPause;
+  }
+
+  // Bottom close button
+  const pauseCloseBtn = document.getElementById("pause-close-bottom-btn");
+  if (pauseCloseBtn) {
+    pauseCloseBtn.onclick = () => {
+      const titleScreen = document.getElementById("title-screen");
+      if (titleScreen && titleScreen.style.display !== "none") {
+        closeSettingsModalToTitle();
+      } else {
+        toggleGamePause(false);
+      }
+    };
+  }
+
+  // Title Audio Settings button
+  const titleAudioBtn = document.getElementById("title-audio-settings-btn");
+  if (titleAudioBtn) {
+    titleAudioBtn.onclick = openSettingsModalFromTitle;
+  }
+
+  // Master Volume Controls
+  const masterSlider = document.getElementById("master-vol-slider");
+  if (masterSlider) {
+    masterSlider.oninput = (e) => {
+      sounds.masterVolume = parseFloat(e.target.value) / 100;
+      sounds.saveAudioSettings();
+      syncAudioSettingsUI();
+    };
+  }
+  const masterMute = document.getElementById("master-mute-toggle");
+  if (masterMute) {
+    masterMute.onclick = () => {
+      sounds.masterMuted = !sounds.masterMuted;
+      sounds.saveAudioSettings();
+      syncAudioSettingsUI();
+    };
+  }
+
+  // SFX Controls
+  const sfxSlider = document.getElementById("sfx-vol-slider");
+  if (sfxSlider) {
+    sfxSlider.oninput = (e) => {
+      sounds.sfxVolume = parseFloat(e.target.value) / 100;
+      sounds.saveAudioSettings();
+      syncAudioSettingsUI();
+    };
+  }
+  const sfxMute = document.getElementById("sfx-mute-toggle");
+  if (sfxMute) {
+    sfxMute.onclick = () => {
+      sounds.sfxMuted = !sounds.sfxMuted;
+      sounds.saveAudioSettings();
+      syncAudioSettingsUI();
+    };
+  }
+
+  // BGM Controls
+  const bgmSlider = document.getElementById("bgm-vol-slider");
+  if (bgmSlider) {
+    bgmSlider.oninput = (e) => {
+      sounds.bgmVolume = parseFloat(e.target.value) / 100;
+      sounds.saveAudioSettings();
+      syncAudioSettingsUI();
+    };
+  }
+  const bgmMute = document.getElementById("bgm-mute-toggle");
+  if (bgmMute) {
+    bgmMute.onclick = () => {
+      sounds.bgmMuted = !sounds.bgmMuted;
+      sounds.saveAudioSettings();
+      syncAudioSettingsUI();
+    };
+  }
+
+  // Menu Controls
+  const menuSlider = document.getElementById("menu-vol-slider");
+  if (menuSlider) {
+    menuSlider.oninput = (e) => {
+      sounds.menuVolume = parseFloat(e.target.value) / 100;
+      sounds.saveAudioSettings();
+      syncAudioSettingsUI();
+    };
+  }
+  const menuMute = document.getElementById("menu-mute-toggle");
+  if (menuMute) {
+    menuMute.onclick = () => {
+      sounds.menuMuted = !sounds.menuMuted;
+      sounds.saveAudioSettings();
+      syncAudioSettingsUI();
+    };
+  }
+
+  // Mute All Button
+  const muteAllBtn = document.getElementById("audio-mute-all-btn");
+  if (muteAllBtn) {
+    muteAllBtn.onclick = () => {
+      sounds.masterMuted = !sounds.masterMuted;
+      sounds.saveAudioSettings();
+      syncAudioSettingsUI();
+    };
+  }
+
+  // Gameplay Settings Toggles
+  const shakeToggle = document.getElementById("setting-screenshake-toggle");
+  if (shakeToggle) {
+    shakeToggle.onchange = (e) => {
+      state.screen_shake_disabled = !e.target.checked;
+    };
+  }
+  const dmgNumbersToggle = document.getElementById("setting-damagenumbers-toggle");
+  if (dmgNumbersToggle) {
+    dmgNumbersToggle.onchange = (e) => {
+      state.damage_numbers_disabled = !e.target.checked;
+    };
+  }
+  const autoAimSelect = document.getElementById("setting-autoaim-select");
+  if (autoAimSelect) {
+    autoAimSelect.onchange = (e) => {
+      state.auto_aim_priority = e.target.value;
+    };
+  }
+});
+
+// Keydown listener for Escape and P
+window.addEventListener("keydown", (e) => {
+  if (e.key === "Escape" || e.key.toLowerCase() === "p") {
+    const titleScreen = document.getElementById("title-screen");
+    const isTitleOpen = titleScreen && titleScreen.style.display !== "none";
+    const pauseModal = document.getElementById("pause-modal");
+    if (isTitleOpen) {
+      if (pauseModal && pauseModal.style.display !== "none") {
+        closeSettingsModalToTitle();
+      }
+      return;
+    }
+    const gameOverScreen = document.getElementById("game-over-screen");
+    const isGameOverOpen = gameOverScreen && gameOverScreen.style.display !== "none";
+    if (!isGameOverOpen) {
+      e.preventDefault();
+      toggleGamePause();
+    }
+  }
 });
