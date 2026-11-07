@@ -2061,11 +2061,12 @@ const ctx = canvas.getContext("2d");
 let lastTime = performance.now();
 let adaptiveCanvasScale = 1.0;
 let slowFrameSeconds = 0;
+let recoverySeconds = 0;
 let lastFrameCosts = { updateMs: 0, renderMs: 0, totalMs: 0 };
 // Let slower integrated/mobile GPUs trade a little canvas resolution for a
 // steadier frame rate. Pixel-art sprites keep nearest-neighbour edges crisp;
 // HTML menus and HUD text remain at native resolution.
-const MIN_ADAPTIVE_CANVAS_SCALE = 0.38;
+const MIN_ADAPTIVE_CANVAS_SCALE = 0.72;
 const MOBILE_RENDER_HEIGHT = 540;
 const DESKTOP_RENDER_HEIGHT = 600;
 
@@ -2076,20 +2077,35 @@ function setCanvasResolution(width, height) {
   if (canvas.height !== nextHeight) canvas.height = nextHeight;
 }
 
-function adaptCanvasQuality(framePressureSeconds) {
-  if (!state.is_wave_active || document.hidden || adaptiveCanvasScale <= MIN_ADAPTIVE_CANVAS_SCALE) return;
-  // Use both update/render work and RAF spacing. GPU/compositor stalls can
-  // leave JS work timers deceptively low while the player sees dropped frames.
-  if (framePressureSeconds > 0.018) slowFrameSeconds += Math.min(0.05, framePressureSeconds);
-  else slowFrameSeconds = Math.max(0, slowFrameSeconds - Math.max(0.008, framePressureSeconds) * 1.5);
-  if (slowFrameSeconds < 0.12) return;
+function adaptCanvasQuality(frameDeltaSeconds, frameCosts = null) {
+  if (!state.is_wave_active || document.hidden) return;
+  const renderMs = Number(frameCosts?.renderMs ?? frameDeltaSeconds * 1000);
+  const totalMs = Number(frameCosts?.totalMs ?? frameDeltaSeconds * 1000);
+  const sampleSeconds = Math.min(0.05, Math.max(0, frameDeltaSeconds));
 
-  // The CSS/HTML interface remains at full resolution; only the pixel-art
-  // arena render target shrinks when sustained frame times miss a 60 Hz
-  // frame budget. Keep the scale for the run to avoid quality oscillation.
-  adaptiveCanvasScale = Math.max(MIN_ADAPTIVE_CANVAS_SCALE, adaptiveCanvasScale - (framePressureSeconds > 0.032 ? 0.24 : 0.16));
-  slowFrameSeconds = 0;
-  resizeGameCanvas();
+  // RAF gaps include browser scheduling, tab wakeups, and compositor stalls.
+  // Lowering the canvas cannot fix those, so only sustained measured render
+  // work is allowed to trade visual quality for speed.
+  const renderIsOverBudget = renderMs >= 12 || (totalMs >= 18 && renderMs >= 8);
+  if (renderIsOverBudget) {
+    slowFrameSeconds += sampleSeconds;
+    recoverySeconds = 0;
+  } else {
+    slowFrameSeconds = Math.max(0, slowFrameSeconds - sampleSeconds * 1.5);
+    if (renderMs <= 6 && totalMs <= 12) recoverySeconds += sampleSeconds;
+    else recoverySeconds = 0;
+  }
+
+  if (slowFrameSeconds >= 0.35 && adaptiveCanvasScale > MIN_ADAPTIVE_CANVAS_SCALE) {
+    adaptiveCanvasScale = Math.max(MIN_ADAPTIVE_CANVAS_SCALE, adaptiveCanvasScale - 0.08);
+    slowFrameSeconds = 0;
+    recoverySeconds = 0;
+    resizeGameCanvas();
+  } else if (recoverySeconds >= 1.5 && adaptiveCanvasScale < 1) {
+    adaptiveCanvasScale = Math.min(1, adaptiveCanvasScale + 0.08);
+    recoverySeconds = 0;
+    resizeGameCanvas();
+  }
 }
 
 // Adaptive Responsive Canvas Viewport for Zero-Void Mobile Experience
@@ -7351,7 +7367,7 @@ function render(dt = 1 / 60) {
   const cx = canvas.width / 2;
   const cy = canvas.height / 2;
   const p = state.player;
-  const reducedEffects = adaptiveCanvasScale < 0.70;
+  const reducedEffects = adaptiveCanvasScale <= 0.84;
 
   ctx.save();
 
@@ -8205,7 +8221,7 @@ function gameLoop(now) {
     renderMs: Number((frameFinished - renderStarted).toFixed(2)),
     totalMs: Number((frameFinished - frameStarted).toFixed(2))
   };
-  adaptCanvasQuality(Math.max(rawDt, lastFrameCosts.totalMs / 1000));
+  adaptCanvasQuality(rawDt, lastFrameCosts);
   scheduleGameLoop();
 }
 

@@ -448,3 +448,9 @@ Original prompt: https://github.com/yasinkaya701/lexicon-survivors — bunu ince
 - Test beklentileri eski 200 kelimelik havuz ve eski boss davranışı yerine güncel sözleşmeye uyarlandı. Godot port testindeki 200 kayıt varsayımı 1.000'e çıkarıldı.
 - Doğrulama: Node regresyonları 16/16, mobil Playwright tarayıcı kontrolleri 6/6, Worker testleri 31/31; Godot script/sahne kontrolleri 10/10 geçti. Web seviye uyarlaması A2'den B1'e ilerledi; `book` ve `horse` yankıları tematik saldırı ve güç çarpanlarıyla üretildi. `node --check`, JSON kopya paritesi ve `git diff --check` geçti. Godot kapanışında test sahnelerinden kaynaklanan mevcut ObjectDB/kaynak sızıntı uyarıları görüldü.
 - Kullanıcı isteğiyle Pages deploy başlatılmıyor; değişiklikler PR olarak hazırlanıyor.
+
+## Oynanabilir çözünürlük ve adaptif kalite düzeltmesi — 2026-11-08
+
+- Kök neden bulundu: adaptif kalite `requestAnimationFrame` aralığını çizim maliyeti gibi yorumlayıp kısa tarayıcı/compositor gecikmelerinde çözünürlüğü hızla düşürüyor, run boyunca geri yükseltmiyordu. Kalite artık ölçülen render maliyetine bakıyor; %12ms üzeri çizimde 350ms sürdürülen baskıdan sonra %8 kademelerle iner, %72 altına düşmez ve 1.5 saniye render payı bulunca yeniden yükselir. Düşük kalite efekt azaltımı bir kademe daha erken devreye girerek render işini de hafifletir.
+- Mobil Playwright 390×844 doğrulaması: olağan oyunda render ölçeği %100 / 540×1169 kaldı; sentetik sürdürülen çizim yükünde oynanabilir taban %72 / 389×842 oldu, yük kalkınca %100'e geri döndü. Oyun ekranı incelendi, konsol hatası yok. Kalite histerezis testi RAF sıçramalarını, %72 tabanı ve geri toparlanmayı kapsıyor. Node regresyonları 17/17 geçti; Playwright mobil akışında 6/6 regresyon geçti.
+- Web JS cache anahtarı `word-boss-power-20261108-2` olarak yenilendi. Bu düzeltme mevcut PR'a eklenecek ve Pages'e deploy edilecek.

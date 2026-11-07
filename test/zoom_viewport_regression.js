@@ -25,10 +25,14 @@ assert.match(game, /const onStartGame = async \(e\) => \{[\s\S]*?finishArchiveIn
   "starting a run should immediately dismiss the decorative intro after the tap passes through");
 assert.match(game, /const zoom = state\.camera_zoom \|\| 1\.0/, "camera zoom should stay at a predictable neutral scale unless the player changes it");
 assert.doesNotMatch(game, /const baseZoom = isTouchOrSmall \?/, "mobile devices must not receive a hidden automatic camera zoom");
-assert.match(game, /adaptCanvasQuality\(Math\.max\(rawDt, lastFrameCosts\.totalMs \/ 1000\)\)/,
-  "automatic quality reduction must react to both visible frame stalls and measured update/render cost");
-assert.match(game, /const MIN_ADAPTIVE_CANVAS_SCALE = 0\.38/,
-  "automatic quality reduction must retain a low-resolution floor for slow devices");
+assert.match(game, /adaptCanvasQuality\(rawDt, lastFrameCosts\)/,
+  "adaptive quality must use measured frame costs separately from RAF spacing");
+assert.match(game, /const renderIsOverBudget = renderMs >= 12/,
+  "automatic quality reduction must respond to sustained canvas render work");
+assert.match(game, /recoverySeconds >= 1\.5/,
+  "automatic quality must recover when rendering has sustained headroom");
+assert.match(game, /const MIN_ADAPTIVE_CANVAS_SCALE = 0\.72/,
+  "automatic quality reduction must preserve a playable resolution floor");
 assert.match(game, /const MOBILE_RENDER_HEIGHT = 540/,
   "mobile canvas should start at a lower raster resolution to reduce fill and sprite cost");
 
