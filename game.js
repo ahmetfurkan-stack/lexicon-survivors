@@ -1675,7 +1675,11 @@ function triggerHaptic(type = "light") {
 }
 
 function triggerScreenShake(duration = 0.16, intensity = 6.0) {
-  if (state.screen_shake_disabled) return;
+  if (!window.gameSettings || !window.gameSettings.screenShake || state.screen_shake_disabled) {
+    state.screen_shake = 0;
+    state.shake_intensity = 0;
+    return;
+  }
   state.screen_shake = Math.max(state.screen_shake, duration);
   state.shake_intensity = Math.max(state.shake_intensity, intensity);
 }
@@ -2472,6 +2476,11 @@ function toggleInventoryModal(forcedState) {
   state.is_inventory_open = shouldOpen;
   modal.style.display = shouldOpen ? "flex" : "none";
   if (shouldOpen) {
+    if (state.player) {
+      state.player.vx = 0;
+      state.player.vy = 0;
+      state.player.attack_anim_timer = 0;
+    }
     renderInventoryView();
   }
   syncMobileControlsVisibility();
@@ -2498,8 +2507,15 @@ function toggleMistakesModal(forcedState) {
   const modal = document.getElementById("mistakes-modal");
   if (!modal) return;
   const isVisible = forcedState !== undefined ? !forcedState : (modal.style.display === "flex");
-  modal.style.display = isVisible ? "none" : "flex";
-  if (!isVisible) {
+  const willOpen = !isVisible;
+  modal.style.display = willOpen ? "flex" : "none";
+  state.is_mistakes_open = willOpen;
+  if (willOpen) {
+    if (state.player) {
+      state.player.vx = 0;
+      state.player.vy = 0;
+      state.player.attack_anim_timer = 0;
+    }
     renderMistakesList();
   }
   syncMobileControlsVisibility();
@@ -3107,9 +3123,19 @@ function endWave() {
   bgm.setMode("peaceful");
 
   if (state.current_wave % 5 === 0) {
+    // 5, 10, 15, 20, 25... Her 5 dalgada bir hikaye ve çizgi roman animasyonu kesintisiz gösterilir!
     showStoryIntermission(state.current_wave);
   } else if (state.current_wave >= state.max_waves) {
     victoryScreen();
+  } else if (window.gameSettings && window.gameSettings.skipWaveEndScreen) {
+    // Kullanıcı dalga sonu dükkanını atlamak istediğinde: doğrudan sonraki dalgaya kesintisiz geçiş
+    const nextWaveNum = state.current_wave + 1;
+    triggerTacticalAlert("KESİNTİSİZ GEÇİŞ", `Dalga ${nextWaveNum} Başlıyor...`);
+    setTimeout(() => {
+      if (!state.is_wave_active && !window.isGamePaused && !state.is_inventory_open) {
+        startWave();
+      }
+    }, 450);
   } else {
     openShop();
   }
@@ -6399,11 +6425,11 @@ function render() {
 
   ctx.save();
 
-  // Screen shake impact
+  // Screen shake impact (strictly 0 when disabled to eliminate camera jitter)
   let shakeX = 0, shakeY = 0;
-  if (state.screen_shake > 0) {
-    shakeX = (Math.random() - 0.5) * state.shake_intensity;
-    shakeY = (Math.random() - 0.5) * state.shake_intensity;
+  if (window.gameSettings && window.gameSettings.screenShake && state.screen_shake > 0) {
+    shakeX = (Math.random() - 0.5) * Math.min(8, state.shake_intensity);
+    shakeY = (Math.random() - 0.5) * Math.min(8, state.shake_intensity);
   }
   ctx.translate(cx + shakeX, cy + shakeY);
 
@@ -6577,8 +6603,9 @@ function render() {
     });
   }
 
-  // Motes
-  state.ambient_motes.forEach(m => {
+  // Motes (Göz dinlendirici düşük modda gizlenir)
+  if (!window.gameSettings || window.gameSettings.visualQuality !== "low") {
+    state.ambient_motes.forEach(m => {
     m.x += Math.cos(m.angle) * m.speed * 0.016;
     m.y += Math.sin(m.angle) * m.speed * 0.016;
     if (m.x < -1150) m.x = 1150;
@@ -6593,6 +6620,7 @@ function render() {
     ctx.fill();
     ctx.restore();
   });
+  }
 
   // Ink puddles
   state.ink_puddles.forEach(puddle => {
@@ -6691,20 +6719,24 @@ function render() {
     ctx.restore();
   });
 
-  // Shockwaves (with viewport culling & dynamic particle cap)
-  state.particles.forEach(pt => {
-    pt.radius += 5.5;
-    pt.alpha -= 0.05;
-    if (pt.alpha > 0 && isEntityVisible(pt.x, pt.y, pt.radius + 10)) {
-      ctx.save();
-      ctx.strokeStyle = pt.color + Math.max(0, pt.alpha) + ")";
-      ctx.lineWidth = 3;
-      ctx.beginPath(); ctx.arc(pt.x, pt.y, pt.radius, 0, Math.PI * 2); ctx.stroke();
-      ctx.restore();
-    }
-  });
-  state.particles = state.particles.filter(pt => pt.alpha > 0);
-  if (state.particles.length > 35) state.particles = state.particles.slice(-35);
+  // Shockwaves (Düşük görsel modda gözü yormamak için kapatılır)
+  if (!window.gameSettings || window.gameSettings.visualQuality !== "low") {
+    state.particles.forEach(pt => {
+      pt.radius += 5.5;
+      pt.alpha -= 0.05;
+      if (pt.alpha > 0 && isEntityVisible(pt.x, pt.y, pt.radius + 10)) {
+        ctx.save();
+        ctx.strokeStyle = pt.color + Math.max(0, pt.alpha) + ")";
+        ctx.lineWidth = 3;
+        ctx.beginPath(); ctx.arc(pt.x, pt.y, pt.radius, 0, Math.PI * 2); ctx.stroke();
+        ctx.restore();
+      }
+    });
+    state.particles = state.particles.filter(pt => pt.alpha > 0);
+    if (state.particles.length > 35) state.particles = state.particles.slice(-35);
+  } else {
+    state.particles.length = 0;
+  }
 
   // Enemy Projectiles (with viewport culling & mobile shadow optimization)
   state.enemy_projectiles.forEach(ep => {
@@ -6844,7 +6876,8 @@ function render() {
     const spriteSize = sz * 1.55;
     if (spr) {
       if (e.hit_flash_timer > 0) {
-        ctx.globalAlpha = 0.68;
+        // Düşük modda sert parlama yerine yumuşak %88 saydamlık, diğer modlarda %68
+        ctx.globalAlpha = (window.gameSettings && window.gameSettings.visualQuality === "low") ? 0.88 : 0.68;
         ctx.drawImage(spr, -spriteSize / 2, -spriteSize / 2, spriteSize, spriteSize);
         ctx.globalAlpha = 1.0;
       } else {
@@ -7112,7 +7145,7 @@ function render() {
 // 17. MAIN GAME LOOP
 // =========================================
 function gameLoop(now) {
-  if (window.isGamePaused) {
+  if (window.isGamePaused || state.is_inventory_open || state.is_mistakes_open) {
     lastTime = now;
     requestAnimationFrame(gameLoop);
     return;
@@ -7320,12 +7353,13 @@ window.weaponArchetypeTestApi = Object.freeze({
 });
 
 function updateGame(dt) {
+  if (window.isGamePaused || state.is_inventory_open || state.is_mistakes_open) {
+    return;
+  }
   if (state.is_wave_active) {
-    if (!state.is_inventory_open) {
-      updatePlayer(dt);
-      updateEnemies(dt);
-      updateGadgetEffects(dt);
-    }
+    updatePlayer(dt);
+    updateEnemies(dt);
+    updateGadgetEffects(dt);
     updateHUD();
   }
 }
@@ -7390,6 +7424,57 @@ loadAssets(() => {
 // =========================================
 window.isGamePaused = false;
 
+window.gameSettings = {
+  visualQuality: "medium",       // "low" (Göz Dinlendirici) | "medium" | "high"
+  skipWaveEndScreen: false,      // true: kesintisiz dalga geçişi; false: dükkanı aç
+  screenShake: false,            // Varsayılan KAPALI: kamerada sıfır titreme!
+  damageNumbers: true,           // true | false
+  autoAim: "nearest"             // "nearest" | "lowest_hp" | "boss_priority"
+};
+
+function loadGameSettings() {
+  try {
+    const isMobileDevice = ('ontouchstart' in window) || (navigator.maxTouchPoints > 0) || window.innerWidth <= 1080;
+    if (isMobileDevice) {
+      window.gameSettings.visualQuality = "low"; // Mobilde göz dinlendirici mod varsayılan!
+    }
+    const saved = localStorage.getItem("lexicon_game_settings");
+    if (saved) {
+      const p = JSON.parse(saved);
+      if (typeof p.visualQuality === "string") window.gameSettings.visualQuality = p.visualQuality;
+      if (typeof p.skipWaveEndScreen === "boolean") window.gameSettings.skipWaveEndScreen = p.skipWaveEndScreen;
+      if (typeof p.screenShake === "boolean") window.gameSettings.screenShake = p.screenShake;
+      if (typeof p.damageNumbers === "boolean") window.gameSettings.damageNumbers = p.damageNumbers;
+      if (typeof p.autoAim === "string") window.gameSettings.autoAim = p.autoAim;
+    }
+  } catch (_) {}
+}
+
+function saveGameSettings() {
+  try {
+    localStorage.setItem("lexicon_game_settings", JSON.stringify(window.gameSettings));
+  } catch (_) {}
+}
+
+function syncGameSettingsUI() {
+  const visualSelect = document.getElementById("setting-visual-effects-select");
+  if (visualSelect) visualSelect.value = window.gameSettings.visualQuality || "medium";
+
+  const skipWaveToggle = document.getElementById("setting-skip-wave-shop-toggle");
+  if (skipWaveToggle) skipWaveToggle.checked = !!window.gameSettings.skipWaveEndScreen;
+
+  const shakeToggle = document.getElementById("setting-screenshake-toggle");
+  if (shakeToggle) shakeToggle.checked = !!window.gameSettings.screenShake;
+
+  const dmgNumbersToggle = document.getElementById("setting-damagenumbers-toggle");
+  if (dmgNumbersToggle) dmgNumbersToggle.checked = !!window.gameSettings.damageNumbers;
+
+  const autoAimSelect = document.getElementById("setting-autoaim-select");
+  if (autoAimSelect) autoAimSelect.value = window.gameSettings.autoAim || "nearest";
+}
+
+loadGameSettings();
+
 function toggleGamePause(forceState) {
   const titleScreen = document.getElementById("title-screen");
   const gameOverScreen = document.getElementById("game-over-screen");
@@ -7408,7 +7493,13 @@ function toggleGamePause(forceState) {
     pauseModal.style.display = window.isGamePaused ? "flex" : "none";
   }
   if (window.isGamePaused) {
+    if (state.player) {
+      state.player.vx = 0;
+      state.player.vy = 0;
+      state.player.attack_anim_timer = 0;
+    }
     syncAudioSettingsUI();
+    syncGameSettingsUI();
   }
 }
 
@@ -7450,6 +7541,7 @@ function openSettingsModalFromTitle() {
   if (returnBtn) returnBtn.style.display = "none";
   pauseModal.style.display = "flex";
   syncAudioSettingsUI();
+  syncGameSettingsUI();
 }
 
 function closeSettingsModalToTitle() {
@@ -7638,23 +7730,48 @@ window.addEventListener("DOMContentLoaded", () => {
     };
   }
 
-  // Gameplay Settings Toggles
+  // Gameplay & Visual Settings Listeners with LocalStorage Persistence
+  syncGameSettingsUI();
+
+  const visualSelect = document.getElementById("setting-visual-effects-select");
+  if (visualSelect) {
+    visualSelect.onchange = (e) => {
+      window.gameSettings.visualQuality = e.target.value;
+      saveGameSettings();
+    };
+  }
+
+  const skipWaveToggle = document.getElementById("setting-skip-wave-shop-toggle");
+  if (skipWaveToggle) {
+    skipWaveToggle.onchange = (e) => {
+      window.gameSettings.skipWaveEndScreen = e.target.checked;
+      saveGameSettings();
+    };
+  }
+
   const shakeToggle = document.getElementById("setting-screenshake-toggle");
   if (shakeToggle) {
     shakeToggle.onchange = (e) => {
+      window.gameSettings.screenShake = e.target.checked;
       state.screen_shake_disabled = !e.target.checked;
+      saveGameSettings();
     };
   }
+
   const dmgNumbersToggle = document.getElementById("setting-damagenumbers-toggle");
   if (dmgNumbersToggle) {
     dmgNumbersToggle.onchange = (e) => {
-      state.damage_numbers_disabled = !e.target.checked;
+      window.gameSettings.damageNumbers = e.target.checked;
+      saveGameSettings();
     };
   }
+
   const autoAimSelect = document.getElementById("setting-autoaim-select");
   if (autoAimSelect) {
     autoAimSelect.onchange = (e) => {
+      window.gameSettings.autoAim = e.target.value;
       state.auto_aim_priority = e.target.value;
+      saveGameSettings();
     };
   }
 });
