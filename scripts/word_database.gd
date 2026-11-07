@@ -780,36 +780,12 @@ func get_random_cards_for_wave(wave: int, count: int = 4) -> Array:
 
 func get_random_cards(wave: int, difficulty: String = "normal", count: int = 4) -> Array:
 	var pool = []
+	var target_level := "A1"
+	if is_inside_tree() and get_tree().root.has_node("StatsManager"):
+		target_level = str(get_tree().root.get_node("StatsManager").learning_level)
 	for w in words:
-		var lvl = w.get("level", "A1")
-		match difficulty:
-			"easy":
-				if wave > 60:
-					if lvl in ["B2", "C1", "C2"]: pool.append(w)
-				elif wave > 40:
-					if lvl in ["B1", "B2", "C1"]: pool.append(w)
-				elif wave > 20:
-					if lvl in ["A2", "B1", "B2"]: pool.append(w)
-				elif wave > 10:
-					if lvl in ["A1", "A2", "B1"]: pool.append(w)
-				else:
-					if lvl in ["A1", "A2"]: pool.append(w)
-			"hard":
-				if wave > 30:
-					if lvl in ["B2", "C1", "C2"]: pool.append(w)
-				elif wave > 12:
-					if lvl in ["B1", "B2", "C1"]: pool.append(w)
-				else:
-					if lvl in ["A2", "B1", "B2"]: pool.append(w)
-			_: # "normal"
-				if wave > 40:
-					if lvl in ["B2", "C1", "C2"]: pool.append(w)
-				elif wave > 24:
-					if lvl in ["B1", "B2", "C1"]: pool.append(w)
-				elif wave > 10:
-					if lvl in ["A2", "B1"]: pool.append(w)
-				else:
-					if lvl in ["A1", "A2"]: pool.append(w)
+		if str(w.get("level", "A1")) == target_level:
+			pool.append(w)
 
 	# Prioritize unlearned words to keep questions fresh
 	var unlearned = []

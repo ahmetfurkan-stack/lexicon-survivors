@@ -2,6 +2,7 @@ const assert = require("node:assert/strict");
 const fs = require("node:fs");
 
 const source = fs.readFileSync(new URL("../build/web/game.js", `file://${__filename}`), "utf8");
+const godotEnemy = fs.readFileSync(new URL("../scripts/enemy.gd", `file://${__filename}`), "utf8");
 const skillStart = source.indexOf("function updateMilestoneBossSkill(");
 const skillEnd = source.indexOf("\nfunction updateCommanderAuras(", skillStart);
 assert(skillStart >= 0 && skillEnd > skillStart, "Milestone boss skill controller should exist");
@@ -37,10 +38,18 @@ assert.match(skillController, /boss_skill === "crossfire" \|\| boss\.boss_skill 
 assert.match(source, /if \(ep\.return_owner && !ep\.return_owner\.dead\)[\s\S]*ep\.returning = true/,
   "returning boss projectiles must turn back toward their owner after their outward leg");
 assert(!skillController.includes("spawnEnemy("), "Boss abilities must not add regular enemies to solo encounters");
-assert.match(source, /getBossEchoMechanic\(wordType\)[\s\S]*return "line"[\s\S]*return "snare"[\s\S]*return "mirror"/,
+assert.match(source, /getBossEchoMechanic\(enemyAttack, wordType\)[\s\S]*return "line"[\s\S]*return "snare"[\s\S]*return "mirror"/,
   "accumulated mistake echoes should gain category-specific combat patterns");
-assert.match(source, /echo_mechanic: getBossEchoMechanic\(mistake\.type\)/,
-  "each echo should receive the mechanic for its missed-word category");
+assert.match(source, /echo_mechanic: getBossEchoMechanic\(wordCard\.enemy_attack, mistake\.type\)/,
+  "each echo should receive the attack mechanic assigned to its missed word");
+assert.match(source, /const echoPower = 1\.25 \+ failures \* 0\.15/);
+assert.match(source, /const echoSpeed = 1\.0 \+ failures \* 0\.05/);
+assert.match(source, /const echoDamage = 1\.0 \+ failures \* 0\.12/);
+assert.match(source, /140 \+ \(state\.current_wave - 1\) \* 36/,
+  "web word echoes should scale from the same wave health curve as Godot's Spelling Spectre");
+assert.match(godotEnemy, /max_health \*= 1\.25 \+ mistake_echo_fail_count \* 0\.15/);
+assert.match(godotEnemy, /speed \*= 1\.0 \+ mistake_echo_fail_count \* 0\.05/);
+assert.match(godotEnemy, /damage_to_player \*= 1\.0 \+ mistake_echo_fail_count \* 0\.12/);
 for (const asset of [
   "upgrade_v1/boss_eclipse_sigil.svg",
   "upgrade_v1/boss_void_bloom_sigil.svg",

@@ -441,3 +441,10 @@ Original prompt: https://github.com/yasinkaya701/lexicon-survivors — bunu ince
 - `codex/mobile-ipad-touch-layout` dalındaki iPad `visualViewport`, güvenli alan, responsive HUD ve 58px dokunma hedefleri `codex/perf-boss-ui-polish` dalına alındı.
 - Kare bütçesine göre canvas çözünürlüğü, sabit joystick, otomatik zoom kapatma, aura ve mermi uzamsal ızgaraları ile yoğun render azaltımı korunarak birleştirildi. Oyun JS cache anahtarı birleştirilmiş sürüm için yenilendi.
 - Performans optimizasyonları zaten yayımlanmış build'de vardı; bu birleştirme iPad viewport/dokunma düzeltmelerini aynı güncel build'e taşıyor.
+
+## Kelime yankısı gücü ve PR doğrulaması — 2026-11-08
+
+- Anlam temalı 1.000 kelimelik havuz, 73 düşman arketipi, CEFR başlangıç/seviye uyarlaması ve boss yankılarına yönelik güç artışları web ve Godot sürümlerinde tamamlandı. Doğru/yanlış cevap ödül farkı, telafi akışı ve cache anahtarı güncellendi.
+- Test beklentileri eski 200 kelimelik havuz ve eski boss davranışı yerine güncel sözleşmeye uyarlandı. Godot port testindeki 200 kayıt varsayımı 1.000'e çıkarıldı.
+- Doğrulama: Node regresyonları 16/16, mobil Playwright tarayıcı kontrolleri 6/6, Worker testleri 31/31; Godot script/sahne kontrolleri 10/10 geçti. Web seviye uyarlaması A2'den B1'e ilerledi; `book` ve `horse` yankıları tematik saldırı ve güç çarpanlarıyla üretildi. `node --check`, JSON kopya paritesi ve `git diff --check` geçti. Godot kapanışında test sahnelerinden kaynaklanan mevcut ObjectDB/kaynak sızıntı uyarıları görüldü.
+- Kullanıcı isteğiyle Pages deploy başlatılmıyor; değişiklikler PR olarak hazırlanıyor.

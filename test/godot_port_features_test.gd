@@ -2,7 +2,7 @@ extends Node
 
 func _ready():
 	print("\n=== BEGIN GODOT NATIVE PORT VERIFICATION TEST ===")
-	assert(WordDatabase.words.size() == 200, "Godot should use the same complete 200-card bank as web")
+	assert(WordDatabase.words.size() == 1000, "Godot should use the same complete 1000-card bank as web")
 
 	# TEST 1: Speed Toggles & Engine.time_scale
 	print("[PORT TEST 1] Verifying Game Speed Toggles & Engine.time_scale...")

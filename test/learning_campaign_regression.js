@@ -6,7 +6,7 @@ const root = path.resolve(__dirname, "..");
 const questions = JSON.parse(fs.readFileSync(path.join(root, "assets/data/questions.json"), "utf8"));
 const webQuestions = JSON.parse(fs.readFileSync(path.join(root, "build/web/questions.json"), "utf8"));
 assert.deepEqual(webQuestions, questions, "Godot and web must ship the same authored question bank");
-assert.equal(questions.length, 200, "Question bank should grow from 160 to 200 curated cards");
+assert.equal(questions.length, 1000, "Question bank should contain the complete 1000-word campaign");
 
 const counts = new Map([[0, 0], [1, 0], [2, 0], [3, 0]]);
 const words = new Set();
@@ -27,9 +27,17 @@ for (const card of questions) {
   counts.set(card.correct_index, counts.get(card.correct_index) + 1);
 }
 
-assert.deepEqual([...counts.values()], [50, 50, 50, 50], "Correct answers should not reveal a preferred option position");
-for (const level of ["A1", "A2", "B1", "B2", "C1", "C2"]) {
-  assert(questions.some(card => card.level === level), `Missing CEFR band ${level}`);
+assert(Math.max(...counts.values()) - Math.min(...counts.values()) <= 60,
+  "Correct answers should not reveal a preferred option position");
+assert.deepEqual(Object.fromEntries([...new Set(questions.map(card => card.level))].map(level => [
+  level, questions.filter(card => card.level === level).length
+])), { A1: 220, A2: 200, B1: 190, B2: 160, C1: 130, C2: 100 }, "CEFR quotas should match the approved campaign plan");
+const archetypes = new Set(questions.map(card => card.enemy_archetype));
+assert(archetypes.size >= 60, "Words should map to a broad set of meaning-based enemy families");
+for (const card of questions) {
+  for (const field of ["meaning_tr", "enemy_visual_modifier", "enemy_attack", "buff_name", "buff_meaning_link"]) {
+    assert(card[field]?.trim(), `${card.word} needs ${field}`);
+  }
 }
 assert(questions.filter(card => card.type === "Prefix").length >= 4, "Prefix practice must support the existing Prefix Overdrive synergy");
-console.log("Learning campaign regression passed: 200 unique questions, balanced keys, A1–C2 and prefix coverage.");
+console.log("Learning campaign regression passed: 1000 unique questions, balanced keys, CEFR quotas, semantic enemies/buffs and prefix coverage.");

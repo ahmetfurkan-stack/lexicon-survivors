@@ -20,6 +20,7 @@ var intro_seen_path: String = "user://archive_intro_seen.cfg"
 var skills_button: Button
 var skills_overlay: Control
 var skills_content: VBoxContainer
+var learning_level_selector: OptionButton
 
 const DIFFICULTY_DESCRIPTIONS = {
 	"easy": "Düşmanlar daha yavaş ve daha az dayanıklıdır. Başlangıç canı +40 HP.",
@@ -38,9 +39,33 @@ func _ready():
 	build_character_cards()
 	_build_music_selector()
 	_build_skills_button()
+	_build_learning_level_selector()
 	StatsManager.character_progress_changed.connect(_on_character_progress_changed)
 	set_difficulty("normal")
 	start_intro()
+
+func _build_learning_level_selector() -> void:
+	var vbox := get_node("Panel/VBox") as VBoxContainer
+	var row := HBoxContainer.new()
+	row.name = "LearningLevelRow"
+	row.alignment = BoxContainer.ALIGNMENT_CENTER
+	row.add_theme_constant_override("separation", 12)
+	var label := Label.new()
+	label.text = "İNGİLİZCE BAŞLANGIÇ SEVİYESİ"
+	label.add_theme_font_size_override("font_size", 13)
+	label.add_theme_color_override("font_color", Color("#574733"))
+	row.add_child(label)
+	learning_level_selector = OptionButton.new()
+	learning_level_selector.custom_minimum_size = Vector2(150, 38)
+	for level in ["A1", "A2", "B1", "B2", "C1", "C2"]:
+		learning_level_selector.add_item(level)
+		if level == StatsManager.learning_level:
+			learning_level_selector.select(learning_level_selector.item_count - 1)
+	learning_level_selector.item_selected.connect(func(index: int): StatsManager.set_learning_level(learning_level_selector.get_item_text(index)))
+	row.add_child(learning_level_selector)
+	var section_index := vbox.get_node("SectionDiff").get_index()
+	vbox.add_child(row)
+	vbox.move_child(row, section_index)
 
 func _build_skills_button() -> void:
 	var vbox := get_node("Panel/VBox") as VBoxContainer

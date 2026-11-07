@@ -624,9 +624,9 @@ func start_card_quiz(card: Dictionary, index: int):
 	quiz_continue_btn.hide()
 
 	var q_type = card.get("question_type", "meaning").capitalize()
-	quiz_word_title.text = card["word"] + " [" + card["type"] + " • " + q_type + "]"
+	quiz_word_title.text = card["word"] + " [" + card["type"] + " • " + q_type + "] · HEDEF " + StatsManager.learning_level
 	quiz_question.text = card["question"]
-	quiz_example.text = 'Örnek Kullanım: "' + card.get("example", "") + '"'
+	quiz_example.text = 'Örnek: "' + card.get("example", "") + '"\n' + str(card.get("buff_name", "Kelime Buff’ı")) + " · " + str(card.get("description", "")) + "\n" + str(card.get("buff_meaning_link", "Bu buff kelimenin anlam temasından gelir.")) + "\nUYARI: Yanlış bıraktığın kelimeler boss turunda anlamlarına uygun düşman olarak geri döner."
 
 	for child in options_container.get_children():
 		child.queue_free()
@@ -655,6 +655,7 @@ func answer_quiz(selected_index: int):
 	if selected_index < 0 or selected_index >= displayed_option_indices.size():
 		return
 	var is_correct = (displayed_option_indices[selected_index] == active_quiz_card["correct_index"])
+	var learning_feedback := StatsManager.record_learning_answer(is_correct)
 	var base_cost = int(active_quiz_card.get("shop_cost", active_quiz_card["cost"]))
 	var is_redemption = active_quiz_card.get("is_redemption", false)
 
@@ -669,6 +670,7 @@ func answer_quiz(selected_index: int):
 
 		StatsManager.spend_ink(discount_cost)
 		StatsManager.apply_card_upgrade(active_quiz_card, true)
+		quiz_result_label.text += "\nANLAM HAFIZASI: " + str(active_quiz_card.get("meaning_tr", active_quiz_card["options"][active_quiz_card["correct_index"]]))
 	else:
 		StatsManager.record_mistake(active_quiz_card)
 		quiz_result_label.text = "YANLIŞ CEVAP. Doğru seçenek: " + active_quiz_card["options"][active_quiz_card["correct_index"]] + "\nHata Defterine eklendi; telafi kartı olarak geri dönebilir.\nKart normal fiyattan alındı: " + str(base_cost) + " Mürekkep"
@@ -676,6 +678,10 @@ func answer_quiz(selected_index: int):
 
 		StatsManager.spend_ink(base_cost)
 		StatsManager.apply_card_upgrade(active_quiz_card, false)
+		quiz_result_label.text += "\nANLAM HAFIZASI: " + str(active_quiz_card.get("meaning_tr", active_quiz_card["options"][active_quiz_card["correct_index"]]))
+
+	if not learning_feedback.is_empty():
+		quiz_result_label.text += "\n" + learning_feedback
 
 	if active_card_index >= 0 and active_card_index < current_cards.size():
 		current_cards.remove_at(active_card_index)

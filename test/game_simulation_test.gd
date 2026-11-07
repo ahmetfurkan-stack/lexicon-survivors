@@ -8,10 +8,10 @@ func _init():
 	
 	# Test 1: Word Database
 	print("[TEST 1] Testing WordDatabase...")
-	var test_card = WordDatabase.get_word_info("Relentless")
-	assert(not test_card.is_empty(), "Relentless must exist in WordDatabase")
+	var test_card = WordDatabase.get_word_info("Indeterminate")
+	assert(not test_card.is_empty(), "Indeterminate must exist in the shared WordDatabase")
 	assert(test_card["type"] == "Adjective", "Type must be Adjective")
-	assert(test_card["level"] == "B2", "Level must be B2")
+	assert(test_card["level"] == "C1", "Indeterminate must retain its CEFR C1 level")
 	print("  -> WordDatabase verified: found ", WordDatabase.words.size(), " educational words.")
 	
 	# Test 2: Stats Manager
@@ -34,7 +34,7 @@ func _init():
 	var initial_atk_speed = StatsManager.attack_speed_mult
 	StatsManager.apply_card_upgrade(test_card, true) # true = quiz bonus (+50%)
 	assert(StatsManager.attack_speed_mult > initial_atk_speed, "Attack speed must increase")
-	print("  -> Applied Relentless with Quiz bonus: new attack_speed_mult = ", StatsManager.attack_speed_mult)
+	print("  -> Applied Indeterminate with Quiz bonus: new attack_speed_mult = ", StatsManager.attack_speed_mult)
 	
 	# Test 4: Synergy Mechanics
 	print("[TEST 4] Testing Synergy System (3 Adjectives)...")

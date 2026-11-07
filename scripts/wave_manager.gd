@@ -237,7 +237,7 @@ func spawn_milestone_boss() -> void:
 	_spawn_mistake_echo_batch(angle)
 	var echo_total := mistake_echo_queue.size() + _active_mistake_echo_count()
 	if echo_total > 0:
-		StatsManager.trigger_tactical_alert("HATA DEFTERİ · %d KELİME YANKISI" % echo_total, "Her birikmiş kelime yankısı bu düelloda sırayla gelir.")
+		StatsManager.trigger_tactical_alert("HATA DEFTERİ · %d KELİME YANKISI" % echo_total, "Yanlış bıraktığın kelimeler boss turunda anlamlarına uygun düşman olarak geri döner. Düşmanı yenmek kaydı silmez; doğru telafi cevabı siler.")
 
 func _active_mistake_echo_count() -> int:
 	var count := 0
@@ -256,7 +256,7 @@ func _spawn_mistake_echo_batch(preferred_angle: float = 0.0) -> int:
 		var origin := milestone_boss.global_position if is_instance_valid(milestone_boss) else player_ref.global_position
 		echo.global_position = get_arena_spawn_position(origin, 185.0 + spawned * 24.0, angle)
 		get_tree().current_scene.add_child(echo)
-		echo.configure_mistake_echo(str(memory.get("word", "?")), int(memory.get("fail_count", 1)))
+		echo.configure_mistake_echo(str(memory.get("word", "?")), int(memory.get("fail_count", 1)), WordDatabase.get_word_info(str(memory.get("word", "?"))))
 		spawned += 1
 	return spawned
 

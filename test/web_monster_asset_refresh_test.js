@@ -27,6 +27,6 @@ for (const id of monsters) {
 }
 
 assert.match(game, /const ENEMY_SPRITE_VERSION = "monster-refresh-[^"]+";/, 'enemy art URLs use a cache-busting version');
-assert.match(html, /game\.js\?v=gameplay-20261106-3/, 'the game script itself bypasses previously cached alias logic');
-assert.match(game, /const assetsToLoad = spriteList\.filter\(name => !aliasTargets\.has\(name\)\);/, 'legacy aliases are excluded from image loading so stale files cannot overwrite new sprites');
+assert.match(html, /game\.js\?v=[^"&]+/, 'the game script itself bypasses previously cached alias logic');
+assert.match(game, /const assetsToLoad = spriteList\.filter\(name => !aliasTargets\.has\(name\) && !legacyWalkAndSwingFrame\.test\(name\)\);/, 'legacy aliases and obsolete walk/swing sprites are excluded from image loading');
 console.log(`Monster refresh passed: ${monsters.length} transparent sprites, aliases, mirrors, and cache refresh verified.`);

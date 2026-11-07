@@ -41,6 +41,13 @@ var suppress_rewards: bool = false
 var is_mistake_echo: bool = false
 var mistake_echo_word: String = ""
 var mistake_echo_fail_count: int = 1
+var mistake_echo_archetype: String = "spectre"
+var mistake_echo_attack: String = "chase"
+var mistake_echo_visual_modifier: String = ""
+var mistake_echo_attack_cooldown: float = 2.6
+var mistake_echo_windup: float = 0.0
+var mistake_echo_recovery: float = 0.0
+var mistake_echo_charge_timer: float = 0.0
 var mistake_word_frame: TextureRect = null
 var stun_timer: float = 0.0
 var slow_timer: float = 0.0
@@ -94,10 +101,12 @@ class HarpyBolt extends Area2D:
 	var speed: float = 190.0
 	var damage: float = 14.0
 	var lifetime: float = 3.0
+	var is_book: bool = false
 
-	func _init(flight_direction: Vector2, hit_damage: float):
+	func _init(flight_direction: Vector2, hit_damage: float, book_projectile: bool = false):
 		direction = flight_direction.normalized()
 		damage = hit_damage
+		is_book = book_projectile
 		collision_layer = 8
 		collision_mask = 1
 		var shape_node = CollisionShape2D.new()
@@ -109,7 +118,18 @@ class HarpyBolt extends Area2D:
 		bolt_sprite.texture = load("res://assets/sprites/bullet_enemy_red.png")
 		bolt_sprite.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
 		bolt_sprite.scale = Vector2(0.8, 0.8)
+		bolt_sprite.visible = not is_book
 		add_child(bolt_sprite)
+		if is_book:
+			queue_redraw()
+
+	func _draw():
+		if not is_book:
+			return
+		draw_rect(Rect2(-9.0, -7.0, 18.0, 14.0), Color("#9b5738"), true)
+		draw_rect(Rect2(-9.0, -7.0, 18.0, 14.0), Color("#f0d49a"), false, 1.5)
+		draw_line(Vector2(-1.0, -6.0), Vector2(-1.0, 6.0), Color("#f0d49a"), 1.2)
+		draw_line(Vector2(2.0, -3.0), Vector2(7.0, -3.0), Color("#f0d49a"), 1.0)
 
 	func _ready():
 		add_to_group("enemy_projectiles")
@@ -179,14 +199,22 @@ func _exit_tree() -> void:
 		_active_enemies.erase(self)
 		_active_enemy_count = maxi(0, _active_enemy_count - 1)
 
-func configure_mistake_echo(word: String, fail_count: int) -> void:
+func configure_mistake_echo(word: String, fail_count: int, word_card: Dictionary = {}) -> void:
 	is_mistake_echo = true
 	mistake_echo_word = word
 	mistake_echo_fail_count = clampi(fail_count, 1, 5)
-	max_health *= 0.72 + mistake_echo_fail_count * 0.16
+	if word_card.is_empty():
+		word_card = WordDatabase.get_word_info(word)
+	mistake_echo_archetype = str(word_card.get("enemy_archetype", "spectre"))
+	mistake_echo_attack = str(word_card.get("enemy_attack", "chase"))
+	mistake_echo_visual_modifier = str(word_card.get("enemy_visual_modifier", ""))
+	if sprite:
+		sprite.modulate = Color("#d8c8ee")
+	queue_redraw()
+	max_health *= 1.25 + mistake_echo_fail_count * 0.15
 	health = max_health
-	speed *= 0.82 + mistake_echo_fail_count * 0.08
-	damage_to_player *= 0.62 + mistake_echo_fail_count * 0.12
+	speed *= 1.0 + mistake_echo_fail_count * 0.05
+	damage_to_player *= 1.0 + mistake_echo_fail_count * 0.12
 	ink_reward = 0
 	if label:
 		label.text = mistake_echo_word
@@ -213,6 +241,10 @@ func configure_mistake_echo(word: String, fail_count: int) -> void:
 			move_child(mistake_word_frame, label.get_index())
 	if sprite:
 		sprite.modulate = Color("#dfbdf5")
+		base_sprite_scale *= 1.20 + float(mistake_echo_fail_count) * 0.04
+		sprite.scale = base_sprite_scale
+	mistake_echo_attack_cooldown = 2.6 - float(mistake_echo_fail_count - 1) * 0.08
+	queue_redraw()
 
 func setup_type():
 	var diff_data = StatsManager.difficulties.get(StatsManager.difficulty, StatsManager.difficulties["normal"])
@@ -556,6 +588,8 @@ func _physics_process(delta: float):
 
 		if is_milestone_boss:
 			desired_velocity = _milestone_boss_movement(delta, dir, distance_to_player)
+		elif is_mistake_echo:
+			desired_velocity = _mistake_echo_movement(delta, dir, distance_to_player)
 		elif enemy_type == "Homophone Harpy":
 			desired_velocity = _harpy_movement(delta, dir, distance_to_player)
 		elif enemy_type == "Run-on Reaper":
@@ -733,6 +767,55 @@ func _milestone_boss_movement(delta: float, dir: Vector2, distance_to_player: fl
 			return dir * speed * 0.65
 		return Vector2(-dir.y, dir.x) * speed * 0.38
 	return dir * speed * (0.78 if boss_phase == 1 else 0.9)
+
+func _mistake_echo_movement(delta: float, dir: Vector2, distance_to_player: float) -> Vector2:
+	if mistake_echo_windup > 0.0:
+		mistake_echo_windup = maxf(0.0, mistake_echo_windup - delta)
+		if mistake_echo_windup == 0.0:
+			_perform_mistake_echo_attack(dir)
+			mistake_echo_recovery = 0.36
+		queue_redraw()
+		return dir * speed * 0.24
+	if mistake_echo_recovery > 0.0:
+		mistake_echo_recovery = maxf(0.0, mistake_echo_recovery - delta)
+		return -dir * speed * 0.18
+	if mistake_echo_charge_timer > 0.0:
+		mistake_echo_charge_timer = maxf(0.0, mistake_echo_charge_timer - delta)
+		return dir * speed * 2.45
+	mistake_echo_attack_cooldown = maxf(0.0, mistake_echo_attack_cooldown - delta)
+	if mistake_echo_attack != "chase" and mistake_echo_attack_cooldown <= 0.0 and distance_to_player < 460.0:
+		mistake_echo_attack_cooldown = 2.55 - float(mistake_echo_fail_count - 1) * 0.08
+		mistake_echo_windup = 0.68 - float(mistake_echo_fail_count - 1) * 0.025
+		attack_direction = dir
+		queue_redraw()
+		return dir * speed * 0.24
+	return dir * speed
+
+func _perform_mistake_echo_attack(dir: Vector2) -> void:
+	match mistake_echo_attack:
+		"book_volley":
+			for offset in [-0.22, 0.0, 0.22]:
+				var bolt := HarpyBolt.new(dir.rotated(offset), damage_to_player * 0.34, true)
+				get_tree().current_scene.add_child(bolt)
+				bolt.global_position = global_position + dir * 22.0
+		"surround":
+			for index in range(8):
+				var angle := float(index) * TAU / 8.0
+				var bolt := HarpyBolt.new(Vector2.RIGHT.rotated(angle), damage_to_player * 0.22)
+				get_tree().current_scene.add_child(bolt)
+				bolt.global_position = global_position
+		"fan":
+			for index in range(5):
+				var offset := (float(index) - 2.0) * 0.16
+				var bolt := HarpyBolt.new(dir.rotated(offset), damage_to_player * 0.26)
+				get_tree().current_scene.add_child(bolt)
+				bolt.global_position = global_position
+		"snare":
+			var puddle := EnemyInkPuddle.new(damage_to_player * 0.24)
+			get_tree().current_scene.add_child(puddle)
+			puddle.global_position = target_player.global_position
+		"charge", "line":
+			mistake_echo_charge_timer = 0.32
 
 func _boss_telegraph_duration() -> float:
 	# Phase three is faster, but still leaves a clear reaction window for a dash.
@@ -931,7 +1014,42 @@ func fire_harpy_bolt():
 	get_tree().current_scene.add_child(bolt)
 	bolt.global_position = global_position + attack_direction * 24.0
 
+func _draw_mistake_echo_semantic() -> void:
+	var colors := {
+		"book": Color("#b36a3f"), "mount": Color("#bd7a42"), "beast": Color("#ba5e48"), "avian": Color("#6ea6d8"), "insect": Color("#77bb55"), "tide": Color("#3aaec2"), "scale": Color("#67a88e"), "swarm": Color("#c799e8"), "ember": Color("#f2733e"), "frost": Color("#8ed5f2"), "storm": Color("#788df0"), "thorn": Color("#70ad54"), "stone": Color("#9a8f7a"), "shadow": Color("#7762a8"), "radiant": Color("#f4cb59"), "clockwork": Color("#c49d51"), "cosmic": Color("#9471d5"), "sonic": Color("#50c3b5"), "sound": Color("#55b8be"), "mind": Color("#d17bd3"), "scribe": Color("#dfc183"), "ward": Color("#75c5a3"), "vital": Color("#e7798c"), "venom": Color("#8fb33a"), "emotion": Color("#e77b74"), "gear": Color("#9ca2ae"), "gilded": Color("#efc64c"), "feast": Color("#df9c4a"), "swift": Color("#64d6c7"), "colossus": Color("#aa7b68"), "imp": Color("#ce718d"), "mirror": Color("#87a9df"), "piercer": Color("#d1d5dc"), "magnet": Color("#cb6c74"), "mimic": Color("#a574d0"), "spectre": Color("#c5a4e8"), "human": Color("#e0ad82"), "social": Color("#de87a1"), "speech": Color("#e7d56a"), "travel": Color("#72c6bd"), "home": Color("#d99163"), "city": Color("#87a3b9"), "commerce": Color("#e0b74f"), "conflict": Color("#d65f54"), "craft": Color("#bf9765"), "knowledge": Color("#84c7eb"), "beauty": Color("#ec92c6"), "weather": Color("#8cadd6"), "nature": Color("#77b878"), "shape": Color("#a48ce0"), "measure": Color("#83b1ca"), "change": Color("#d18ee1"), "status": Color("#dbcb68"), "texture": Color("#be9d83"), "time": Color("#d1aa64"), "linker": Color("#78b9a9"), "action": Color("#eb835b"), "aura": Color("#b88ce3"), "relic": Color("#bfa56e"), "body": Color("#dc777c"), "food": Color("#b5be50"), "furniture": Color("#ab815d"), "tool": Color("#a1a8b4"), "sport": Color("#73bf6d"), "transport": Color("#6eabd6"), "clothing": Color("#d382b1"), "medical": Color("#f18b80"), "education": Color("#74b8df"), "art": Color("#d57bb0"), "communication": Color("#6cc6bd"), "container": Color("#cb9b60"), "fantasy": Color("#a97de0"), "law": Color("#c4b36c"), "celebration": Color("#ed9f52"), "obstacle": Color("#a98f7c"), "treasure": Color("#e1c347"), "role": Color("#72b8a5"), "abstract": Color("#a394d1")
+	}
+	var glyphs := {
+		"book":"BK", "mount":"MT", "beast":"BW", "avian":"AV", "insect":"IN", "tide":"TD", "scale":"SC", "swarm":"SW", "ember":"EM", "frost":"FR", "storm":"ST", "thorn":"TH", "stone":"SN", "shadow":"SH", "radiant":"RA", "clockwork":"CW", "cosmic":"CO", "sonic":"SO", "sound":"SD", "mind":"MI", "scribe":"SR", "ward":"WD", "vital":"VI", "venom":"VN", "emotion":"EE", "gear":"GE", "gilded":"GI", "feast":"FE", "swift":"SF", "colossus":"CL", "imp":"IP", "mirror":"MR", "piercer":"PI", "magnet":"MG", "mimic":"MC", "spectre":"SP", "human":"HU", "social":"SO", "speech":"SC", "travel":"TR", "home":"HO", "city":"CT", "commerce":"CM", "conflict":"CF", "craft":"CR", "knowledge":"KN", "beauty":"BE", "weather":"WE", "nature":"NA", "shape":"SH", "measure":"ME", "change":"CH", "status":"SA", "texture":"TX", "time":"TI", "linker":"LK", "action":"AC", "aura":"AU", "relic":"RE", "body":"BD", "food":"FD", "furniture":"FU", "tool":"TL", "sport":"SP", "transport":"TP", "clothing":"CL", "medical":"MD", "education":"ED", "art":"AR", "communication":"CO", "container":"CN", "fantasy":"FA", "law":"LW", "celebration":"CE", "obstacle":"OB", "treasure":"TR", "role":"RO", "abstract":"AB"
+	}
+	var tint: Color = colors.get(mistake_echo_archetype, Color("#bfa56e"))
+	var mark: String = glyphs.get(mistake_echo_archetype, "RE")
+	var center := Vector2(0.0, -24.0)
+	draw_circle(center, 13.0, tint)
+	draw_arc(center, 13.0, 0.0, TAU, 24, Color("#fff0c4"), 2.0, true)
+	draw_string(ThemeDB.fallback_font, center + Vector2(-9.0, 4.0), mark, HORIZONTAL_ALIGNMENT_CENTER, 18.0, 8, Color("#17232c"))
+	match mistake_echo_archetype:
+		"book", "education", "art", "communication":
+			draw_rect(Rect2(-18.0, -46.0, 36.0, 22.0), Color("#9b5738"), true)
+			draw_rect(Rect2(-18.0, -46.0, 36.0, 22.0), Color("#fff0c4"), false, 1.5)
+			draw_line(Vector2(0.0, -45.0), Vector2(0.0, -25.0), Color("#fff0c4"), 1.2)
+		"ward", "law", "status", "medical":
+			draw_colored_polygon(PackedVector2Array([Vector2(0,-47),Vector2(15,-39),Vector2(12,-28),Vector2(0,-22),Vector2(-12,-28),Vector2(-15,-39)]), tint.lightened(0.25))
+		"radiant", "ember", "beauty", "aura", "treasure":
+			for i in range(8):
+				var angle := TAU * float(i) / 8.0
+				draw_line(center + Vector2(cos(angle), sin(angle)) * 15.0, center + Vector2(cos(angle), sin(angle)) * 21.0, tint.lightened(0.4), 2.0)
+		"clockwork", "gear", "tool", "furniture", "transport":
+			draw_arc(center, 17.0, 0.0, TAU, 24, tint.lightened(0.3), 2.0, true)
+		"piercer", "conflict", "obstacle", "stone":
+			draw_colored_polygon(PackedVector2Array([Vector2(0,-47),Vector2(10,-36),Vector2(0,-25),Vector2(-10,-36)]), tint.lightened(0.3))
+		"mount", "beast", "human", "body", "role":
+			draw_colored_polygon(PackedVector2Array([Vector2(-11,-41),Vector2(-17,-52),Vector2(-5,-45),Vector2(11,-41),Vector2(17,-52),Vector2(5,-45)]), tint.lightened(0.25))
+		_:
+			draw_arc(center, 17.0, 0.0, TAU, 24, tint.lightened(0.25), 2.0, true)
+
 func _draw():
+	if is_mistake_echo:
+		_draw_mistake_echo_semantic()
 	_draw_tactical_affix_overlay()
 	if is_milestone_boss:
 		_draw_milestone_boss()

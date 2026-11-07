@@ -34,6 +34,6 @@ assert.deepEqual(directionSelector(player({ vx: 180, attack_anim_timer: 0.08, at
 assert.deepEqual(directionSelector(player({ vx: 180, shot_recoil_timer: 0.08, attack_anim_kind: "ranged",
   last_aim: { x: -1, y: 0 } })), { x: -1, y: 0 }, "a shooter should face the shot during the brief recoil");
 
-assert.match(source, /getHeroRenderAction\(p\)/, "the canvas player sprite must use the blended action selector");
+assert.match(source, /getHeroRenderLayers\(p\)/, "the canvas player sprite must use the locomotion/action layer selector");
 assert.match(source, /getHeroRenderAction\(state\.player\)/, "the runtime state output must report the rendered action");
 console.log("Locomotion and attack blend passed: movement holds its run cycle while attacks layer briefly.");

@@ -1669,6 +1669,8 @@ function readStoredBoolean(key, fallback) {
 const state = {
   selected_char: "inky",
   difficulty: "normal",
+  learning_level: (() => { try { const saved = localStorage.getItem("lexicon_learning_level"); return ["A1", "A2", "B1", "B2", "C1", "C2"].includes(saved) ? saved : "A1"; } catch (_) { return "A1"; } })(),
+  learning_answers: [],
   max_hp: 110,
   hp: 110,
   move_speed: 230,
@@ -2078,13 +2080,13 @@ function adaptCanvasQuality(framePressureSeconds) {
   if (!state.is_wave_active || document.hidden || adaptiveCanvasScale <= MIN_ADAPTIVE_CANVAS_SCALE) return;
   // Use both update/render work and RAF spacing. GPU/compositor stalls can
   // leave JS work timers deceptively low while the player sees dropped frames.
-  if (framePressureSeconds > 0.024) slowFrameSeconds += Math.min(0.05, framePressureSeconds);
+  if (framePressureSeconds > 0.018) slowFrameSeconds += Math.min(0.05, framePressureSeconds);
   else slowFrameSeconds = Math.max(0, slowFrameSeconds - Math.max(0.008, framePressureSeconds) * 1.5);
   if (slowFrameSeconds < 0.12) return;
 
   // The CSS/HTML interface remains at full resolution; only the pixel-art
-  // arena render target shrinks when sustained frame times miss the 33 ms
-  // budget. Keep the scale for the run to avoid quality oscillation.
+  // arena render target shrinks when sustained frame times miss a 60 Hz
+  // frame budget. Keep the scale for the run to avoid quality oscillation.
   adaptiveCanvasScale = Math.max(MIN_ADAPTIVE_CANVAS_SCALE, adaptiveCanvasScale - (framePressureSeconds > 0.032 ? 0.24 : 0.16));
   slowFrameSeconds = 0;
   resizeGameCanvas();
@@ -3159,6 +3161,32 @@ function initTitleScreen() {
     diffContainer.appendChild(btn);
   });
 
+  const learningContainer = document.getElementById("learning-level-selection");
+  learningContainer.innerHTML = "";
+  const levelNotes = {
+    A1: "Temel kelimelerle başla. Başarı geldikçe oyun seni yukarı taşır.",
+    A2: "Günlük durumlarda kullanılan temel ifadelerle başla.",
+    B1: "Bağımsız iletişim için orta seviye kelimelerle başla.",
+    B2: "Daha geniş ve soyut kelime dağarcığıyla başla.",
+    C1: "İleri düzey, daha az sık kullanılan kelimelerle başla.",
+    C2: "En ileri düzey kelimelerle başla; oyun performansına göre ayarlar."
+  };
+  ["A1", "A2", "B1", "B2", "C1", "C2"].forEach(level => {
+    const btn = document.createElement("button");
+    btn.type = "button";
+    btn.className = "btn" + (level === state.learning_level ? " btn-seal" : "");
+    btn.textContent = level;
+    btn.setAttribute("aria-pressed", String(level === state.learning_level));
+    btn.onclick = event => {
+      event.stopPropagation();
+      state.learning_level = level;
+      try { localStorage.setItem("lexicon_learning_level", level); } catch (_) {}
+      initTitleScreen();
+    };
+    learningContainer.appendChild(btn);
+  });
+  document.getElementById("learning-level-desc").textContent = levelNotes[state.learning_level];
+
   document.getElementById("diff-desc").textContent = DIFFICULTIES[state.difficulty].desc;
   const featuredHero = CHARACTERS[state.selected_char];
   const featuredImage = document.getElementById("title-hero-feature");
@@ -3324,7 +3352,24 @@ function syncWeapons() {
 
 function startGame() {
   resetStats();
+  state.learning_answers = [];
   startWave();
+}
+
+function recordLearningAnswer(isCorrect) {
+  state.learning_answers.push(Boolean(isCorrect));
+  if (state.learning_answers.length < 10) return "";
+  const correctCount = state.learning_answers.filter(Boolean).length;
+  state.learning_answers = [];
+  const levels = ["A1", "A2", "B1", "B2", "C1", "C2"];
+  const oldIndex = Math.max(0, levels.indexOf(state.learning_level));
+  const nextIndex = correctCount >= 8 ? Math.min(levels.length - 1, oldIndex + 1)
+    : correctCount < 5 ? Math.max(0, oldIndex - 1) : oldIndex;
+  if (nextIndex === oldIndex) return `Son 10 soruda ${correctCount} doğru: ${state.learning_level} düzeyinde devam.`;
+  state.learning_level = levels[nextIndex];
+  try { localStorage.setItem("lexicon_learning_level", state.learning_level); } catch (_) {}
+  updateHUD();
+  return `Son 10 soruda ${correctCount} doğru · Yeni kelime düzeyi: ${state.learning_level}.`;
 }
 
 function startWave() {
@@ -5402,11 +5447,11 @@ function updateEnemies(dt) {
           }
           e.behavior_phase = "approach";
         }
-        e.echo_attack_cooldown = (e.echo_attack_cooldown || 2.2) - dt;
+        e.echo_attack_cooldown = (e.echo_attack_cooldown || 2.6) - dt;
         if (e.echo_attack_cooldown <= 0 && dist < 520) {
-          e.echo_attack_cooldown = 3.25;
+          e.echo_attack_cooldown = 2.55 - Math.max(0, (e.fail_count || 1) - 1) * 0.08;
           e.behavior_phase = "windup";
-          e.behavior_timer = 0.86;
+          e.behavior_timer = 0.68 - Math.max(0, (e.fail_count || 1) - 1) * 0.025;
           const aimX = aiTarget.x + (aiTarget.vx || 0) * 0.24;
           const aimY = aiTarget.y + (aiTarget.vy || 0) * 0.24;
           const aimAngle = Math.atan2(aimY - e.y, aimX - e.x);
@@ -5416,7 +5461,7 @@ function updateEnemies(dt) {
             x2: e.x + Math.cos(attackAngle) * 620, y2: e.y + Math.sin(attackAngle) * 620,
             timer: 0.86, max_timer: 0.86, color: "rgba(184, 151, 220, 0.88)", owner: e, action
           });
-          const finishAttack = () => { e.behavior_phase = "recovery"; e.behavior_timer = 0.52; };
+          const finishAttack = () => { e.behavior_phase = "recovery"; e.behavior_timer = 0.36; };
           if (e.echo_mechanic === "line") {
             const x1 = e.x, y1 = e.y;
             const x2 = x1 + Math.cos(aimAngle) * 620, y2 = y1 + Math.sin(aimAngle) * 620;
@@ -5437,8 +5482,33 @@ function updateEnemies(dt) {
                 finishAttack();
               }
             });
+          } else if (e.echo_mechanic === "book_volley") {
+            const angles = [aimAngle - 0.24, aimAngle, aimAngle + 0.24];
+            state.telegraphs.push(telegraph(aimAngle, () => {
+              if (!e.dead) angles.forEach(projectileAngle => {
+                const projectile = spawnEnemyProjectile(e.x, e.y, Math.cos(projectileAngle), Math.sin(projectileAngle), e.damage * 0.3, 205);
+                projectile.color = "#b77845"; projectile.shape = "book"; projectile.radius = 10;
+              });
+              finishAttack();
+            }));
+          } else if (e.echo_mechanic === "surround") {
+            state.telegraphs.push({
+              x: e.x, y: e.y, radius: 68, timer: 0.86, max_timer: 0.86,
+              is_boss_area: true, kind: "echo_snare", color: "#b897dc", owner: e,
+              action: () => {
+                if (!e.dead) {
+                  for (let i = 0; i < 8; i++) {
+                    const angle = i * Math.PI / 4;
+                    const projectile = spawnEnemyProjectile(e.x, e.y, Math.cos(angle), Math.sin(angle), e.damage * 0.22, 185);
+                    projectile.color = "#c99de8"; projectile.shape = "shard"; projectile.radius = 6;
+                  }
+                }
+                finishAttack();
+              }
+            });
           } else {
-            const angles = [aimAngle - 0.16, aimAngle + 0.16];
+            const fanCount = e.echo_mechanic === "fan" ? 5 : 2;
+            const angles = Array.from({ length: fanCount }, (_, index) => aimAngle + (index - (fanCount - 1) / 2) * 0.16);
             state.telegraphs.push(telegraph(angles[0], () => {
               if (!e.dead) angles.forEach(projectileAngle => {
                 const projectile = spawnEnemyProjectile(e.x, e.y, Math.cos(projectileAngle), Math.sin(projectileAngle), e.damage * 0.34, 225);
@@ -6019,14 +6089,23 @@ function spawnMilestoneBoss(wave) {
   spawnBossMistakeBatch(angle);
   const queuedWords = state.boss_mistake_queue.length + state.enemies.filter(enemy => enemy.is_mistake_echo && !enemy.dead).length;
   const alert = queuedWords
-    ? `${name.toLocaleUpperCase("tr-TR")} · HATA DEFTERİNDEKİ ${queuedWords} KELİME YANKIYA DÖNÜŞTÜ`
+    ? `${name.toLocaleUpperCase("tr-TR")} · ${queuedWords} KELİME ANLAMINA UYGUN DÜŞMAN OLARAK GERİ DÖNDÜ`
     : name.toLocaleUpperCase("tr-TR");
-  triggerTacticalAlert(alert, BOSS_TELEGRAPH_GUIDANCE[skill] || "İşaretlere bak, saldırıdan önce güvenli alanı bul.");
+  const alertGuidance = queuedWords
+    ? "Hata defterindeki kelimeler boss turunda anlamlarına uygun düşman olur. Düşmanı yenmek kaydı silmez; doğru telafi cevabı siler."
+    : (BOSS_TELEGRAPH_GUIDANCE[skill] || "İşaretlere bak, saldırıdan önce güvenli alanı bul.");
+  triggerTacticalAlert(alert, alertGuidance);
   updateBossHealthBar(true);
 }
 
 const BOSS_ECHO_ACTIVE_CAP = 3;
-function getBossEchoMechanic(wordType) {
+function getBossEchoMechanic(enemyAttack, wordType) {
+  const attack = String(enemyAttack || "").toLocaleLowerCase("tr-TR");
+  if (attack === "surround") return "surround";
+  if (attack === "book_volley") return "book_volley";
+  if (attack === "charge" || attack === "line") return "line";
+  if (attack === "snare") return "snare";
+  if (attack === "fan") return "fan";
   const type = String(wordType || "").toLocaleLowerCase("tr-TR");
   if (/grammar|pattern|conjunction|preposition/.test(type)) return "line";
   if (/idiom|phrasal|collocation/.test(type)) return "snare";
@@ -6043,18 +6122,26 @@ function spawnBossMistakeBatch(preferredAngle = null) {
   while (spawned < slots && state.boss_mistake_queue.length > 0) {
     const mistake = state.boss_mistake_queue.shift();
     const memoryWord = String(mistake.word || "?").trim();
+    const wordCard = state.questions.find(card => String(card.word).toLocaleLowerCase("tr-TR") === memoryWord.toLocaleLowerCase("tr-TR")) || mistake;
     const failures = Math.max(1, Math.min(5, Math.floor(mistake.fail_count || 1)));
+    const difficulty = DIFFICULTIES[state.difficulty];
+    const echoPower = 1.25 + failures * 0.15;
+    const echoSpeed = 1.0 + failures * 0.05;
+    const echoDamage = 1.0 + failures * 0.12;
     const angle = angleBase + Math.PI + spawned * Math.PI * 2 / Math.max(1, slots);
     const origin = state.active_boss || state.player;
     const point = getArenaSpawnPosition(origin, 145 + spawned * 22, angle);
-    const hp = (105 + state.current_wave * 8) * (0.72 + failures * 0.16);
+    const hp = (140 + (state.current_wave - 1) * 36) * difficulty.enemy_hp_mult * echoPower;
     const accepted = addAliveEnemy({
       type: "Spelling Spectre", sprite: "spelling_spectre.png", x: point.x, y: point.y, vx: 0, vy: 0,
-      hp, max_hp: hp, speed: (112 + failures * 9) * DIFFICULTIES[state.difficulty].enemy_speed_mult,
-      damage: (15 + state.current_wave * 0.16 + failures * 2) * DIFFICULTIES[state.difficulty].enemy_damage_mult,
-      ink_reward: 0, size: 32, label: memoryWord, word_type: mistake.type || "", is_elite: true, is_mistake_echo: true,
-      memory_word: memoryWord, fail_count: failures, echo_mechanic: getBossEchoMechanic(mistake.type),
-      echo_attack_cooldown: 2.2, facing_left: false
+      hp, max_hp: hp, speed: (145 + (state.current_wave - 1) * 4) * difficulty.enemy_speed_mult * echoSpeed,
+      damage: 42 * difficulty.enemy_damage_mult * echoDamage,
+      ink_reward: 0, size: 40 + failures * 2, label: memoryWord, word_type: mistake.type || "", is_elite: true, is_mistake_echo: true,
+      memory_word: memoryWord, fail_count: failures,
+      semantic_archetype: wordCard.enemy_archetype || "spectre",
+      semantic_visual_modifier: wordCard.enemy_visual_modifier || "Kelimenin anlamını taşıyan mühürlü gövde",
+      echo_mechanic: getBossEchoMechanic(wordCard.enemy_attack, mistake.type),
+      echo_attack_cooldown: 2.6 - (failures - 1) * 0.08, facing_left: false
     });
     if (!accepted) { state.boss_mistake_queue.unshift(mistake); break; }
     spawned++;
@@ -6360,23 +6447,7 @@ function updateShopChapterHeader() {
 }
 
 function refreshShopCards() {
-  let targetLevels = ["A1", "A2"];
-  if (state.difficulty === "easy") {
-    if (state.current_wave > 60) targetLevels = ["B2", "C1", "C2"];
-    else if (state.current_wave > 40) targetLevels = ["B1", "B2", "C1"];
-    else if (state.current_wave > 20) targetLevels = ["A2", "B1", "B2"];
-    else if (state.current_wave > 10) targetLevels = ["A1", "A2", "B1"];
-    else targetLevels = ["A1", "A2"];
-  } else if (state.difficulty === "hard") {
-    if (state.current_wave > 30) targetLevels = ["B2", "C1", "C2"];
-    else if (state.current_wave > 12) targetLevels = ["B1", "B2", "C1"];
-    else targetLevels = ["A2", "B1", "B2"];
-  } else { // normal
-    if (state.current_wave > 40) targetLevels = ["B2", "C1", "C2"];
-    else if (state.current_wave > 24) targetLevels = ["B1", "B2", "C1"];
-    else if (state.current_wave > 10) targetLevels = ["A2", "B1"];
-    else targetLevels = ["A1", "A2"];
-  }
+  const targetLevels = [state.learning_level || "A1"];
 
   // Filter out questions already asked in this run (no duplicates!)
   let availablePool = state.questions.filter(q => {
@@ -6388,7 +6459,7 @@ function refreshShopCards() {
     state.asked_question_ids = [];
     availablePool = state.questions.filter(q => targetLevels.includes(q.level));
   }
-  if (availablePool.length < 4) availablePool = state.questions.slice();
+  if (availablePool.length < 4) availablePool = state.questions.filter(q => targetLevels.includes(q.level));
 
   availablePool.sort(() => Math.random() - 0.5);
 
@@ -6716,8 +6787,10 @@ function openQuiz(card, cardIndex) {
   modal.classList.remove("hidden");
   syncMobileControlsVisibility();
 
-  document.getElementById("quiz-word-title").textContent = `${card.word} [${card.type} • ${card.level}]`;
+  document.getElementById("quiz-word-title").textContent = `${card.word} [${card.type} • ${card.level}] · HEDEF ${state.learning_level}`;
   document.getElementById("quiz-question-text").textContent = card.question;
+  document.getElementById("quiz-buff-text").textContent = `${card.buff_name || "Kelime Buff’ı"} · ${card.description}\n${card.buff_meaning_link || `“${card.word}” kelimesinin anlamı buff’ının temasını belirliyor.`}`;
+  document.getElementById("quiz-warning-text").textContent = "Yanlış bıraktığın kelimeler boss turunda anlamlarına uygun düşman olarak geri döner.";
   document.getElementById("quiz-example-text").textContent = `Örnek Metin: "${card.example || ''}"`;
 
   const resText = document.getElementById("quiz-result-text");
@@ -6757,6 +6830,7 @@ function openQuiz(card, cardIndex) {
       });
 
       const isCorrect = item.originalIndex === card.correct_index;
+      const learningFeedback = recordLearningAnswer(isCorrect);
 
       if (card.id && !state.asked_question_ids.includes(card.id)) {
         state.asked_question_ids.push(card.id);
@@ -6791,6 +6865,7 @@ function openQuiz(card, cardIndex) {
           resText.style.background = "rgba(46, 125, 50, 0.15)";
           applyCardUpgrade(card, true, 1.5);
         }
+        resText.textContent += `\nANLAM HAFIZASI: ${card.meaning_tr || card.options[card.correct_index]}`;
       } else {
         btn.style.setProperty("background", "#fce8e6", "important");
         btn.style.setProperty("border-color", "#c5221f", "important");
@@ -6811,6 +6886,7 @@ function openQuiz(card, cardIndex) {
 
         state.ink_count -= card.shop_cost ?? card.cost;
         resText.textContent = `YANLIŞ CEVAP! Doğru Seçenek: "${card.options[card.correct_index]}"\nKelime Kâtip Hata Defterine eklendi (sonraki turlarda pekiştirilecek)!\nÖdenen: ${card.cost} Mürekkep`;
+        resText.textContent += `\nANLAM HAFIZASI: ${card.meaning_tr || card.options[card.correct_index]}`;
         resText.style.color = "#8b0000";
         resText.style.background = "rgba(139, 0, 0, 0.12)";
         applyCardUpgrade(card, false, 1.0);
@@ -6829,12 +6905,19 @@ function openQuiz(card, cardIndex) {
             question: card.question,
             correct_answer: card.options[card.correct_index],
             example: card.example || "",
+            meaning_tr: card.meaning_tr || card.options[card.correct_index],
+            enemy_archetype: card.enemy_archetype || "spectre",
+            enemy_visual_modifier: card.enemy_visual_modifier || "Kelimenin anlamını taşıyan mühürlü gövde",
+            enemy_attack: card.enemy_attack || "chase",
+            buff_name: card.buff_name || "Anlam Buff’ı",
+            buff_meaning_link: card.buff_meaning_link || "Kelimenin anlamı bu buff’ın temasını belirler.",
             fail_count: 1,
             last_failed_wave: state.current_wave
           });
         }
         try { localStorage.setItem("lexicon_mistakes", JSON.stringify(state.mistake_words)); } catch(e){}
       }
+      if (learningFeedback) resText.textContent += `\n${learningFeedback}`;
 
       shopCards.splice(cardIndex, 1);
       continueBtn.style.display = "inline-flex";
@@ -7135,7 +7218,7 @@ function updateHUD() {
   const c = CHARACTERS[state.selected_char];
   const d = DIFFICULTIES[state.difficulty];
   const profile = getCharacterProgress();
-  setHUDText("char-diff-info", `${c.name} · ${d.name} · LV ${profile.level}${profile.skill_points ? ` · ${profile.skill_points} P` : ""}`);
+  setHUDText("char-diff-info", `${c.name} · ${d.name} · ${state.learning_level} · LV ${profile.level}${profile.skill_points ? ` · ${profile.skill_points} P` : ""}`);
   const heroPortrait = document.getElementById("hero-hud-portrait");
   if (heroPortrait) {
     const portraitPath = `assets/sprites/${c.sprite}`;
@@ -7207,6 +7290,58 @@ function advanceShockwaveParticle(particle, dt) {
   particle.radius += 330 * elapsed;
   particle.alpha -= 3 * elapsed;
   return particle.alpha > 0;
+}
+
+
+const SEMANTIC_ECHO_MARKS = {
+  book:["BK","#b36a3f"], mount:["MT","#bd7a42"], beast:["BW","#ba5e48"], avian:["AV","#6ea6d8"], insect:["IN","#77bb55"], tide:["TD","#3aaec2"], scale:["SC","#67a88e"], swarm:["SW","#c799e8"], ember:["EM","#f2733e"], frost:["FR","#8ed5f2"], storm:["ST","#788df0"], thorn:["TH","#70ad54"], stone:["SN","#9a8f7a"], shadow:["SH","#7762a8"], radiant:["RA","#f4cb59"], clockwork:["CW","#c49d51"], cosmic:["CO","#9471d5"], sonic:["SO","#50c3b5"], sound:["SD","#55b8be"], mind:["MI","#d17bd3"], scribe:["SR","#dfc183"], ward:["WD","#75c5a3"], vital:["VI","#e7798c"], venom:["VN","#8fb33a"], emotion:["EE","#e77b74"], gear:["GE","#9ca2ae"], gilded:["GI","#efc64c"], feast:["FE","#df9c4a"], swift:["SF","#64d6c7"], colossus:["CL","#aa7b68"], imp:["IP","#ce718d"], mirror:["MR","#87a9df"], piercer:["PI","#d1d5dc"], magnet:["MG","#cb6c74"], mimic:["MC","#a574d0"], spectre:["SP","#c5a4e8"], human:["HU","#e0ad82"], social:["SO","#de87a1"], speech:["SC","#e7d56a"], travel:["TR","#72c6bd"], home:["HO","#d99163"], city:["CT","#87a3b9"], commerce:["CM","#e0b74f"], conflict:["CF","#d65f54"], craft:["CR","#bf9765"], knowledge:["KN","#84c7eb"], beauty:["BE","#ec92c6"], weather:["WE","#8cadd6"], nature:["NA","#77b878"], shape:["SP","#a48ce0"], measure:["ME","#83b1ca"], change:["CH","#d18ee1"], status:["SA","#dbcb68"], texture:["TX","#be9d83"], time:["TI","#d1aa64"], linker:["LK","#78b9a9"], action:["AC","#eb835b"], aura:["AU","#b88ce3"], relic:["RE","#bfa56e"], body:["BD","#dc777c"], food:["FD","#b5be50"], furniture:["FU","#ab815d"], tool:["TL","#a1a8b4"], sport:["SP","#73bf6d"], transport:["TP","#6eabd6"], clothing:["CL","#d382b1"], medical:["MD","#f18b80"], education:["ED","#74b8df"], art:["AR","#d57bb0"], communication:["CO","#6cc6bd"], container:["CN","#cb9b60"], fantasy:["FA","#a97de0"], law:["LW","#c4b36c"], celebration:["CE","#ed9f52"], obstacle:["OB","#a98f7c"], treasure:["TR","#e1c347"], role:["RO","#72b8a5"], abstract:["AB","#a394d1"], action:["AC","#eb835b"]
+};
+function drawSemanticEchoMark(ctx, archetype, radius, reducedEffects) {
+  const [mark, color] = SEMANTIC_ECHO_MARKS[archetype] || SEMANTIC_ECHO_MARKS.relic;
+  ctx.save();
+  ctx.lineWidth = 2;
+  ctx.strokeStyle = "#fff0c4";
+  ctx.fillStyle = color;
+  ctx.shadowColor = color;
+  ctx.shadowBlur = reducedEffects ? 0 : 8;
+  const r = radius;
+  ctx.beginPath();
+  switch (archetype) {
+    case "book": case "education": case "art": case "communication":
+      ctx.rect(-r * .7, -r * .55, r * 1.4, r * 1.1); ctx.fill(); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(-r * .08, -r * .52); ctx.lineTo(-r * .08, r * .52); ctx.stroke(); break;
+    case "mount": case "beast": case "human": case "body": case "role":
+      ctx.moveTo(-r * .62, -r * .12); ctx.lineTo(-r * .84, -r * .85); ctx.lineTo(-r * .12, -r * .5); ctx.closePath(); ctx.fill(); ctx.stroke();
+      ctx.moveTo(r * .62, -r * .12); ctx.lineTo(r * .84, -r * .85); ctx.lineTo(r * .12, -r * .5); ctx.closePath(); ctx.fill(); ctx.stroke();
+      ctx.beginPath(); ctx.ellipse(0, r * .08, r * .58, r * .44, 0, 0, Math.PI * 2); ctx.stroke(); break;
+    case "swarm": case "insect": case "social": case "celebration":
+      for (let i=0;i<6;i++){const a=(Math.PI * 2)*i/6;ctx.beginPath();ctx.arc(Math.cos(a)*r*.66,Math.sin(a)*r*.66,r*.17,0,(Math.PI * 2));ctx.fill();ctx.stroke();} break;
+    case "ward": case "law": case "status": case "medical": case "protection":
+      ctx.moveTo(0,-r);ctx.lineTo(r*.78,-r*.52);ctx.lineTo(r*.62,r*.4);ctx.lineTo(0,r);ctx.lineTo(-r*.62,r*.4);ctx.lineTo(-r*.78,-r*.52);ctx.closePath();ctx.fill();ctx.stroke();break;
+    case "tide": case "weather": case "nature": case "sonic": case "speech":
+      for(let i=0;i<3;i++){ctx.beginPath();ctx.arc(0,0,r*(.35+i*.22),-.85, .85);ctx.stroke();}break;
+    case "clockwork": case "gear": case "tool": case "furniture": case "transport":
+      ctx.arc(0,0,r*.58,0,(Math.PI * 2));ctx.stroke();for(let i=0;i<8;i++){const a=(Math.PI * 2)*i/8;ctx.moveTo(Math.cos(a)*r*.58,Math.sin(a)*r*.58);ctx.lineTo(Math.cos(a)*r*.9,Math.sin(a)*r*.9);}ctx.stroke();break;
+    case "piercer": case "conflict": case "obstacle": case "stone":
+      ctx.moveTo(0,-r);ctx.lineTo(r*.62,0);ctx.lineTo(0,r);ctx.lineTo(-r*.62,0);ctx.closePath();ctx.fill();ctx.stroke();break;
+    case "radiant": case "ember": case "beauty": case "aura": case "treasure":
+      for(let i=0;i<8;i++){const a=(Math.PI * 2)*i/8;ctx.moveTo(Math.cos(a)*r*.42,Math.sin(a)*r*.42);ctx.lineTo(Math.cos(a)*r*.92,Math.sin(a)*r*.92);}ctx.stroke();ctx.beginPath();ctx.arc(0,0,r*.34,0,(Math.PI * 2));ctx.fill();break;
+    case "mirror": case "mimic": case "shadow": case "fantasy":
+      ctx.moveTo(0,-r);ctx.bezierCurveTo(r*1.1,-r*.3,r*.5,r*.3,0,r);ctx.bezierCurveTo(-r*.5,r*.3,-r*1.1,-r*.3,0,-r);ctx.fill();ctx.stroke();break;
+    case "magnet":
+      ctx.arc(0,0,r*.72,Math.PI*1.05,Math.PI*1.95);ctx.stroke();ctx.fillRect(-r*.73,-r*.06,r*.24,r*.56);ctx.fillRect(r*.49,-r*.06,r*.24,r*.56);break;
+    case "frost": case "mind": case "cosmic": case "shape": case "measure":
+      ctx.moveTo(0,-r);ctx.lineTo(0,r);ctx.moveTo(-r*.86,-r*.5);ctx.lineTo(r*.86,r*.5);ctx.moveTo(r*.86,-r*.5);ctx.lineTo(-r*.86,r*.5);ctx.stroke();break;
+    case "venom": case "feast": case "food": case "container":
+      ctx.moveTo(-r*.55,-r*.82);ctx.lineTo(r*.55,-r*.82);ctx.lineTo(r*.42,r*.42);ctx.quadraticCurveTo(0,r,-r*.42,r*.42);ctx.closePath();ctx.fill();ctx.stroke();break;
+    case "swift": case "travel": case "action":
+      ctx.moveTo(-r,-r*.4);ctx.lineTo(r*.25,-r*.4);ctx.lineTo(r*.25,-r*.85);ctx.lineTo(r,r*.05);ctx.lineTo(r*.25,r*.85);ctx.lineTo(r*.25,r*.4);ctx.lineTo(-r,r*.4);ctx.closePath();ctx.fill();ctx.stroke();break;
+    default:
+      ctx.arc(0,0,r*.74,0,(Math.PI * 2));ctx.fill();ctx.stroke();
+      ctx.fillStyle = "#17232c";ctx.shadowBlur = 0;ctx.font = `900 ${Math.max(7,r*.62)}px 'IBM Plex Sans',sans-serif`;ctx.textAlign="center";ctx.textBaseline="middle";ctx.fillText(mark,0,1);ctx.restore();return;
+  }
+  ctx.fillStyle = "#17232c";ctx.shadowBlur = 0;ctx.font = `900 ${Math.max(7,r*.54)}px 'IBM Plex Sans',sans-serif`;ctx.textAlign="center";ctx.textBaseline="middle";ctx.fillText(mark,0,1);
+  ctx.restore();
 }
 
 function render(dt = 1 / 60) {
@@ -7579,6 +7714,11 @@ function render(dt = 1 / 60) {
       ctx.beginPath();
       if (ep.shape === "shard") {
         ctx.moveTo(0, -r * 1.5); ctx.lineTo(r * 0.7, 0); ctx.lineTo(0, r * 1.5); ctx.lineTo(-r * 0.7, 0); ctx.closePath();
+      } else if (ep.shape === "book") {
+        ctx.rotate(Math.atan2(ep.dy, ep.dx));
+        ctx.fillRect(-r * 1.25, -r, r * 2.5, r * 2);
+        ctx.strokeRect(-r * 1.25, -r, r * 2.5, r * 2);
+        ctx.beginPath(); ctx.moveTo(-r * 0.35, -r); ctx.lineTo(-r * 0.35, r); ctx.stroke();
       } else if (ep.shape === "ink") {
         ctx.ellipse(0, 0, r * 1.25, r * 0.7, Math.atan2(ep.dy, ep.dx), 0, Math.PI * 2);
       } else if (ep.shape === "return") {
@@ -7738,6 +7878,10 @@ function render(dt = 1 / 60) {
       ctx.drawImage(spr, -spriteSize / 2, -spriteSize / 2, spriteSize, spriteSize);
       ctx.filter = "none";
       ctx.restore();
+    }
+
+    if (e.is_mistake_echo) {
+      drawSemanticEchoMark(ctx, e.semantic_archetype || "relic", Math.max(9, sz * 0.34), reducedEffects);
     }
 
     if (e.is_elite && images["elite_crown.png"]) {

@@ -151,7 +151,11 @@
     assert(state.enemies.some((enemy) => enemy.is_boss), "milestone boss did not spawn when its simulation countdown resumed");
     const milestoneBossSpawnedAfterResume = state.enemies.some((enemy) => enemy.is_boss);
 
+    state.boss_defeated = true;
+    state.boss_mistake_queue = [];
+    state.enemies = state.enemies.filter(enemy => !enemy.is_mistake_echo);
     endWave();
+    await wait(50);
     assert(document.getElementById("story-intermission").hidden === false, "every fifth cleared wave should enter the story intermission");
     assert(document.getElementById("shop-screen").style.display === "none", "shop should wait until the story intermission is acknowledged");
     for (let panel = 1; panel < STORY_ARC_DATA.panel_count; panel += 1) {

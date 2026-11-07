@@ -25,6 +25,9 @@ signal character_progress_changed(char_id: String)
 # Configuration & Choices
 var selected_character: String = "inky"
 var difficulty: String = "normal"
+var learning_level: String = "A1"
+var learning_answers: Array = []
+const LEARNING_PROFILE_PATH := "user://learning_profile.cfg"
 
 # Core player stats
 var max_hp: float = 100.0
@@ -426,6 +429,44 @@ func _ready() -> void:
 	load_game_economy()
 	load_character_skill_trees()
 	load_character_progress()
+	load_learning_profile()
+
+func load_learning_profile() -> void:
+	var config := ConfigFile.new()
+	if config.load(LEARNING_PROFILE_PATH) != OK:
+		return
+	var saved := str(config.get_value("learning", "level", "A1"))
+	if saved in ["A1", "A2", "B1", "B2", "C1", "C2"]:
+		learning_level = saved
+
+func set_learning_level(level: String) -> void:
+	if level not in ["A1", "A2", "B1", "B2", "C1", "C2"]:
+		return
+	learning_level = level
+	var config := ConfigFile.new()
+	config.set_value("learning", "level", level)
+	config.save(LEARNING_PROFILE_PATH)
+
+func record_learning_answer(is_correct: bool) -> String:
+	learning_answers.append(is_correct)
+	if learning_answers.size() < 10:
+		return ""
+	var correct_count := 0
+	for answer in learning_answers:
+		if bool(answer):
+			correct_count += 1
+	learning_answers.clear()
+	var levels := ["A1", "A2", "B1", "B2", "C1", "C2"]
+	var old_index := levels.find(learning_level)
+	var next_index := old_index
+	if correct_count >= 8:
+		next_index = mini(levels.size() - 1, old_index + 1)
+	elif correct_count < 5:
+		next_index = maxi(0, old_index - 1)
+	if next_index != old_index:
+		set_learning_level(levels[next_index])
+		return "Son 10 soruda %d doğru · Yeni kelime düzeyi: %s." % [correct_count, learning_level]
+	return "Son 10 soruda %d doğru · %s düzeyinde devam." % [correct_count, learning_level]
 
 func load_character_skill_trees() -> bool:
 	var file := FileAccess.open(SKILL_TREE_PATH, FileAccess.READ)
@@ -717,6 +758,7 @@ func set_difficulty(diff_id: String):
 		emit_signal("difficulty_selected", diff_id)
 
 func reset():
+	learning_answers.clear()
 	if game_economy.is_empty():
 		load_game_economy()
 	var char_data = characters.get(selected_character, characters["inky"])
