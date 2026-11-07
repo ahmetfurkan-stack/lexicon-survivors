@@ -30,15 +30,14 @@ def meaningful_alpha(image: Image.Image) -> bool:
 
 
 def extract_hero_view(image: Image.Image, back: bool = False) -> Image.Image:
-    # The canonical hero sheet has three full-body angles across 1536px.
+    # Canonical sheets place three full-body views in the TOP row, with
+    # face/equipment studies below. Never paste the entire reference sheet
+    # as an actor: isolate exactly one full-body column before compositing.
     w, h = image.size
-    if w >= 1200 and w > h:
-        index = 2 if back else 0
-        left = int(w * index / 3)
-        right = int(w * (index + 1) / 3)
-        image = image.crop((left, 0, right, h))
-    return tight_crop(image)
-
+    column = 2 if back else 0
+    x0 = round(w * column / 3)
+    x1 = round(w * (column + 1) / 3)
+    return tight_crop(image.crop((x0, 0, x1, round(h * .73))))
 
 def tight_crop(image: Image.Image) -> Image.Image:
     alpha = image.getchannel("A")
@@ -55,7 +54,7 @@ def load_reference(key: str, back: bool = False) -> Image.Image:
     image = Image.open(src).convert("RGBA")
     if not meaningful_alpha(image):
         raise ValueError(f"Canonical model reference has no transparent background: {src}")
-    return extract_hero_view(image, back) if key == "inky" else tight_crop(image)
+    return extract_hero_view(image, back) if key == "inky" else tight_crop(image.crop((0, 0, round(image.width / 3), round(image.height * .77))))
 
 
 def palette_check() -> None:
