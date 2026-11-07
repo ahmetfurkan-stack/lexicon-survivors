@@ -51,6 +51,8 @@ jobs:
           assert len(set(hs))==5
           print('PASS: 5 unique panels; 1280x720; mirrored; 300KB cap; pending human review')
           PY
+      - name: Story expansion regression — allow pending art, forbid unapproved runtime
+        run: node test/story_expansion_regression.js
       - name: Commit draft media to branch without approving it
         run: |
           git config user.name "github-actions[bot]"
