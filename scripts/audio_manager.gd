@@ -9,37 +9,79 @@ const MELODY_STEPS := [0, 3, 7, 10, 12, 10, 7, 5, 3, 7, 10, 14, 12, 10, 7, 3]
 
 var music_player: AudioStreamPlayer
 var cue_player: AudioStreamPlayer
+var ambience_player: AudioStreamPlayer
 var active_stage := -1
 var active_loop: AudioStreamWAV
 var _stage_tween: Tween
+var _ambience_tween: Tween
 var _sfx_players: Array[AudioStreamPlayer] = []
 var _sfx_cursor := 0
 var _main_theme: AudioStream
 var _boss_theme: AudioStream
+var _biome_themes: Array[AudioStream] = []
+var _effect_stream_cache: Dictionary = {}
+var _ambience_stream_cache: Dictionary = {}
+var _last_effect_variant: Dictionary = {}
 var _boss_mode := false
 var music_choice := "auto"
+const BIOME_THEME_PATHS := [
+	"res://assets/audio/music/biome_dark_library_theme.mp3",
+	"res://assets/audio/music/magical_library_action_b.mp3",
+	"res://assets/audio/music/magical_library_urgent_a.mp3",
+	"res://assets/audio/music/magical_library_extreme_a.mp3"
+]
+const BIOME_AMBIENCE_PATHS := [
+	"res://assets/audio/ambience/ambience_dark_library.wav",
+	"res://assets/audio/ambience/ambience_dungeon_corridor.wav",
+	"res://assets/audio/ambience/ambience_astral_observatory.wav",
+	"res://assets/audio/ambience/ambience_void_sanctum.wav"
+]
 var _effect_paths := {
-	"quill_blaster": "res://assets/audio/weapons/weapon_quill_blaster_v1.wav",
-	"syllable_shotgun": "res://assets/audio/weapons/weapon_syllable_shotgun_v1.wav",
-	"lexicon_beam": "res://assets/audio/weapons/weapon_lexicon_beam_v1.wav",
+	"quill_blaster": ["res://assets/audio/weapons/weapon_quill_blaster_v1.wav", "res://assets/audio/weapons/weapon_quill_blaster_v2.wav", "res://assets/audio/weapons/weapon_quill_blaster_v3.wav"],
+	"syllable_shotgun": ["res://assets/audio/weapons/weapon_syllable_shotgun_v1.wav", "res://assets/audio/weapons/weapon_syllable_shotgun_v2.wav", "res://assets/audio/weapons/weapon_syllable_shotgun_v3.wav"],
+	"lexicon_beam": ["res://assets/audio/weapons/weapon_lexicon_beam_v1.wav", "res://assets/audio/weapons/weapon_lexicon_beam_v2.wav"],
 	"punctuation_bomb": "res://assets/audio/weapons/weapon_punctuation_mine_drop.wav",
-	"dictionary_blade": "res://assets/audio/weapons/weapon_dictionary_blade_v1.wav",
-	"crossword_crossbow": "res://assets/audio/weapons/weapon_crossword_crossbow_v1.wav",
+	"punctuation_bomb_detonation": "res://assets/audio/weapons/weapon_punctuation_mine_detonation.wav",
+	"dictionary_blade": ["res://assets/audio/weapons/weapon_dictionary_blade_v1.wav", "res://assets/audio/weapons/weapon_dictionary_blade_v2.wav", "res://assets/audio/weapons/weapon_dictionary_blade_v3.wav"],
+	"crossword_crossbow": ["res://assets/audio/weapons/weapon_crossword_crossbow_v1.wav", "res://assets/audio/weapons/weapon_crossword_crossbow_v2.wav", "res://assets/audio/weapons/weapon_crossword_crossbow_v3.wav"],
 	"hyphen_boomerang": "res://assets/audio/weapons/weapon_hyphen_boomerang.wav",
 	"ink_flamethrower": "res://assets/audio/weapons/weapon_ink_flamethrower.wav",
 	"thesaurus_rocket": "res://assets/audio/weapons/weapon_thesaurus_rocket_launch.wav",
-	"quote_pistols": "res://assets/audio/weapons/weapon_quote_pistols_v1.wav",
-	"calligraphy_katana": "res://assets/audio/weapons/weapon_calligraphy_katana_v1.wav",
+	"thesaurus_rocket_impact": "res://assets/audio/weapons/weapon_thesaurus_rocket_impact.wav",
+	"quote_pistols": ["res://assets/audio/weapons/weapon_quote_pistols_v1.wav", "res://assets/audio/weapons/weapon_quote_pistols_v2.wav", "res://assets/audio/weapons/weapon_quote_pistols_v3.wav"],
+	"calligraphy_katana": ["res://assets/audio/weapons/weapon_calligraphy_katana_v1.wav", "res://assets/audio/weapons/weapon_calligraphy_katana_v2.wav", "res://assets/audio/weapons/weapon_calligraphy_katana_v3.wav"],
 	"scroll_turret": "res://assets/audio/weapons/weapon_scroll_turret_deploy.wav",
+	"scroll_turret_fire": "res://assets/audio/weapons/weapon_scroll_turret_fire.wav",
 	"rune_orb": "res://assets/audio/weapons/weapon_rune_orb.wav",
 	"grammar_sniper": "res://assets/audio/weapons/weapon_grammar_sniper.wav",
 	"word_loom": "res://assets/audio/weapons/weapon_rune_orb.wav",
 	"hit": "res://assets/audio/gameplay/enemy_hit_light.wav",
+	"hit_heavy": "res://assets/audio/gameplay/enemy_hit_heavy.wav",
+	"critical_hit": "res://assets/audio/gameplay/critical_hit.wav",
 	"death": "res://assets/audio/gameplay/enemy_defeat.wav",
 	"pickup": "res://assets/audio/gameplay/ink_pickup.wav",
+	"heal": "res://assets/audio/gameplay/ink_pickup.wav",
+	"player_damage": "res://assets/audio/gameplay/player_damage.wav",
+	"player_defeat": "res://assets/audio/gameplay/player_defeat.wav",
 	"wave": "res://assets/audio/gameplay/wave_start.wav",
+	"wave_complete": "res://assets/audio/gameplay/wave_complete.wav",
 	"chapter_transition": "res://assets/audio/gameplay/chapter_transition.wav",
-	"gadget": "res://assets/audio/abilities/gadget_eraser_dash.wav"
+	"gadget": "res://assets/audio/abilities/gadget_eraser_dash.wav",
+	"gadget_eraser_dash": "res://assets/audio/abilities/gadget_eraser_dash.wav",
+	"gadget_chrono_comma": "res://assets/audio/abilities/gadget_chrono_comma.wav",
+	"gadget_grammar_magnet": "res://assets/audio/abilities/gadget_grammar_magnet.wav",
+	"gadget_ink_cataclysm": "res://assets/audio/abilities/gadget_ink_cataclysm.wav",
+	"gadget_lexicon_aegis": "res://assets/audio/abilities/gadget_lexicon_aegis.wav",
+	"quiz_correct": "res://assets/audio/ui/quiz_correct.wav",
+	"quiz_incorrect": "res://assets/audio/ui/quiz_incorrect.wav",
+	"ui_pause_resume": "res://assets/audio/ui/ui_pause_resume.wav",
+	"ui_purchase": "res://assets/audio/ui/ui_purchase.wav",
+	"ui_reroll": "res://assets/audio/ui/ui_reroll.wav",
+	"ui_select": "res://assets/audio/ui/ui_select.wav",
+	"ui_start": "res://assets/audio/ui/ui_start.wav",
+	"ui_tab": "res://assets/audio/ui/ui_tab.wav",
+	"boss_roar": "res://assets/audio/gameplay/enemy_hit_heavy.wav",
+	"resonance_bell": "res://assets/audio/gameplay/chapter_transition.wav"
 }
 
 func _ready() -> void:
@@ -55,20 +97,32 @@ func _ready() -> void:
 	cue_player.process_mode = Node.PROCESS_MODE_ALWAYS
 	cue_player.volume_db = -11.0
 	add_child(cue_player)
+	ambience_player = AudioStreamPlayer.new()
+	ambience_player.name = "BiomeAmbience"
+	ambience_player.process_mode = Node.PROCESS_MODE_ALWAYS
+	ambience_player.volume_db = -34.0
+	add_child(ambience_player)
 	for index in range(10):
 		var player := AudioStreamPlayer.new()
 		player.process_mode = Node.PROCESS_MODE_ALWAYS
 		player.volume_db = -5.0
 		add_child(player)
 		_sfx_players.append(player)
-	_main_theme = load("res://assets/audio/music/main_theme.mp3")
-	_boss_theme = load("res://assets/audio/music/boss_theme_dark_last_stand.wav")
+	_main_theme = load("res://assets/audio/music/biome_dark_library_theme.mp3")
+	_boss_theme = load("res://assets/audio/music/magical_library_extreme_a.mp3")
 	if _main_theme is AudioStreamMP3:
 		_main_theme.loop = true
 		music_player.stream = _main_theme
 		music_player.play()
-	if _boss_theme is AudioStreamWAV:
-		_boss_theme.loop_mode = AudioStreamWAV.LOOP_FORWARD
+	if _boss_theme is AudioStreamMP3:
+		_boss_theme.loop = true
+	for path in BIOME_THEME_PATHS:
+		var stream := load(path) as AudioStreamMP3
+		if stream:
+			stream.loop = true
+			_biome_themes.append(stream)
+		else:
+			push_warning("Biome music could not be loaded: " + path)
 	var config := ConfigFile.new()
 	if config.load("user://audio_settings.cfg") == OK:
 		music_choice = str(config.get_value("music", "choice", "auto"))
@@ -77,7 +131,23 @@ func _ready() -> void:
 func play_effect(key: String) -> void:
 	if not _effect_paths.has(key) or _sfx_players.is_empty():
 		return
-	var stream = load(String(_effect_paths[key]))
+	var configured_paths: Variant = _effect_paths[key]
+	var paths: Array = configured_paths if configured_paths is Array else [configured_paths]
+	if paths.is_empty():
+		return
+	var previous_path := str(_last_effect_variant.get(key, ""))
+	var candidates: Array = paths.filter(func(path): return str(path) != previous_path)
+	if candidates.is_empty():
+		candidates = paths
+	var path := str(candidates[randi_range(0, candidates.size() - 1)])
+	_last_effect_variant[key] = path
+	var stream: AudioStream = _effect_stream_cache.get(path)
+	if stream == null:
+		stream = load(path) as AudioStream
+		if stream == null:
+			push_warning("Audio asset could not be loaded: " + path)
+			return
+		_effect_stream_cache[path] = stream
 	if stream == null:
 		return
 	var player: AudioStreamPlayer = _sfx_players[_sfx_cursor % _sfx_players.size()]
@@ -92,13 +162,15 @@ func set_biome(stage_index: int, boss_wave: bool = false) -> void:
 		_apply_music_choice()
 	if stage != active_stage:
 		active_stage = stage
+		_set_biome_ambience(stage)
+		_apply_music_choice()
 		play_effect("chapter_transition")
 		_play_chapter_chime(stage)
 	elif boss_wave:
 		_play_boss_cue(stage)
 
 func set_music_choice(choice: String) -> void:
-	music_choice = choice if choice in ["auto", "library", "last_stand"] else "auto"
+	music_choice = choice if choice in ["auto", "library", "action", "urgent", "last_stand"] else "auto"
 	var config := ConfigFile.new()
 	config.set_value("music", "choice", music_choice)
 	config.save("user://audio_settings.cfg")
@@ -107,8 +179,17 @@ func set_music_choice(choice: String) -> void:
 func _apply_music_choice() -> void:
 	if not music_player or not _main_theme:
 		return
-	var use_boss := music_choice == "last_stand" or (music_choice == "auto" and _boss_mode)
-	var next_theme: AudioStream = _boss_theme if use_boss and _boss_theme else _main_theme
+	var next_theme: AudioStream = _main_theme
+	if music_choice == "last_stand" or (music_choice == "auto" and _boss_mode):
+		next_theme = _boss_theme if _boss_theme else _main_theme
+	elif music_choice == "auto" and active_stage >= 0 and active_stage < _biome_themes.size():
+		next_theme = _biome_themes[active_stage]
+	elif music_choice == "action" and _biome_themes.size() > 1:
+		next_theme = _biome_themes[1]
+	elif music_choice == "urgent" and _biome_themes.size() > 2:
+		next_theme = _biome_themes[2]
+	elif music_choice == "library" and not _biome_themes.is_empty():
+		next_theme = _biome_themes[0]
 	if music_player.stream != next_theme:
 		music_player.stream = next_theme
 		music_player.play()
@@ -117,6 +198,35 @@ func _switch_loop(stream: AudioStreamWAV) -> void:
 	active_loop = stream
 	music_player.stream = active_loop
 	music_player.play()
+
+func _set_biome_ambience(stage: int) -> void:
+	if not ambience_player or stage < 0 or stage >= BIOME_AMBIENCE_PATHS.size():
+		return
+	var path: String = BIOME_AMBIENCE_PATHS[stage]
+	var stream: AudioStreamWAV = _ambience_stream_cache.get(path)
+	if not stream:
+		stream = load(path) as AudioStreamWAV
+		if not stream:
+			push_warning("Biome ambience could not be loaded: " + path)
+			return
+		stream.loop_mode = AudioStreamWAV.LOOP_FORWARD
+		_ambience_stream_cache[path] = stream
+	if ambience_player.stream == stream and ambience_player.playing:
+		return
+	if _ambience_tween and _ambience_tween.is_running():
+		_ambience_tween.kill()
+	_ambience_tween = create_tween()
+	if ambience_player.playing:
+		_ambience_tween.tween_property(ambience_player, "volume_db", -50.0, 0.32)
+		_ambience_tween.tween_callback(func():
+			ambience_player.stream = stream
+			ambience_player.play()
+		)
+	else:
+		ambience_player.stream = stream
+		ambience_player.play()
+		ambience_player.volume_db = -50.0
+	_ambience_tween.tween_property(ambience_player, "volume_db", -34.0, 0.65)
 
 func _make_biome_loop(stage: int) -> AudioStreamWAV:
 	var sample_count := int(SAMPLE_RATE * LOOP_SECONDS)

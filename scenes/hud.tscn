@@ -93,6 +93,22 @@ offset_bottom = -24.0
 grow_vertical = 0
 script = ExtResource("11_touch_stick")
 
+[node name="ArenaInteractButton" type="Button" parent="."]
+visible = false
+anchors_preset = 8
+anchor_left = 0.5
+anchor_top = 1.0
+anchor_right = 0.5
+anchor_bottom = 1.0
+offset_left = -152.0
+offset_top = -116.0
+offset_right = 152.0
+offset_bottom = -66.0
+grow_horizontal = 2
+text = "R  ·  ETKİLE"
+theme_override_colors/font_color = Color(0.91, 0.87, 0.77, 1)
+theme_override_font_sizes/font_size = 14
+
 [node name="ActionRow" type="HBoxContainer" parent="TouchControls"]
 layout_mode = 1
 anchors_preset = 15

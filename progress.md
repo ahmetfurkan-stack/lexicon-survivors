@@ -368,3 +368,12 @@ Original prompt: https://github.com/yasinkaya701/lexicon-survivors — bunu ince
 - Başlık menüsündeki küçük ekran taşması ve masaüstünde menünün alt kenardan kesilmesi giderildi. Arşiv temalı mühür, ayraç çizgisi ve kum saati SVG'leri eklendi; klavye odak görünümü ve buton hizaları iyileştirildi. 320–430 px genişliklerde menü dışına taşma yok.
 - Doğrulama: JS sözdizimi, boss özel yetenek/karşılaşma/hikâye regresyonları, hareket/UI asset regresyonu ve `git diff --check` geçti. Playwright ile oyun başlatma, hareket, atılım ve HUD akışı tekrarlandı.
 - Yerel ekran görüntüsü: `/tmp/lexicon-perf-polish-final/shot-0.png`. Sentetik SwiftShader yazılım canvas'ı donanım hızlandırmalı Chrome'dan belirgin yavaştı; bu yüzden verilen FPS değeri yalnız donanım hızlandırmalı Chrome ölçümünü temsil ediyor.
+
+## Boss animasyonu, arena nesneleri ve indirilen sesler — 2026-11-07
+
+- Üç arena nesnesi için ayrı SVG çizimleri eklendi: mürekkep kuyusu, arşiv çanı ve yıldız astrolabı. Web kopyaları da oyun paketine alındı; nesneler dalga başına bir kez kullanılabiliyor ve R/dokunmatik butonuyla etkileşiliyor. Çan normal düşmanları savurup sersemletiyor; boss üzerindeki etki kısa ve sınırlı.
+- Bossların özel saldırı uyarıları sırasında gövdesi ağırlık alıp sıkışıyor; vuruşta yönlü geri tepme ve kısa ezilme, saldırı çıkışında takip hareketi oynuyor. Godot Sever bossunun son evresinde ikinci gecikmeli kesik ve okunur güvenli koridor eklendi.
+- Sık güncellenen mermi, düşman, telegraph, ganimet, alan ve vuruş efekti dizileri her kare yeni dizi üretmeden yerinde sıkıştırılıyor. Çarpışma grid kovaları yeniden kullanılıyor, hücre anahtarları sayısal oldu ve yakındaki mermi hedef listesi tekrar kullanılıyor.
+- İndirilen dört yeni biyom/boss MP3'ü Godot ve web'e bağlandı. Müzik seçenekleri Otomatik, Karanlık Kütüphane, Mürekkep Takibi, Rafların Uyanışı ve Son Nöbet oldu. Silah varyantları dönüşümlü oynatılıyor; ses nesneleri 12 kanallı havuzda tutuluyor.
+- Doğrulama: browser’da nesne etkileşimi, boss çan sersemletmesi, SVG yüklemesi ve müzik kaynağı; Godot sahne/oynanış/boss testleri; ses manifesti, boss yetenekleri, web silah şeması, JS syntax ve `git diff --check` geçti. Headless Godot testleri kapanışta önceki 2 ObjectDB/1 kaynak sızıntı uyarısını hâlâ veriyor.
+- Yayın öncesi cache anahtarı `perf-boss-audio-arena-20261107-2` olarak güncellendi. Bu bölümün canlı Pages doğrulaması deploy sonrasında eklenecek.

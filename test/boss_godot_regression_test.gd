@@ -74,6 +74,15 @@ func _run() -> void:
 	boss._milestone_boss_movement(0.0, Vector2.RIGHT, 300.0)
 	assert(boss.boss_phase == 3 and boss.boss_skill_interval < phase_two_interval, "Final phase should increase attack pace again")
 	assert(boss._boss_telegraph_duration() >= 0.70, "Final phase must retain a readable dodge window")
+	boss.boss_skill_id = "sever"
+	boss.target_player = player
+	boss.boss_attack_angle = 0.0
+	boss._perform_boss_skill()
+	assert(boss.boss_sever_echo_armed and is_equal_approx(boss.boss_sever_echo_angle, 0.12), "Final-phase Margin Shear should telegraph a delayed second cut")
+	boss.take_damage(10.0, Vector2.RIGHT, "heavy", false)
+	assert(boss.boss_hit_recoil_timer > 0.0 and boss.hit_squash_timer >= 0.14, "Boss hits should produce a readable recoil and squash pose")
+	boss._update_readable_motion()
+	assert(boss.sprite.position.distance_to(boss.base_sprite_position) > 0.5, "Boss hit recoil should visibly displace the sprite from its idle anchor")
 	manager.end_wave()
 	assert(manager.is_wave_active, "A direct wave-end request must not bypass a living milestone boss")
 	boss.health = 1.0

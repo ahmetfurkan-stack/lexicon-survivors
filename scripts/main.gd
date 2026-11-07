@@ -1,5 +1,7 @@
 extends Node2D
 
+const ArenaMechanismScript = preload("res://scripts/arena_interactable.gd")
+
 @onready var wave_manager = $WaveManager
 @onready var hud = $HUD
 @onready var shop_ui = $ShopLayer/ShopUI
@@ -25,6 +27,7 @@ var _latest_run_result: Dictionary = {}
 
 var auto_run_countdown: float = -1.0
 var current_biome_index: int = -1
+var arena_mechanisms: Array = []
 
 var biome_data = [
 	{
@@ -63,10 +66,12 @@ func _ready():
 	arena_floor.hide()
 	game_over_layer.hide()
 	shop_ui.hide()
+	_create_arena_mechanisms()
 
 	wave_manager.wave_timer_updated.connect(_on_wave_timer_updated)
 	wave_manager.wave_finished.connect(_on_wave_finished)
 	wave_manager.wave_started.connect(_on_wave_started)
+	hud.arena_interaction_requested.connect(interact_with_nearby_arena_mechanism)
 	shop_ui.shop_closed.connect(_on_shop_closed)
 	StatsManager.player_died.connect(_on_player_died)
 	StatsManager.floating_text_requested.connect(_on_floating_text_requested)
@@ -82,6 +87,7 @@ func _ready():
 		start_game()
 
 func _process(delta: float):
+	_refresh_arena_interaction()
 	if center_rune:
 		center_rune.rotation += delta * 0.35
 
@@ -92,7 +98,94 @@ func _process(delta: float):
 		if auto_run_countdown <= 0:
 			_on_restart_pressed()
 
+func _unhandled_input(event: InputEvent) -> void:
+	if event is InputEventKey and event.pressed and not event.echo and event.keycode == KEY_R:
+		if interact_with_nearby_arena_mechanism():
+			get_viewport().set_input_as_handled()
+
+func _create_arena_mechanisms() -> void:
+	var prop_root: Node2D = $DecorativeProps
+	var definitions := [
+		{"id": "ink_well", "name": "Mürekkep Kuyusu", "hint": "CANINI TAZELE", "position": Vector2(-420, -230), "color": Color("78d6c7")},
+		{"id": "resonance_bell", "name": "Arşiv Çanı", "hint": "YAKINDAKİLERİ SAVUR", "position": Vector2(420, -230), "color": Color("e5c477")},
+		{"id": "astral_astrolabe", "name": "Yıldız Astrolabı", "hint": "GADGET + KALKAN", "position": Vector2(0, 420), "color": Color("b9a2fa")}
+	]
+	for definition in definitions:
+		var mechanism = ArenaMechanismScript.new()
+		mechanism.mechanism_id = definition["id"]
+		mechanism.display_name = definition["name"]
+		mechanism.action_hint = definition["hint"]
+		mechanism.accent = definition["color"]
+		mechanism.position = definition["position"]
+		mechanism.add_to_group("arena_interactables")
+		prop_root.add_child(mechanism)
+		arena_mechanisms.append(mechanism)
+
+func _get_nearby_arena_mechanism() -> Node2D:
+	if not wave_manager.is_wave_active or hud.inventory_open or title_layer.visible or shop_ui.visible:
+		return null
+	var nearest: Node2D = null
+	var nearest_distance := 106.0
+	for mechanism in arena_mechanisms:
+		if not is_instance_valid(mechanism) or mechanism.used_this_wave:
+			continue
+		if mechanism.mechanism_id == "ink_well" and StatsManager.hp >= StatsManager.max_hp - 0.5:
+			continue
+		if mechanism.mechanism_id == "astral_astrolabe" and player.gadget_timer <= 0.0 and player.shield_charges >= 3:
+			continue
+		var distance: float = player.global_position.distance_to(mechanism.global_position)
+		if distance <= nearest_distance:
+			nearest = mechanism
+			nearest_distance = distance
+	return nearest
+
+func _refresh_arena_interaction() -> void:
+	var mechanism := _get_nearby_arena_mechanism()
+	if mechanism:
+		hud.set_arena_interaction_prompt(mechanism.display_name + "  ·  " + mechanism.action_hint)
+	else:
+		hud.set_arena_interaction_prompt("")
+
+func interact_with_nearby_arena_mechanism() -> bool:
+	var mechanism := _get_nearby_arena_mechanism()
+	if not mechanism:
+		return false
+	match mechanism.mechanism_id:
+		"ink_well":
+			if StatsManager.hp >= StatsManager.max_hp:
+				return false
+			StatsManager.heal(StatsManager.max_hp * 0.18)
+			if StatsManager.hp <= 0.0:
+				return false
+			audio_manager.play_effect("heal")
+		"resonance_bell":
+			var affected := 0
+			for enemy in get_tree().get_nodes_in_group("enemies"):
+				if not is_instance_valid(enemy) or enemy.global_position.distance_to(player.global_position) > 360.0:
+					continue
+				var push: Vector2 = (enemy.global_position - player.global_position).normalized()
+				enemy.knockback = push * (100.0 if enemy.is_milestone_boss else 300.0)
+				enemy.apply_stun(1.68 if enemy.is_milestone_boss else 1.15)
+				affected += 1
+			if affected == 0:
+				return false
+			StatsManager.trigger_screen_shake(0.12, 2.2)
+			audio_manager.play_effect("resonance_bell")
+		"astral_astrolabe":
+			player.gadget_timer = 0.0
+			player.shield_charges = mini(3, player.shield_charges + 1)
+			player.shield_health = float(player.shield_charges)
+			player.shield_timer = maxf(player.shield_timer, 9.0)
+			player.emit_signal("gadget_cooldown_updated", 0.0, player.gadget_cooldown)
+			StatsManager.add_floating_text(player.global_position + Vector2(0, -48), "GADGET + KALKAN", Color("c5adff"), 15)
+	mechanism.mark_used()
+	_refresh_arena_interaction()
+	return true
+
 func _on_wave_started(wave_number: int):
+	for mechanism in arena_mechanisms:
+		mechanism.reset_for_wave()
+	_refresh_arena_interaction()
 	update_biome(wave_number)
 	if StatsManager.selected_character == "lexicon_alchemist":
 		StatsManager.add_ink(10)

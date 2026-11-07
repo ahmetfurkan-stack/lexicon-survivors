@@ -1,6 +1,7 @@
 extends CanvasLayer
 
 signal story_continued
+signal arena_interaction_requested
 
 @onready var hp_bar = $MarginContainer/VBox/TopRow/HealthBar
 @onready var hp_label = $MarginContainer/VBox/TopRow/HealthBar/HPLabel
@@ -32,6 +33,7 @@ signal story_continued
 @onready var touch_controls: Control = $TouchControls
 @onready var touch_stick: TouchStick = $TouchStick
 @onready var gadget_touch_button: Button = $TouchControls/ActionRow/GadgetTouchButton
+@onready var arena_interaction_button: Button = $ArenaInteractButton
 @onready var inventory_overlay: Control = $InventoryOverlay
 @onready var inventory_title: Label = $InventoryOverlay/InventoryPanel/InventoryLayout/InventoryHeader/InventoryTitle
 @onready var inventory_items: VBoxContainer = $InventoryOverlay/InventoryPanel/InventoryLayout/InventoryScroll/InventoryItems
@@ -90,6 +92,7 @@ func _ready():
 	touch_controls.visible = DisplayServer.is_touchscreen_available()
 	touch_stick.visible = touch_controls.visible
 	gadget_touch_button.pressed.connect(activate_gadget_touch)
+	arena_interaction_button.pressed.connect(func(): arena_interaction_requested.emit())
 	$TouchControls/ActionRow/WeaponTouchButton.pressed.connect(StatsManager.switch_next_weapon)
 	$TouchControls/ActionRow/InventoryTouchButton.pressed.connect(toggle_inventory)
 	inventory_close_button.pressed.connect(func(): set_inventory_open(false))
@@ -485,6 +488,15 @@ func play_story_intermission(wave: int) -> void:
 
 func get_touch_move_vector() -> Vector2:
 	return touch_stick.vector if touch_stick.visible else Vector2.ZERO
+
+func set_arena_interaction_prompt(label: String) -> void:
+	var should_show := not label.is_empty() and not inventory_open and not _story_active
+	if arena_interaction_button.visible != should_show:
+		arena_interaction_button.visible = should_show
+	if should_show:
+		var button_text := "R  ·  " + label
+		if arena_interaction_button.text != button_text:
+			arena_interaction_button.text = button_text
 
 func toggle_inventory() -> void:
 	set_inventory_open(not inventory_open)

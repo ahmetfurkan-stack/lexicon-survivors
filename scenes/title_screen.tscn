@@ -190,5 +190,5 @@ text = "SIRALAMA  ·  Küresel kayıtlar"
 layout_mode = 2
 theme_override_colors/font_color = Color(0.38, 0.39, 0.35, 1)
 theme_override_font_sizes/font_size = 12
-text = "WASD / Oklar: Hareket   ·   Space / Shift: Atılım   ·   Fare: Sözlük ve dükkân"
+text = "WASD / Oklar: Hareket   ·   R: Etkileşim   ·   Space / Shift: Atılım   ·   Fare: Sözlük ve dükkân"
 horizontal_alignment = 1

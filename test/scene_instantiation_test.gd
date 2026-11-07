@@ -18,7 +18,7 @@ func _ready():
 	assert(title_screen.has_signal("leaderboard_requested"), "Title screen must expose its leaderboard entry action")
 	assert(title_screen.get_node_or_null("Panel/VBox/LeaderboardButton") != null, "Title screen must show an image-led leaderboard entry")
 	var music_choice: OptionButton = title_screen.find_child("MusicChoice", true, false)
-	assert(music_choice != null and music_choice.item_count == 3, "Title screen must offer automatic, library and boss music choices")
+	assert(music_choice != null and music_choice.item_count == 5, "Title screen must offer automatic, library, action, urgent and boss music choices")
 	assert(main_node.has_node("LeaderboardPanel"), "Native game must include its shared leaderboard panel")
 	assert(main_node.get_node("LeaderboardPanel").has_method("open_board"), "Leaderboard panel must be usable from title and game-over UI")
 	assert(main_node.has_node("GameOverLayer/GameOverPanel/LeaderboardButton"), "Final run screen must provide a leaderboard action")

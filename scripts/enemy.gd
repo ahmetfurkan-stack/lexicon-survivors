@@ -53,6 +53,12 @@ var boss_skill_interval: float = 6.8
 var boss_telegraph_timer: float = 0.0
 var boss_target_position: Vector2 = Vector2.ZERO
 var boss_attack_angle: float = 0.0
+var boss_sever_echo_timer: float = 0.0
+var boss_sever_echo_angle: float = 0.0
+var boss_sever_echo_armed: bool = false
+var boss_hit_recoil_timer: float = 0.0
+var boss_hit_recoil_direction: Vector2 = Vector2.ZERO
+var base_sprite_position: Vector2 = Vector2.ZERO
 var boss_charge_timer: float = 0.0
 var boss_overtime: int = 0
 var boss_phase_tint: Color = Color.WHITE
@@ -162,6 +168,7 @@ func _ready():
 	setup_type()
 	if sprite:
 		base_sprite_scale = sprite.scale
+		base_sprite_position = sprite.position
 
 func _exit_tree() -> void:
 	if _active_enemies.has(self):
@@ -401,6 +408,13 @@ func _physics_process(delta: float):
 	queue_redraw()
 	_update_readable_motion()
 	hit_squash_timer = maxf(0.0, hit_squash_timer - delta)
+	boss_hit_recoil_timer = maxf(0.0, boss_hit_recoil_timer - delta)
+	if boss_sever_echo_armed:
+		boss_sever_echo_timer = maxf(0.0, boss_sever_echo_timer - delta)
+		if boss_sever_echo_timer == 0.0:
+			boss_sever_echo_armed = false
+			if stun_timer <= 0.0 and is_milestone_boss:
+				_fire_sever_volley(boss_sever_echo_angle, 0.48 if boss_phase > 1 else 0.40)
 	weapon_mark_timer = maxf(0.0, weapon_mark_timer - delta)
 	if burn_timer > 0.0:
 		burn_timer = maxf(0.0, burn_timer - delta)
@@ -731,8 +745,11 @@ func _perform_boss_skill() -> void:
 		"fan", "shards":
 			_fire_boss_fan(count, 0.92 if boss_skill_id == "fan" else 0.62)
 		"sever":
-			for offset in [-0.10, 0.0, 0.10]:
-				_fire_boss_bolt(boss_attack_angle + offset, 0.52 if boss_phase > 1 else 0.42)
+			_fire_sever_volley(boss_attack_angle, 0.48 if boss_phase > 1 else 0.40)
+			if boss_phase >= 3:
+				boss_sever_echo_angle = boss_attack_angle + 0.12
+				boss_sever_echo_timer = 0.34
+				boss_sever_echo_armed = true
 		"split":
 			_fire_boss_fan(3 if boss_phase == 1 else 5, 0.38)
 			var opposite_angle := boss_attack_angle + PI
@@ -762,12 +779,26 @@ func _perform_boss_skill() -> void:
 	queue_redraw()
 
 func _fire_boss_bolt(angle: float, damage_factor: float) -> void:
+	var direction := Vector2(cos(angle), sin(angle))
+	_fire_boss_bolt_from(angle, damage_factor, global_position + direction * 28.0)
+
+func _fire_boss_bolt_from(angle: float, damage_factor: float, origin: Vector2) -> void:
 	if not is_inside_tree():
 		return
 	var bolt = HarpyBolt.new(Vector2(cos(angle), sin(angle)), damage_to_player * damage_factor)
 	bolt.speed = 240.0 + float(boss_phase) * 36.0
 	get_tree().current_scene.add_child(bolt)
-	bolt.global_position = global_position + Vector2(cos(angle), sin(angle)) * 28.0
+	bolt.global_position = origin
+
+func _fire_sever_volley(angle: float, damage_factor: float) -> void:
+	# Two parallel ink cuts leave a deliberate player-width margin between them.
+	# The final phase repeats with a slight angle change, so standing still in the
+	# gap is safe for the first cut but requires another read for the echo.
+	var direction := Vector2(cos(angle), sin(angle))
+	var margin_axis := direction.orthogonal()
+	for side in [-1.0, 1.0]:
+		var offset: Vector2 = margin_axis * float(side) * 56.0
+		_fire_boss_bolt_from(angle, damage_factor, global_position + offset + direction * 28.0)
 
 func _fire_boss_fan(count: int, spread: float) -> void:
 	for index in range(count):
@@ -799,10 +830,29 @@ func _update_readable_motion() -> void:
 		motion = Vector2(1.0 + breath * 0.035, 1.0 - breath * 0.026)
 		if boss_telegraph_timer > 0.0:
 			var windup := clampf(1.0 - boss_telegraph_timer, 0.0, 1.0)
-			motion *= Vector2(1.0 + windup * 0.13, 1.0 - windup * 0.09)
+			motion *= Vector2(1.0 + windup * 0.18, 1.0 - windup * 0.15)
+		elif boss_charge_timer > 0.0:
+			motion *= Vector2(1.22, 0.78)
+			var charge_dir := Vector2(cos(boss_attack_angle), sin(boss_attack_angle))
+			sprite.position = base_sprite_position - charge_dir * 5.0
+			sprite.rotation = boss_attack_angle * 0.08
+		elif recovery_timer > 0.0:
+			var follow_through := clampf(recovery_timer / 0.5, 0.0, 1.0)
+			motion *= Vector2(1.0 - follow_through * 0.15, 1.0 + follow_through * 0.12)
+			sprite.position = base_sprite_position
+			sprite.rotation = sin(phase * 0.55) * 0.022 + boss_attack_angle * 0.035 * follow_through
 		elif boss_phase == 3:
 			motion *= 1.0 + 0.035 * absf(breath)
-		sprite.rotation = sin(phase * 0.55) * 0.022
+			sprite.position = base_sprite_position
+			sprite.rotation = sin(phase * 0.55) * 0.022
+		else:
+			sprite.position = base_sprite_position
+			sprite.rotation = sin(phase * 0.55) * 0.022
+		if boss_hit_recoil_timer > 0.0:
+			var hit_recoil := clampf(boss_hit_recoil_timer / 0.22, 0.0, 1.0)
+			motion *= Vector2(1.0 + 0.24 * hit_recoil, 1.0 - 0.20 * hit_recoil)
+			sprite.position = base_sprite_position + boss_hit_recoil_direction * 10.0 * hit_recoil
+			sprite.rotation += boss_hit_recoil_direction.x * 0.09 * hit_recoil
 	else:
 		match enemy_type:
 			"Homophone Harpy":
@@ -891,6 +941,8 @@ func _draw_milestone_boss() -> void:
 	draw_rect(bar_rect, Color(0.91, 0.84, 0.65, 0.92), false, 1.4)
 	draw_line(Vector2(-bar_width * 0.5, -61.0), Vector2(bar_width * 0.5, -61.0), Color(boss_custom_color, 0.32), 1.0)
 	if boss_telegraph_timer <= 0.0:
+		if boss_sever_echo_armed:
+			_draw_sever_lanes(boss_sever_echo_angle, 0.42, 2.0)
 		return
 	var pulse := 1.0 + 0.07 * sin(Time.get_ticks_msec() * 0.024)
 	var mark := boss_target_position - global_position
@@ -906,6 +958,10 @@ func _draw_milestone_boss() -> void:
 		draw_arc(mark, radius * 0.82, 0.0, TAU, 52, Color(boss_custom_color, 0.4), 1.4, true)
 	elif boss_skill_id == "rift":
 		draw_arc(mark, 36.0 * pulse, 0.0, TAU, 36, color, 4.0, true)
+	elif boss_skill_id == "sever":
+		_draw_sever_lanes(boss_attack_angle, 0.82, 4.0)
+		if boss_sever_echo_armed:
+			_draw_sever_lanes(boss_sever_echo_angle, 0.38, 2.0)
 	else:
 		var angle_offset := 0.0
 		if boss_skill_id == "crossfire": angle_offset = PI * 0.25
@@ -915,6 +971,20 @@ func _draw_milestone_boss() -> void:
 		if boss_skill_id in ["crossfire", "finale", "split"]:
 			var cross := Vector2(cos(boss_attack_angle - PI * 0.25), sin(boss_attack_angle - PI * 0.25))
 			draw_line(Vector2.ZERO, cross * 1050.0, Color(boss_custom_color, 0.35), 3.0, true)
+
+func _draw_sever_lanes(angle: float, alpha: float, width: float) -> void:
+	var direction := Vector2(cos(angle), sin(angle))
+	var margin_axis := direction.orthogonal()
+	var endpoint := direction * 1050.0
+	for side in [-1.0, 1.0]:
+		var offset: Vector2 = margin_axis * float(side) * 56.0
+		draw_line(offset, endpoint + offset, Color(boss_custom_color.r, boss_custom_color.g, boss_custom_color.b, alpha), width, true)
+	# The center track uses separated dashes so players can read it as the safe margin.
+	for segment in range(12):
+		if segment % 2 == 0:
+			var start := direction * (float(segment) * 76.0)
+			var finish := direction * (float(segment) * 76.0 + 34.0)
+			draw_line(start, finish, Color(0.93, 0.82, 0.56, alpha * 0.58), 1.5, true)
 
 func take_damage(amount: float, knock_dir: Vector2, impact_profile: String = "ink", is_critical: bool = false):
 	if is_exploding:
@@ -927,13 +997,15 @@ func take_damage(amount: float, knock_dir: Vector2, impact_profile: String = "in
 	StatsManager.relic_on_enemy_hit(self)
 	health -= amount
 	if is_milestone_boss:
+		boss_hit_recoil_timer = 0.22 if is_critical else 0.16
+		boss_hit_recoil_direction = -knock_dir.normalized() if knock_dir.length_squared() > 0.001 else Vector2.UP
 		queue_redraw()
 	if is_inside_tree() and get_tree().current_scene:
 		var audio = get_tree().current_scene.get_node_or_null("AudioManager")
 		if audio and audio.has_method("play_effect"):
 			audio.play_effect("hit")
 	flash_timer = 0.11 if is_critical else 0.09
-	hit_squash_timer = 0.11 if is_critical else 0.075
+	hit_squash_timer = (0.20 if is_critical else 0.14) if is_milestone_boss else (0.11 if is_critical else 0.075)
 	modulate = Color(2.5, 2.5, 2.5) if is_critical else Color(1.9, 1.9, 1.9)
 	var push_strength := 0.0 if is_milestone_boss else (205.0 if is_critical else 150.0)
 	knockback = knock_dir.normalized() * push_strength

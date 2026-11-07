@@ -51,16 +51,18 @@ func _build_music_selector() -> void:
 	picker.custom_minimum_size = Vector2(250, 36)
 	picker.add_item("Otomatik · dalgaya göre", 0)
 	picker.add_item("Karanlık Kütüphane", 1)
-	picker.add_item("Son Nöbet", 2)
+	picker.add_item("Mürekkep Takibi", 2)
+	picker.add_item("Rafların Uyanışı", 3)
+	picker.add_item("Son Nöbet · Boss", 4)
 	var audio_manager := get_tree().root.find_child("AudioManager", true, false)
 	var saved_choice := "auto"
 	if audio_manager:
 		saved_choice = str(audio_manager.music_choice)
-	picker.select({"auto": 0, "library": 1, "last_stand": 2}.get(saved_choice, 0))
+	picker.select({"auto": 0, "library": 1, "action": 2, "urgent": 3, "last_stand": 4}.get(saved_choice, 0))
 	picker.item_selected.connect(func(index: int):
 		var manager := get_tree().root.find_child("AudioManager", true, false)
 		if manager:
-			manager.set_music_choice(["auto", "library", "last_stand"][index])
+			manager.set_music_choice(["auto", "library", "action", "urgent", "last_stand"][index])
 	)
 	row.add_child(picker)
 	var vbox := get_node("Panel/VBox") as VBoxContainer
