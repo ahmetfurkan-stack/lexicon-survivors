@@ -25,6 +25,25 @@ export interface StoryMilestoneModalProps {
   onClaimAndContinue: (relic?: StoryRelic) => void;
 }
 
+const resolveDialogueAudioPath = (
+  questId: CharacterQuestId,
+  wave: number,
+  beatIndex: number,
+  speakerName?: string
+): string => {
+  const campaign = questId === 'shadow_scribe' ? 'shadow_lexicographer' : questId;
+  const waveStr = String(wave).padStart(3, '0');
+
+  let speakerSlug = 'hero';
+  if (speakerName) {
+    const s = speakerName.toLowerCase();
+    if (s.includes('neris')) speakerSlug = 'neris';
+    else if (s.includes('whisper') || s.includes('boş')) speakerSlug = 'whisper';
+    else if (s.includes('boss') || s.includes('muhafız')) speakerSlug = `boss_${campaign}_boss`;
+  }
+  return `assets/audio/dialogue/${campaign}/voice_${campaign}_w${waveStr}_b${beatIndex}_${speakerSlug}.mp3`;
+};
+
 export const StoryMilestoneModal: React.FC<StoryMilestoneModalProps> = ({
   milestone,
   questId,
@@ -36,6 +55,23 @@ export const StoryMilestoneModal: React.FC<StoryMilestoneModalProps> = ({
   useEffect(() => {
     soundEngine.playComboUp(3);
   }, []);
+
+  // Trigger dialogue voice playback whenever active beat changes and clean up on unmount
+  useEffect(() => {
+    soundEngine.stopDialogueVoice();
+
+    const audioPath = resolveDialogueAudioPath(
+      questId,
+      milestone.wave,
+      activeDialogueIndex + 1,
+      milestone.dialogues[activeDialogueIndex]?.speaker
+    );
+    soundEngine.playDialogueVoice(audioPath);
+
+    return () => {
+      soundEngine.stopDialogueVoice();
+    };
+  }, [activeDialogueIndex, milestone.wave, questId, milestone.dialogues]);
 
   const getSpeakerBadge = (speaker: string) => {
     switch (speaker) {
@@ -293,6 +329,7 @@ export const StoryMilestoneModal: React.FC<StoryMilestoneModalProps> = ({
 
           <button
             onClick={() => {
+              soundEngine.stopDialogueVoice();
               soundEngine.playComboUp(3);
               onClaimAndContinue(milestone.relic);
             }}

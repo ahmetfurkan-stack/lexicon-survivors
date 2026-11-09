@@ -59,6 +59,10 @@ export class ProceduralSoundEngine {
   private _menuVolume: number = 0.7;
   private _menuMuted: boolean = false;
   
+  // Dialogue voice channel
+  private activeDialogueVoice: HTMLAudioElement | null = null;
+  private dialoguePausedByMenu: boolean = false;
+  
   private rainNode: AudioNode | null = null;
   private rainGain: GainNode | null = null;
   private userGestureAttached: boolean = false;
@@ -333,6 +337,7 @@ export class ProceduralSoundEngine {
     }
     this.saveToLocalStorage();
     this.notifyListeners();
+    this.updateDialogueVolume();
   }
 
   public get isMuted(): boolean {
@@ -352,6 +357,7 @@ export class ProceduralSoundEngine {
     }
     this.saveToLocalStorage();
     this.notifyListeners();
+    this.updateDialogueVolume();
   }
 
   public toggleMute(): boolean {
@@ -375,6 +381,7 @@ export class ProceduralSoundEngine {
     }
     this.saveToLocalStorage();
     this.notifyListeners();
+    this.updateDialogueVolume();
   }
 
   public get sfxMuted(): boolean {
@@ -392,6 +399,7 @@ export class ProceduralSoundEngine {
     }
     this.saveToLocalStorage();
     this.notifyListeners();
+    this.updateDialogueVolume();
   }
 
   public toggleSfxMute(): boolean {
@@ -1624,6 +1632,123 @@ export class ProceduralSoundEngine {
       this.rainGain = gain;
     } else if (this.rainGain) {
       this.rainGain.gain.setValueAtTime(0.035, ctx.currentTime);
+    }
+  }
+
+  // =========================================================================
+  // DIALOGUE VOICE METHODS (STORY INTERMISSION)
+  // =========================================================================
+
+  /**
+   * Returns current effective SFX/dialogue volume considering master and SFX mute states.
+   */
+  public getEffectiveDialogueVolume(): number {
+    if (!this.enabled || this._isMuted || this._sfxMuted) return 0;
+    return Math.max(0, Math.min(1, this._masterVolume * this._sfxVolume));
+  }
+
+  /**
+   * Plays a dialogue voice audio file, stopping any active dialogue audio first (zero-overlap).
+   */
+  public playDialogueVoice(audioPath: string): void {
+    this.stopDialogueVoice();
+
+    if (typeof window === 'undefined' || typeof Audio === 'undefined') return;
+    if (!audioPath || typeof audioPath !== 'string') return;
+    const eff = this.getEffectiveDialogueVolume();
+    if (eff <= 0) return;
+
+    try {
+      const audio = new Audio(audioPath);
+      audio.preload = 'auto';
+      audio.volume = eff;
+      audio.muted = this._isMuted || this._sfxMuted;
+      this.activeDialogueVoice = audio;
+      this.dialoguePausedByMenu = false;
+
+      const playPromise = audio.play();
+      if (playPromise !== undefined && typeof playPromise.catch === 'function') {
+        playPromise.catch(() => {
+          // Gracefully absorb browser autoplay rejections or aborts
+        });
+      }
+
+      audio.onended = () => {
+        if (this.activeDialogueVoice === audio) {
+          this.activeDialogueVoice = null;
+          this.dialoguePausedByMenu = false;
+        }
+      };
+
+      audio.onerror = () => {
+        if (this.activeDialogueVoice === audio) {
+          this.activeDialogueVoice = null;
+          this.dialoguePausedByMenu = false;
+        }
+      };
+    } catch {
+      this.activeDialogueVoice = null;
+      this.dialoguePausedByMenu = false;
+    }
+  }
+
+  /**
+   * Halts active dialogue audio immediately and resets position to start.
+   */
+  public stopDialogueVoice(): void {
+    if (this.activeDialogueVoice) {
+      try {
+        this.activeDialogueVoice.onended = null;
+        this.activeDialogueVoice.onerror = null;
+        this.activeDialogueVoice.pause();
+        this.activeDialogueVoice.currentTime = 0;
+      } catch {}
+      this.activeDialogueVoice = null;
+    }
+    this.dialoguePausedByMenu = false;
+  }
+
+  /**
+   * Pauses active dialogue voice when game is paused.
+   */
+  public pauseDialogueVoice(): void {
+    if (this.activeDialogueVoice && !this.activeDialogueVoice.paused) {
+      try {
+        this.activeDialogueVoice.pause();
+        this.dialoguePausedByMenu = true;
+      } catch {}
+    }
+  }
+
+  /**
+   * Resumes paused dialogue voice when game is unpaused.
+   */
+  public resumeDialogueVoice(): void {
+    if (this.activeDialogueVoice && this.dialoguePausedByMenu) {
+      this.dialoguePausedByMenu = false;
+      const eff = this.getEffectiveDialogueVolume();
+      if (eff <= 0) return;
+      try {
+        this.activeDialogueVoice.volume = eff;
+        this.activeDialogueVoice.muted = this._isMuted || this._sfxMuted;
+        const playPromise = this.activeDialogueVoice.play();
+        if (playPromise !== undefined && typeof playPromise.catch === 'function') {
+          playPromise.catch(() => {});
+        }
+      } catch {}
+    }
+  }
+
+  /**
+   * Dynamically synchronizes active dialogue voice volume with master and SFX controls.
+   */
+  public updateDialogueVolume(): void {
+    if (this.activeDialogueVoice) {
+      try {
+        const eff = this.getEffectiveDialogueVolume();
+        this.activeDialogueVoice.volume = eff;
+        this.activeDialogueVoice.muted = this._isMuted || this._sfxMuted;
+      } catch {}
     }
   }
 }

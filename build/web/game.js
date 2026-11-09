@@ -587,6 +587,10 @@ class SoundManager {
     this.menuVolume = 1.0;
     this.menuMuted = false;
 
+    // Dialogue Voice Channel
+    this.activeDialogueVoice = null;
+    this.dialoguePausedByMenu = false;
+
     this.loadAudioSettings();
   }
 
@@ -650,6 +654,7 @@ class SoundManager {
       localStorage.setItem("inGameMusicVolume", String(this.bgmVolume));
     } catch (_) {}
     this.applyMusicVolume();
+    this.updateDialogueVolume();
   }
 
   applyMusicVolume() {
@@ -753,6 +758,97 @@ class SoundManager {
   setMusicMuted(muted) {
     this.bgmMuted = muted;
     this.saveAudioSettings();
+  }
+
+  playDialogueVoice(audioPath) {
+    this.stopDialogueVoice();
+    if (!audioPath || typeof audioPath !== "string") return;
+    if (this.masterMuted || this.sfxMuted) return;
+    const eff = this.getEffectiveSfxVolume(1.0);
+    if (eff <= 0) return;
+
+    try {
+      if (typeof Audio === "undefined") return;
+      const audio = new Audio(audioPath);
+      audio.preload = "auto";
+      audio.volume = eff;
+      audio.muted = (this.masterMuted || this.sfxMuted);
+      this.activeDialogueVoice = audio;
+      this.dialoguePausedByMenu = false;
+
+      const playPromise = audio.play();
+      if (playPromise !== undefined && typeof playPromise.catch === "function") {
+        playPromise.catch(() => {
+          // Gracefully absorb browser autoplay rejections or aborts
+        });
+      }
+
+      audio.onended = () => {
+        if (this.activeDialogueVoice === audio) {
+          this.activeDialogueVoice = null;
+          this.dialoguePausedByMenu = false;
+        }
+      };
+
+      audio.onerror = () => {
+        if (this.activeDialogueVoice === audio) {
+          this.activeDialogueVoice = null;
+          this.dialoguePausedByMenu = false;
+        }
+      };
+    } catch (_) {
+      this.activeDialogueVoice = null;
+      this.dialoguePausedByMenu = false;
+    }
+  }
+
+  stopDialogueVoice() {
+    if (this.activeDialogueVoice) {
+      try {
+        this.activeDialogueVoice.onended = null;
+        this.activeDialogueVoice.onerror = null;
+        this.activeDialogueVoice.pause();
+        this.activeDialogueVoice.currentTime = 0;
+      } catch (_) {}
+      this.activeDialogueVoice = null;
+    }
+    this.dialoguePausedByMenu = false;
+  }
+
+  pauseDialogueVoice() {
+    if (this.activeDialogueVoice && !this.activeDialogueVoice.paused) {
+      try {
+        this.activeDialogueVoice.pause();
+        this.dialoguePausedByMenu = true;
+      } catch (_) {}
+    }
+  }
+
+  resumeDialogueVoice() {
+    if (this.activeDialogueVoice && this.dialoguePausedByMenu) {
+      this.dialoguePausedByMenu = false;
+      if (this.masterMuted || this.sfxMuted) return;
+      const eff = this.getEffectiveSfxVolume(1.0);
+      if (eff <= 0) return;
+      try {
+        this.activeDialogueVoice.volume = eff;
+        this.activeDialogueVoice.muted = (this.masterMuted || this.sfxMuted);
+        const playPromise = this.activeDialogueVoice.play();
+        if (playPromise !== undefined && typeof playPromise.catch === "function") {
+          playPromise.catch(() => {});
+        }
+      } catch (_) {}
+    }
+  }
+
+  updateDialogueVolume() {
+    if (this.activeDialogueVoice) {
+      try {
+        const eff = this.getEffectiveSfxVolume(1.0);
+        this.activeDialogueVoice.volume = eff;
+        this.activeDialogueVoice.muted = (this.masterMuted || this.sfxMuted);
+      } catch (_) {}
+    }
   }
 
   init() {
@@ -3291,6 +3387,14 @@ function renderStoryPanel() {
   next.textContent = storyPanelIndex === STORY_ARC_DATA.panel_count - 1
     ? (episode.wave >= state.max_waves ? "ENTER · SON SAYFAYI AÇ" : "ENTER · DÜKKÂNA GEÇ")
     : "ENTER · SONRAKİ KARE";
+
+  // Trigger dialogue voice audio playback for current beat
+  try {
+    const epWaveStr = String(episode.wave).padStart(3, "0");
+    const beatNum = storyPanelIndex + 1;
+    const audioFile = "voice_" + state.selected_char + "_w" + epWaveStr + "_b" + beatNum + "_" + speakerId + ".mp3";
+    sounds.playDialogueVoice("assets/audio/dialogue/" + state.selected_char + "/" + audioFile);
+  } catch (_) {}
 }
 
 function showStoryIntermission(wave) {
@@ -3316,9 +3420,15 @@ function closeStoryIntermission() {
   finishStoryIntermission();
 }
 function skipStoryIntermission() {
+  if (typeof sounds !== "undefined" && typeof sounds.stopDialogueVoice === "function") {
+    sounds.stopDialogueVoice();
+  }
   finishStoryIntermission();
 }
 function finishStoryIntermission() {
+  if (typeof sounds !== "undefined" && typeof sounds.stopDialogueVoice === "function") {
+    sounds.stopDialogueVoice();
+  }
   grantStoryIntermissionReward();
   document.getElementById("story-intermission").hidden = true;
   if (storyWavePending >= state.max_waves) victoryScreen();
@@ -7704,6 +7814,9 @@ function toggleGamePause(forceState) {
     pauseModal.style.display = window.isGamePaused ? "flex" : "none";
   }
   if (window.isGamePaused) {
+    if (typeof sounds !== "undefined" && typeof sounds.pauseDialogueVoice === "function") {
+      sounds.pauseDialogueVoice();
+    }
     const titleEl = document.getElementById("pause-modal-title");
     if (titleEl) titleEl.textContent = "KÜTÜPHANE BEKLEMEDE";
     const resumeBtn = document.getElementById("resume-game-btn");
@@ -7718,6 +7831,10 @@ function toggleGamePause(forceState) {
     }
     syncAudioSettingsUI();
     syncGameSettingsUI();
+  } else {
+    if (typeof sounds !== "undefined" && typeof sounds.resumeDialogueVoice === "function") {
+      sounds.resumeDialogueVoice();
+    }
   }
 }
 
@@ -7739,6 +7856,14 @@ function returnToMainMenuFromPause() {
   if (typeof sounds !== "undefined" && typeof sounds.stopMusic === "function") {
     sounds.stopMusic();
   }
+  if (typeof sounds !== "undefined" && typeof sounds.stopDialogueVoice === "function") {
+    sounds.stopDialogueVoice();
+  }
+  const storyIntermission = document.getElementById("story-intermission");
+  if (storyIntermission) storyIntermission.hidden = true;
+  storyWavePending = 0;
+  storyEpisodeIndex = -1;
+  storyPanelIndex = 0;
   clearShopAutoWaveTimer();
   clearAutoRunCountdown();
   state.is_wave_active = false;
