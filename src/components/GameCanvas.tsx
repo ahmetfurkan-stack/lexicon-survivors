@@ -48,6 +48,7 @@ import { ALL_QUESTIONS } from '@/data/questions';
 import { TacticalFreezeModal } from './TacticalFreezeModal';
 import { SuperpowerEngine } from '@/game/education/TacticalSuperpowers';
 import { HUD } from './HUD';
+import { PauseSettingsModal } from '@/game/settings';
 
 import { StoryRelic } from '@/data/storyQuests';
 
@@ -65,6 +66,7 @@ export interface GameCanvasProps {
   startingWeaponId?: string;
   onWaveComplete: (wave: number, materials: number, currentStats: PlayerRPGStats, activeWeapons: ActiveWeaponInstance[]) => void;
   onGameOver: (finalWave: number, totalMaterials: number) => void;
+  onReturnToMenu?: () => void;
   onRecordMistake?: (question: TacticalQuestion, selectedIndex: number) => void;
 }
 
@@ -119,6 +121,7 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({
   startingWeaponId = 'pistol_1',
   onWaveComplete,
   onGameOver,
+  onReturnToMenu,
   onRecordMistake,
 }) => {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
@@ -136,11 +139,25 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({
   const [hudWeapons, setHudWeapons] = useState<(ActiveWeaponInstance | null)[]>([null, null, null, null, null, null]);
   const [showStatsSheet, setShowStatsSheet] = useState<boolean>(false);
   const [isTacticalFreeze, setIsTacticalFreeze] = useState<boolean>(false);
+  const isTacticalFreezeRef = useRef<boolean>(false);
+  isTacticalFreezeRef.current = isTacticalFreeze;
   const [activeTacticalQuestion, setActiveTacticalQuestion] = useState<TacticalQuestion | null>(null);
   const [freezeSource, setFreezeSource] = useState<'mystery_chest' | 'elite_challenge'>('mystery_chest');
   const [questionCharges, setQuestionCharges] = useState<number>(2);
   const questionChargesRef = useRef<number>(2);
   const frenzyTimerRemainingRef = useRef<number>(0);
+
+  // Mid-run Pause & Granular Settings State
+  const [isPaused, setIsPaused] = useState<boolean>(false);
+  const isPausedRef = useRef<boolean>(false);
+  isPausedRef.current = isPaused;
+  const [targetingModeState, setTargetingModeState] = useState<TargetingMode>('closest');
+  const [isScreenShakeEnabled, setIsScreenShakeEnabled] = useState<boolean>(true);
+  const isScreenShakeEnabledRef = useRef<boolean>(true);
+  isScreenShakeEnabledRef.current = isScreenShakeEnabled;
+  const [isDamageNumbersEnabled, setIsDamageNumbersEnabled] = useState<boolean>(true);
+  const isDamageNumbersEnabledRef = useRef<boolean>(true);
+  isDamageNumbersEnabledRef.current = isDamageNumbersEnabled;
 
   // Engine References
   const gameLoopRef = useRef<GameLoop | null>(null);
@@ -191,12 +208,14 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({
   // Regeneration Accumulator
   const regenTimerRef = useRef<number>(0);
   const isWaveTransitioningRef = useRef<boolean>(false);
+  const waveCompleteTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Requirement R3: Mid-wave Question Charge Trigger
   const handleTriggerInWaveQuestion = () => {
     if (
       questionChargesRef.current <= 0 ||
-      isTacticalFreeze ||
+      isTacticalFreezeRef.current ||
+      isPausedRef.current ||
       gameLoopRef.current?.getState() !== 'running'
     ) {
       return;
@@ -220,10 +239,59 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({
   const triggerQuestionRef = useRef(handleTriggerInWaveQuestion);
   triggerQuestionRef.current = handleTriggerInWaveQuestion;
 
+  // Mid-run Pause Handlers
+  const handlePause = () => {
+    if (
+      isPausedRef.current ||
+      isTacticalFreezeRef.current ||
+      isWaveTransitioningRef.current ||
+      gameLoopRef.current?.getState() !== 'running'
+    ) {
+      return;
+    }
+    isPausedRef.current = true;
+    gameLoopRef.current?.pause();
+    setIsPaused(true);
+    keysPressedRef.current = {};
+    soundEngine.playMenuClick();
+    soundEngine.stopCombatBgm();
+  };
+
+  const handleResume = () => {
+    if (!isPausedRef.current) return;
+    isPausedRef.current = false;
+    if (gameLoopRef.current?.getState() === 'paused') {
+      gameLoopRef.current?.resume();
+    }
+    setIsPaused(false);
+    keysPressedRef.current = {};
+    soundEngine.playMenuClick();
+    soundEngine.startCombatBgm();
+  };
+
+  const handleReturnToMainMenuFromPause = () => {
+    soundEngine.playMenuClick();
+    soundEngine.stopCombatBgm();
+    if (waveCompleteTimeoutRef.current) {
+      clearTimeout(waveCompleteTimeoutRef.current);
+      waveCompleteTimeoutRef.current = null;
+    }
+    gameLoopRef.current?.stop();
+    isPausedRef.current = false;
+    setIsPaused(false);
+    onReturnToMenu?.();
+  };
+
+  const pauseHandlersRef = useRef({ handlePause, handleResume });
+  pauseHandlersRef.current = { handlePause, handleResume };
+
   // Initialize Game on Mount
   useEffect(() => {
     const ftm = floatingTextManagerRef.current;
     const vfx = vfxManagerRef.current;
+
+    // Start in-game combat music
+    soundEngine.startCombatBgm();
 
     // 1. Initialize Player Weapons
     const wm = weaponManagerRef.current;
@@ -247,6 +315,24 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({
     // 3. Setup Input Listeners
     const handleKeyDown = (e: KeyboardEvent) => {
       const key = e.key.toLowerCase();
+
+      // Mid-wave pause toggle [Escape] or [P]
+      if (key === 'escape' || key === 'p') {
+        if (!isTacticalFreezeRef.current) {
+          if (isPausedRef.current) {
+            pauseHandlersRef.current.handleResume();
+          } else {
+            pauseHandlersRef.current.handlePause();
+          }
+        }
+        return;
+      }
+
+      // Ignore game inputs while paused or in tactical freeze
+      if (isPausedRef.current || isTacticalFreezeRef.current) {
+        return;
+      }
+
       keysPressedRef.current[key] = true;
 
       // In-wave question charge trigger [Q]
@@ -428,7 +514,9 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({
               player.stats.currentHp = Math.max(0, player.stats.currentHp - damageTaken);
               player.invulnerabilityTimerMs = 500;
               player.isInvulnerable = true;
-              ftm.spawnPlayerDamage(player.x, player.y, damageTaken);
+              if (isDamageNumbersEnabledRef.current) {
+                ftm.spawnPlayerDamage(player.x, player.y, damageTaken);
+              }
               vfx.triggerDamageVignette(0.65);
               vfx.addTrauma(0.25);
               soundEngine.playPlayerHurt();
@@ -461,13 +549,16 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({
               player.stats.currentHp = Math.max(0, player.stats.currentHp - damageTaken);
               player.invulnerabilityTimerMs = 600;
               player.isInvulnerable = true;
-              ftm.spawnPlayerDamage(player.x, player.y, damageTaken);
+              if (isDamageNumbersEnabledRef.current) {
+                ftm.spawnPlayerDamage(player.x, player.y, damageTaken);
+              }
               vfx.triggerDamageVignette(0.65);
               vfx.addTrauma(0.30);
               soundEngine.playPlayerHurt();
 
               if (player.stats.currentHp <= 0) {
                 // Game Over
+                soundEngine.stopCombatBgm();
                 onGameOver(currentWaveRef.current, materialsCountRef.current);
                 loop.stop();
                 return;
@@ -536,7 +627,9 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({
               enemy.vy += hit.knockback.y;
 
               soundEngine.playEnemyHit();
-              ftm.spawnDamage(enemy.x, enemy.y, hit.damage, hit.isCrit);
+              if (isDamageNumbersEnabledRef.current) {
+                ftm.spawnDamage(enemy.x, enemy.y, hit.damage, hit.isCrit);
+              }
               vfx.spawnHitSparks(enemy.x, enemy.y, atk.angleRad, hit.isCrit, 6);
               vfx.spawnBloodSplatter(enemy.x, enemy.y, ENEMY_VFX_COLORS[enemy.type], hit.isCrit ? 10 : 5);
               if (hit.isCrit) {
@@ -573,7 +666,9 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({
 
           soundEngine.playEnemyHit();
           const impactAngle = Math.atan2(hit.knockback.y, hit.knockback.x);
-          ftm.spawnDamage(enemy.x, enemy.y, hit.damage, hit.isCrit);
+          if (isDamageNumbersEnabledRef.current) {
+            ftm.spawnDamage(enemy.x, enemy.y, hit.damage, hit.isCrit);
+          }
           vfx.spawnHitSparks(enemy.x, enemy.y, impactAngle, hit.isCrit, 5);
           vfx.spawnBloodSplatter(enemy.x, enemy.y, ENEMY_VFX_COLORS[enemy.type], hit.isCrit ? 8 : 4);
           if (hit.isCrit) {
@@ -638,7 +733,8 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({
       // Check if wave finished and all vacuum pickups are collected
       if (wd.state.isWaveCompleted && pickupsRef.current.length === 0 && !isWaveTransitioningRef.current) {
         isWaveTransitioningRef.current = true;
-        setTimeout(() => {
+        soundEngine.stopCombatBgm();
+        waveCompleteTimeoutRef.current = setTimeout(() => {
           onWaveComplete(
             currentWaveRef.current,
             materialsCountRef.current,
@@ -687,7 +783,9 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({
       // WORLD SPACE RENDERING (With Camera Screen Shake)
       // ----------------------------------------------------------------------
       ctx.save();
-      vfx.applyCameraShake(ctx);
+      if (isScreenShakeEnabledRef.current) {
+        vfx.applyCameraShake(ctx);
+      }
 
       // 1. Arena Grid Floor & Boundaries with AI-generated assets
       assetManager.drawTiled(
@@ -1083,6 +1181,11 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({
 
     // Cleanup on Unmount
     return () => {
+      soundEngine.stopCombatBgm();
+      if (waveCompleteTimeoutRef.current) {
+        clearTimeout(waveCompleteTimeoutRef.current);
+        waveCompleteTimeoutRef.current = null;
+      }
       loop.stop();
       ftm.clear();
       vfx.clear();
@@ -1168,9 +1271,41 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({
         isTacticalFreeze={isTacticalFreeze}
         showStats={showStatsSheet}
         onToggleStats={() => setShowStatsSheet((prev) => !prev)}
+        onPause={handlePause}
         questionCharges={questionCharges}
         maxQuestionCharges={2}
         onTriggerQuestion={handleTriggerInWaveQuestion}
+      />
+
+      {/* Mid-run Pause & Settings Modal Overlay */}
+      <PauseSettingsModal
+        isOpen={isPaused}
+        onResume={handleResume}
+        onReturnToMainMenu={handleReturnToMainMenuFromPause}
+        currentWave={hudWave}
+        materials={hudMaterials}
+        playerStats={playerRef.current.stats}
+        targetingMode={targetingModeState}
+        onChangeTargetingMode={(mode) => {
+          targetingModeRef.current = mode;
+          setTargetingModeState(mode);
+        }}
+        isScreenShakeEnabled={isScreenShakeEnabled}
+        onToggleScreenShake={() => {
+          setIsScreenShakeEnabled((prev) => {
+            const next = !prev;
+            isScreenShakeEnabledRef.current = next;
+            return next;
+          });
+        }}
+        isDamageNumbersEnabled={isDamageNumbersEnabled}
+        onToggleDamageNumbers={() => {
+          setIsDamageNumbersEnabled((prev) => {
+            const next = !prev;
+            isDamageNumbersEnabledRef.current = next;
+            return next;
+          });
+        }}
       />
 
       {/* In-Combat Tactical Freeze Modal Overlay */}

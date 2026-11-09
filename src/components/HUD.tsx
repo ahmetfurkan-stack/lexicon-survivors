@@ -25,6 +25,7 @@ export interface HUDProps {
   isTacticalFreeze?: boolean;
   showStats?: boolean;
   onToggleStats?: () => void;
+  onPause?: () => void;
   // Requirement R3 Mid-Wave Question Charges
   questionCharges?: number;
   maxQuestionCharges?: number;
@@ -49,6 +50,7 @@ export const HUD: React.FC<HUDProps> = ({
   isTacticalFreeze = false,
   showStats = false,
   onToggleStats,
+  onPause,
   questionCharges = 2,
   maxQuestionCharges = 2,
   onTriggerQuestion,
@@ -252,9 +254,10 @@ export const HUD: React.FC<HUDProps> = ({
 
           {/* Stitch Reference Pause Button (Top-Right) */}
           <button
-            onClick={onToggleStats}
+            onClick={onPause || onToggleStats}
             className="flex h-11 w-11 items-center justify-center rounded-xl border border-slate-700 bg-slate-900/90 text-slate-300 hover:text-white hover:border-slate-500 shadow-xl transition cursor-pointer"
-            title="Duraklat & Stat Tablosu"
+            title="Duraklat &amp; Ayarlar [ESC]"
+            data-testid="hud-pause-button"
           >
             <span className="font-mono font-black text-sm tracking-widest">||</span>
           </button>

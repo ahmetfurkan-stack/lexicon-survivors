@@ -1,38 +1,28 @@
-Planı opusla yap, uygulamayı argon yapacak; arayüze önem verin. Overhaul the Brotato-style roguelite web game by revamping visual assets with a high-resolution digital/vector style, making the character larger and clearly visible, boosting player movement and combat pacing, rebalancing power and enemy scaling, upgrading the UI, and adding in-round question charges that reward items.
+This is a single self-contained fix; keep it small and focused. Add a return-to-main-menu button upon game completion/game over and a sound mute toggle option in the settings or pause menu for Lexicon Survivors (https://yasinkaya701.github.io/lexicon-survivors/).
 
 Working directory: /Users/afurkanmac/Downloads/hackhaton
 Integrity mode: development
 
 ## Requirements
 
-### R1. Visual Asset Overhaul and UI Polish
-Replace low-quality AI-generated assets with high-resolution, cohesive digital/vector illustration sprites across the player character, enemies, weapons, projectiles, and pickups. Increase the player character's sprite dimensions and visual prominence on the arena canvas. Redesign the user interface and HUD with a modern, sleek aesthetic and strong visual polish.
+### R1. Return to Main Menu on Game End
+Provide a button on the game end screen (both game over and victory screens) that allows the player to return to the main menu. Returning to the main menu must reset active run data so that a subsequent game starts cleanly.
 
-### R2. Game Speed and Power Rebalance
-Increase base player movement speed and accelerate overall combat pacing and wave dynamics. Rebalance the power curve across all weapons, stat scaling formulas, and enemy health/damage progression to eliminate broken scaling and provide balanced progression.
-
-### R3. Question Frequency and Mid-Wave Question Charges
-Increase overall educational question frequency. Add an in-round question mechanic allowing the player to activate a mid-wave question charge during combat; answering the question successfully grants bonus item rewards.
-
-### R4. Automated Verification Suite
-Extend the existing test infrastructure in `tests/` with automated unit and integration tests covering the new mid-wave question charge mechanic, rebalanced combat math, and speed parameters.
+### R2. Sound Mute Control
+Provide a sound toggle option in the settings or pause menu that mutes and unmutes all game audio.
 
 ## Acceptance Criteria
 
-### Visual Assets and UI
-- [ ] The player character sprite is scaled up and clearly visible against the arena background.
-- [ ] Visual sprites for player, enemies, weapons, and pickups render in a cohesive high-resolution digital/vector style without corrupted textures or visual noise.
-- [ ] In-game HUD and menus render with updated modern styling, clear contrast, and responsive layout.
+### Navigation
+- [ ] A visible button to return to the main menu is present on both the game over and victory screens.
+- [ ] Selecting the return-to-main-menu button returns the player to the main menu without application errors.
+- [ ] Starting a new game after returning to the main menu initializes a fresh game state without residual state from the previous run.
 
-### Speed and Power Balance
-- [ ] Player character movement speed and projectile/combat speeds are measurably higher than baseline values.
-- [ ] Weapon damage values, enemy HP curves, and stat scaling progression are rebalanced across all waves.
+### Audio Control
+- [ ] A sound toggle option is available within the pause or settings menu.
+- [ ] Toggling sound off mutes all game audio.
+- [ ] Toggling sound on restores game audio.
 
-### In-Round Question Mechanics
-- [ ] An in-game trigger allows the player to use a question charge during an active wave.
-- [ ] Correctly answering an in-wave question awards an item drop or inventory reward without desynchronizing combat state.
-- [ ] Questions appear at a higher frequency across the overall game loop.
-
-### Verification and Build
-- [ ] Automated test suite in `tests/` passes, verifying mid-wave question charge triggering, reward granting, and combat stat calculations.
-- [ ] Production build (`npm run build`) executes cleanly with zero TypeScript or linting errors.
+### Verification
+- [ ] Existing automated test suites pass without regression.
+- [ ] The game builds cleanly and changes are verifiable in the runtime environment.

@@ -12,19 +12,85 @@
  * - Safe for Headless / SSR / Node environments (returns cleanly if window/AudioContext undefined)
  */
 
+export interface AudioSettingsState {
+  masterVolume: number;
+  isMuted: boolean;
+  sfxVolume: number;
+  sfxMuted: boolean;
+  bgmVolume: number;
+  bgmMuted: boolean;
+  menuVolume: number;
+  menuMuted: boolean;
+}
+
+function sanitizeVolume(val: unknown, currentVal: number, fallback: number = 0.8): number {
+  if (typeof val !== 'number' || Number.isNaN(val)) {
+    return Number.isFinite(currentVal) ? currentVal : fallback;
+  }
+  if (!Number.isFinite(val)) {
+    return val > 0 ? 1 : 0;
+  }
+  return Math.max(0, Math.min(1, val));
+}
+
 export class ProceduralSoundEngine {
   private ctx: AudioContext | null = null;
   private masterGain: GainNode | null = null;
+  private sfxGain: GainNode | null = null;
+  private bgmGain: GainNode | null = null;
+  private menuGain: GainNode | null = null;
   private compressor: DynamicsCompressorNode | null = null;
   private noiseBuffer: AudioBuffer | null = null;
   
-  public enabled: boolean = true;
+  private _enabled: boolean = true;
   private _masterVolume: number = 0.8;
   private _isMuted: boolean = false;
+
+  private _sfxVolume: number = 0.8;
+  private _sfxMuted: boolean = false;
+
+  private _bgmVolume: number = 0.6;
+  private _bgmMuted: boolean = false;
+
+  private _menuVolume: number = 0.7;
+  private _menuMuted: boolean = false;
   
   private rainNode: AudioNode | null = null;
   private rainGain: GainNode | null = null;
   private userGestureAttached: boolean = false;
+
+  private bgmIntervalId: ReturnType<typeof setInterval> | null = null;
+  private bgmOscillators: Set<OscillatorNode> = new Set();
+  private bgmPreviewOscillators: Set<OscillatorNode> = new Set();
+  public isBgmPlaying: boolean = false;
+  private listeners: Set<(settings: AudioSettingsState) => void> = new Set();
+
+  public get enabled(): boolean {
+    return this._enabled && !this._isMuted;
+  }
+
+  public set enabled(val: boolean) {
+    const boolVal = Boolean(val);
+    this._enabled = boolVal;
+    this.setMuted(!boolVal);
+  }
+
+  public subscribe(cb: (settings: AudioSettingsState) => void): () => void {
+    this.listeners.add(cb);
+    return () => {
+      this.listeners.delete(cb);
+    };
+  }
+
+  private notifyListeners(): void {
+    if (this.listeners.size === 0) return;
+    const settings = this.getAudioSettings();
+    for (const cb of this.listeners) {
+      try {
+        cb(settings);
+      } catch {}
+    }
+  }
 
   constructor() {
     this.attachAutoUnlock();
@@ -83,7 +149,8 @@ export class ProceduralSoundEngine {
   }
 
   /**
-   * Creates master dynamics compressor (AGC/limiter) and master volume node.
+   * Creates master dynamics compressor (AGC/limiter) and hierarchical volume bus.
+   * Hierarchical bus: SFX / BGM / Menu -> Master Gain -> Compressor -> Destination.
    * Prevents clipping during intense multi-weapon polyphony.
    */
   private initAudioGraph(): void {
@@ -99,8 +166,44 @@ export class ProceduralSoundEngine {
     this.masterGain = this.ctx.createGain();
     this.masterGain.gain.setValueAtTime(this._isMuted ? 0 : this._masterVolume, this.ctx.currentTime);
 
+    this.sfxGain = this.ctx.createGain();
+    this.sfxGain.gain.setValueAtTime(this._sfxMuted ? 0 : this._sfxVolume, this.ctx.currentTime);
+    this.sfxGain.connect(this.masterGain);
+
+    this.bgmGain = this.ctx.createGain();
+    this.bgmGain.gain.setValueAtTime(this._bgmMuted ? 0 : this._bgmVolume, this.ctx.currentTime);
+    this.bgmGain.connect(this.masterGain);
+
+    this.menuGain = this.ctx.createGain();
+    this.menuGain.gain.setValueAtTime(this._menuMuted ? 0 : this._menuVolume, this.ctx.currentTime);
+    this.menuGain.connect(this.masterGain);
+
     this.masterGain.connect(this.compressor);
     this.compressor.connect(this.ctx.destination);
+  }
+
+  /**
+   * Route SFX audio to SFX bus. Returns null if SFX or Master is muted or disabled.
+   */
+  public getSfxOut(): AudioNode | null {
+    if (!this.enabled || this._isMuted || this._sfxMuted) return null;
+    return this.sfxGain || this.masterGain || (this.ctx ? this.ctx.destination : null);
+  }
+
+  /**
+   * Route BGM audio to BGM bus. Returns null if BGM or Master is muted or disabled.
+   */
+  public getBgmOut(): AudioNode | null {
+    if (!this.enabled || this._isMuted || this._bgmMuted) return null;
+    return this.bgmGain || this.masterGain || (this.ctx ? this.ctx.destination : null);
+  }
+
+  /**
+   * Route Menu & UI audio to Menu bus. Returns null if Menu or Master is muted or disabled.
+   */
+  public getMenuOut(): AudioNode | null {
+    if (!this.enabled || this._isMuted || this._menuMuted) return null;
+    return this.menuGain || this.masterGain || (this.ctx ? this.ctx.destination : null);
   }
 
   /**
@@ -123,6 +226,7 @@ export class ProceduralSoundEngine {
   // VOLUME & MUTE CONTROLS
   // =========================================================================
 
+  // Master Volume & Mute
   public get masterVolume(): number {
     return this._masterVolume;
   }
@@ -132,10 +236,11 @@ export class ProceduralSoundEngine {
   }
 
   public setMasterVolume(val: number): void {
-    this._masterVolume = Math.max(0, Math.min(1, val));
+    this._masterVolume = sanitizeVolume(val, this._masterVolume, 0.8);
     if (this.ctx && this.masterGain && !this._isMuted) {
       this.masterGain.gain.setValueAtTime(this._masterVolume, this.ctx.currentTime);
     }
+    this.notifyListeners();
   }
 
   public get isMuted(): boolean {
@@ -147,15 +252,323 @@ export class ProceduralSoundEngine {
   }
 
   public setMuted(muted: boolean): void {
-    this._isMuted = muted;
+    const isMutedBool = Boolean(muted);
+    this._isMuted = isMutedBool;
+    this._enabled = !isMutedBool;
     if (this.ctx && this.masterGain) {
-      this.masterGain.gain.setValueAtTime(muted ? 0 : this._masterVolume, this.ctx.currentTime);
+      this.masterGain.gain.setValueAtTime(isMutedBool ? 0 : this._masterVolume, this.ctx.currentTime);
     }
+    this.notifyListeners();
   }
 
   public toggleMute(): boolean {
     this.setMuted(!this._isMuted);
     return this._isMuted;
+  }
+
+  // Sound Effects (SFX) Controls
+  public get sfxVolume(): number {
+    return this._sfxVolume;
+  }
+
+  public set sfxVolume(val: number) {
+    this.setSfxVolume(val);
+  }
+
+  public setSfxVolume(val: number): void {
+    this._sfxVolume = sanitizeVolume(val, this._sfxVolume, 0.8);
+    if (this.ctx && this.sfxGain && !this._sfxMuted) {
+      this.sfxGain.gain.setValueAtTime(this._sfxVolume, this.ctx.currentTime);
+    }
+    this.notifyListeners();
+  }
+
+  public get sfxMuted(): boolean {
+    return this._sfxMuted;
+  }
+
+  public set sfxMuted(val: boolean) {
+    this.setSfxMuted(val);
+  }
+
+  public setSfxMuted(muted: boolean): void {
+    this._sfxMuted = Boolean(muted);
+    if (this.ctx && this.sfxGain) {
+      this.sfxGain.gain.setValueAtTime(this._sfxMuted ? 0 : this._sfxVolume, this.ctx.currentTime);
+    }
+    this.notifyListeners();
+  }
+
+  public toggleSfxMute(): boolean {
+    this.setSfxMuted(!this._sfxMuted);
+    return this._sfxMuted;
+  }
+
+  // In-Game Music (BGM) Controls
+  public get bgmVolume(): number {
+    return this._bgmVolume;
+  }
+
+  public set bgmVolume(val: number) {
+    this.setBgmVolume(val);
+  }
+
+  public setBgmVolume(val: number): void {
+    this._bgmVolume = sanitizeVolume(val, this._bgmVolume, 0.6);
+    if (this.ctx && this.bgmGain && !this._bgmMuted) {
+      this.bgmGain.gain.setValueAtTime(this._bgmVolume, this.ctx.currentTime);
+    }
+    this.notifyListeners();
+  }
+
+  public get bgmMuted(): boolean {
+    return this._bgmMuted;
+  }
+
+  public set bgmMuted(val: boolean) {
+    this.setBgmMuted(val);
+  }
+
+  public setBgmMuted(muted: boolean): void {
+    this._bgmMuted = Boolean(muted);
+    if (this.ctx && this.bgmGain) {
+      this.bgmGain.gain.setValueAtTime(this._bgmMuted ? 0 : this._bgmVolume, this.ctx.currentTime);
+    }
+    this.notifyListeners();
+  }
+
+  public toggleBgmMute(): boolean {
+    this.setBgmMuted(!this._bgmMuted);
+    return this._bgmMuted;
+  }
+
+  // Main Menu Music & UI Sounds Controls
+  public get menuVolume(): number {
+    return this._menuVolume;
+  }
+
+  public set menuVolume(val: number) {
+    this.setMenuVolume(val);
+  }
+
+  public setMenuVolume(val: number): void {
+    this._menuVolume = sanitizeVolume(val, this._menuVolume, 0.7);
+    if (this.ctx && this.menuGain && !this._menuMuted) {
+      this.menuGain.gain.setValueAtTime(this._menuVolume, this.ctx.currentTime);
+    }
+    this.notifyListeners();
+  }
+
+  public get menuMuted(): boolean {
+    return this._menuMuted;
+  }
+
+  public set menuMuted(val: boolean) {
+    this.setMenuMuted(val);
+  }
+
+  public setMenuMuted(muted: boolean): void {
+    this._menuMuted = Boolean(muted);
+    if (this.ctx && this.menuGain) {
+      this.menuGain.gain.setValueAtTime(this._menuMuted ? 0 : this._menuVolume, this.ctx.currentTime);
+    }
+    this.notifyListeners();
+  }
+
+  public toggleMenuMute(): boolean {
+    this.setMenuMuted(!this._menuMuted);
+    return this._menuMuted;
+  }
+
+  // Helper method to retrieve full audio configuration state
+  public getAudioSettings(): AudioSettingsState {
+    return {
+      masterVolume: this._masterVolume,
+      isMuted: this._isMuted,
+      sfxVolume: this._sfxVolume,
+      sfxMuted: this._sfxMuted,
+      bgmVolume: this._bgmVolume,
+      bgmMuted: this._bgmMuted,
+      menuVolume: this._menuVolume,
+      menuMuted: this._menuMuted,
+    };
+  }
+
+  public setAudioSettings(settings?: Partial<AudioSettingsState> | null): void {
+    if (!settings || typeof settings !== 'object') return;
+
+    if (settings.masterVolume !== undefined) {
+      this._masterVolume = sanitizeVolume(settings.masterVolume, this._masterVolume, 0.8);
+    }
+    if (typeof settings.isMuted === 'boolean') {
+      this._isMuted = settings.isMuted;
+      this._enabled = !settings.isMuted;
+    }
+    if (settings.sfxVolume !== undefined) {
+      this._sfxVolume = sanitizeVolume(settings.sfxVolume, this._sfxVolume, 0.8);
+    }
+    if (typeof settings.sfxMuted === 'boolean') {
+      this._sfxMuted = settings.sfxMuted;
+    }
+    if (settings.bgmVolume !== undefined) {
+      this._bgmVolume = sanitizeVolume(settings.bgmVolume, this._bgmVolume, 0.6);
+    }
+    if (typeof settings.bgmMuted === 'boolean') {
+      this._bgmMuted = settings.bgmMuted;
+    }
+    if (settings.menuVolume !== undefined) {
+      this._menuVolume = sanitizeVolume(settings.menuVolume, this._menuVolume, 0.7);
+    }
+    if (typeof settings.menuMuted === 'boolean') {
+      this._menuMuted = settings.menuMuted;
+    }
+
+    if (this.ctx) {
+      const now = this.ctx.currentTime;
+      if (this.masterGain) this.masterGain.gain.setValueAtTime(this._isMuted ? 0 : this._masterVolume, now);
+      if (this.sfxGain) this.sfxGain.gain.setValueAtTime(this._sfxMuted ? 0 : this._sfxVolume, now);
+      if (this.bgmGain) this.bgmGain.gain.setValueAtTime(this._bgmMuted ? 0 : this._bgmVolume, now);
+      if (this.menuGain) this.menuGain.gain.setValueAtTime(this._menuMuted ? 0 : this._menuVolume, now);
+    }
+    this.notifyListeners();
+  }
+
+  /**
+   * Plays a single 1.76-second preview snippet of the BGM synth bar without mutating isBgmPlaying or combat intervals.
+   */
+  public playBgmPreview(): void {
+    if (typeof window === 'undefined') return;
+    const c = this.getContext();
+    if (!c) return;
+    const out = this.getBgmOut();
+    if (!out) return;
+
+    // Cancel any active preview notes to prevent stacking on rapid clicks
+    for (const osc of this.bgmPreviewOscillators) {
+      try {
+        osc.stop();
+        osc.disconnect();
+      } catch {}
+    }
+    this.bgmPreviewOscillators.clear();
+
+    const now = c.currentTime;
+    const notes = [55, 55, 65.41, 73.42, 82.41, 73.42, 65.41, 55];
+    const step = 0.22;
+    notes.forEach((freq, idx) => {
+      const t = now + idx * step;
+      const osc = c.createOscillator();
+      const g = c.createGain();
+      osc.type = 'triangle';
+      osc.frequency.setValueAtTime(freq, t);
+      g.gain.setValueAtTime(0.04, t);
+      g.gain.exponentialRampToValueAtTime(0.001, t + step * 0.9);
+      osc.connect(g);
+      g.connect(out);
+
+      this.bgmPreviewOscillators.add(osc);
+      osc.onended = () => {
+        this.bgmPreviewOscillators.delete(osc);
+      };
+
+      osc.start(t);
+      osc.stop(t + step * 0.9);
+    });
+  }
+
+  // Procedural BGM Generation
+  public startCombatBgm(): void {
+    if (this.isBgmPlaying || typeof window === 'undefined') return;
+    this.isBgmPlaying = true;
+
+    const playBar = () => {
+      if (!this.isBgmPlaying) return;
+      const c = this.getContext();
+      if (!c) return;
+      const out = this.getBgmOut();
+      if (!out) return;
+
+      const now = c.currentTime;
+      const notes = [55, 55, 65.41, 73.42, 82.41, 73.42, 65.41, 55];
+      const step = 0.22;
+      notes.forEach((freq, idx) => {
+        const t = now + idx * step;
+        const osc = c.createOscillator();
+        const g = c.createGain();
+        osc.type = 'triangle';
+        osc.frequency.setValueAtTime(freq, t);
+        g.gain.setValueAtTime(0.04, t);
+        g.gain.exponentialRampToValueAtTime(0.001, t + step * 0.9);
+        osc.connect(g);
+        g.connect(out);
+
+        this.bgmOscillators.add(osc);
+        osc.onended = () => {
+          this.bgmOscillators.delete(osc);
+        };
+
+        osc.start(t);
+        osc.stop(t + step * 0.9);
+      });
+    };
+
+    playBar();
+    this.bgmIntervalId = setInterval(playBar, 8 * 220);
+  }
+
+  public stopCombatBgm(): void {
+    this.isBgmPlaying = false;
+    if (this.bgmIntervalId) {
+      clearInterval(this.bgmIntervalId);
+      this.bgmIntervalId = null;
+    }
+    // Cancel any remaining scheduled oscillators from the current bar
+    for (const osc of this.bgmOscillators) {
+      try {
+        osc.stop();
+        osc.disconnect();
+      } catch {}
+    }
+    this.bgmOscillators.clear();
+  }
+
+  // Procedural UI / Menu Sound Synthesizers
+  public playMenuClick(): void {
+    const ctx = this.getContext();
+    if (!ctx) return;
+    const out = this.getMenuOut();
+    if (!out) return;
+    const now = ctx.currentTime;
+    const osc = ctx.createOscillator();
+    const g = ctx.createGain();
+    osc.type = 'sine';
+    osc.frequency.setValueAtTime(800, now);
+    osc.frequency.exponentialRampToValueAtTime(400, now + 0.04);
+    g.gain.setValueAtTime(0.12, now);
+    g.gain.exponentialRampToValueAtTime(0.001, now + 0.04);
+    osc.connect(g);
+    g.connect(out);
+    osc.start(now);
+    osc.stop(now + 0.04);
+  }
+
+  public playMenuToggle(): void {
+    const ctx = this.getContext();
+    if (!ctx) return;
+    const out = this.getMenuOut();
+    if (!out) return;
+    const now = ctx.currentTime;
+    const osc = ctx.createOscillator();
+    const g = ctx.createGain();
+    osc.type = 'sine';
+    osc.frequency.setValueAtTime(440, now);
+    osc.frequency.setValueAtTime(660, now + 0.04);
+    g.gain.setValueAtTime(0.1, now);
+    g.gain.exponentialRampToValueAtTime(0.001, now + 0.08);
+    osc.connect(g);
+    g.connect(out);
+    osc.start(now);
+    osc.stop(now + 0.08);
   }
 
   // =========================================================================
@@ -170,7 +583,8 @@ export class ProceduralSoundEngine {
     const ctx = this.getContext();
     if (!ctx) return;
     const now = ctx.currentTime;
-    const out = this.masterGain || ctx.destination;
+    const out = this.getSfxOut();
+    if (!out) return;
 
     // Pitch dive oscillator
     const osc = ctx.createOscillator();
@@ -216,7 +630,8 @@ export class ProceduralSoundEngine {
     const ctx = this.getContext();
     if (!ctx) return;
     const now = ctx.currentTime;
-    const out = this.masterGain || ctx.destination;
+    const out = this.getSfxOut();
+    if (!out) return;
 
     // Heavy sub-bass thump
     const subOsc = ctx.createOscillator();
@@ -283,7 +698,8 @@ export class ProceduralSoundEngine {
     const ctx = this.getContext();
     if (!ctx) return;
     const now = ctx.currentTime;
-    const out = this.masterGain || ctx.destination;
+    const out = this.getSfxOut();
+    if (!out) return;
 
     const osc = ctx.createOscillator();
     const oscGain = ctx.createGain();
@@ -327,7 +743,8 @@ export class ProceduralSoundEngine {
     const ctx = this.getContext();
     if (!ctx) return;
     const now = ctx.currentTime;
-    const out = this.masterGain || ctx.destination;
+    const out = this.getSfxOut();
+    if (!out) return;
 
     const notes = [523.25, 659.25, 783.99, 1046.50]; // C5, E5, G5, C6
     notes.forEach((freq, i) => {
@@ -371,7 +788,8 @@ export class ProceduralSoundEngine {
     const ctx = this.getContext();
     if (!ctx) return;
     const now = ctx.currentTime;
-    const out = this.masterGain || ctx.destination;
+    const out = this.getSfxOut();
+    if (!out) return;
 
     // Resonant bandpass filtered swoosh
     const noiseBuf = this.getNoiseBuffer();
@@ -422,7 +840,8 @@ export class ProceduralSoundEngine {
     const ctx = this.getContext();
     if (!ctx) return;
     const now = ctx.currentTime;
-    const out = this.masterGain || ctx.destination;
+    const out = this.getSfxOut();
+    if (!out) return;
 
     const osc = ctx.createOscillator();
     const gain = ctx.createGain();
@@ -451,7 +870,8 @@ export class ProceduralSoundEngine {
     const ctx = this.getContext();
     if (!ctx) return;
     const now = ctx.currentTime;
-    const out = this.masterGain || ctx.destination;
+    const out = this.getSfxOut();
+    if (!out) return;
 
     // Noise pop
     const noiseBuf = this.getNoiseBuffer();
@@ -500,7 +920,8 @@ export class ProceduralSoundEngine {
     const ctx = this.getContext();
     if (!ctx) return;
     const now = ctx.currentTime;
-    const out = this.masterGain || ctx.destination;
+    const out = this.getSfxOut();
+    if (!out) return;
 
     // Body thud
     const thudOsc = ctx.createOscillator();
@@ -547,7 +968,8 @@ export class ProceduralSoundEngine {
     const ctx = this.getContext();
     if (!ctx) return;
     const now = ctx.currentTime;
-    const out = this.masterGain || ctx.destination;
+    const out = this.getSfxOut();
+    if (!out) return;
 
     // Chirp 1
     const osc1 = ctx.createOscillator();
@@ -589,7 +1011,8 @@ export class ProceduralSoundEngine {
     const ctx = this.getContext();
     if (!ctx) return;
     const now = ctx.currentTime;
-    const out = this.masterGain || ctx.destination;
+    const out = this.getSfxOut();
+    if (!out) return;
 
     const scale = [0, 2, 4, 7, 9, 12, 14, 16, 19, 21, 24];
     const step = scale[Math.min(streak, 20) % scale.length];
@@ -637,7 +1060,8 @@ export class ProceduralSoundEngine {
     const ctx = this.getContext();
     if (!ctx) return;
     const now = ctx.currentTime;
-    const out = this.masterGain || ctx.destination;
+    const out = this.getSfxOut();
+    if (!out) return;
 
     // Major triad arpeggio: C4 -> E4 -> G4 -> C5
     const notes = [
@@ -694,7 +1118,8 @@ export class ProceduralSoundEngine {
     const ctx = this.getContext();
     if (!ctx) return;
     const now = ctx.currentTime;
-    const out = this.masterGain || ctx.destination;
+    const out = this.getSfxOut();
+    if (!out) return;
 
     // Time-dilation lowpass filter swoosh
     const noiseBuf = this.getNoiseBuffer();
@@ -758,7 +1183,8 @@ export class ProceduralSoundEngine {
     const ctx = this.getContext();
     if (!ctx) return;
     const now = ctx.currentTime;
-    const out = this.masterGain || ctx.destination;
+    const out = this.getSfxOut();
+    if (!out) return;
 
     // Seismic bass drop
     const subOsc = ctx.createOscillator();
@@ -806,7 +1232,8 @@ export class ProceduralSoundEngine {
     const ctx = this.getContext();
     if (!ctx) return;
     const now = ctx.currentTime;
-    const out = this.masterGain || ctx.destination;
+    const out = this.getSfxOut();
+    if (!out) return;
     const osc = ctx.createOscillator();
     const gain = ctx.createGain();
     osc.type = 'sawtooth';
@@ -824,7 +1251,8 @@ export class ProceduralSoundEngine {
     const ctx = this.getContext();
     if (!ctx) return;
     const now = ctx.currentTime;
-    const out = this.masterGain || ctx.destination;
+    const out = this.getSfxOut();
+    if (!out) return;
     const baseFreq = 330 + Math.min(streak, 6) * 55;
     [baseFreq, baseFreq * 1.25, baseFreq * 1.5].forEach((freq, idx) => {
       const osc = ctx.createOscillator();
@@ -844,7 +1272,8 @@ export class ProceduralSoundEngine {
     const ctx = this.getContext();
     if (!ctx) return;
     const now = ctx.currentTime;
-    const out = this.masterGain || ctx.destination;
+    const out = this.getSfxOut();
+    if (!out) return;
     const osc = ctx.createOscillator();
     const gain = ctx.createGain();
     osc.type = 'sawtooth';
@@ -862,7 +1291,8 @@ export class ProceduralSoundEngine {
     const ctx = this.getContext();
     if (!ctx) return;
     const now = ctx.currentTime;
-    const out = this.masterGain || ctx.destination;
+    const out = this.getSfxOut();
+    if (!out) return;
     [880, 1174, 1567, 2093].forEach((f, i) => {
       const osc = ctx.createOscillator();
       const gain = ctx.createGain();
@@ -881,7 +1311,8 @@ export class ProceduralSoundEngine {
     const ctx = this.getContext();
     if (!ctx) return;
     const now = ctx.currentTime;
-    const out = this.masterGain || ctx.destination;
+    const out = this.getSfxOut();
+    if (!out) return;
     const osc = ctx.createOscillator();
     const gain = ctx.createGain();
     osc.type = 'sawtooth';
@@ -899,7 +1330,8 @@ export class ProceduralSoundEngine {
     const ctx = this.getContext();
     if (!ctx) return;
     const now = ctx.currentTime;
-    const out = this.masterGain || ctx.destination;
+    const out = this.getSfxOut();
+    if (!out) return;
     [587.33, 880, 1174.66].forEach((f, i) => {
       const osc = ctx.createOscillator();
       const gain = ctx.createGain();
@@ -915,16 +1347,17 @@ export class ProceduralSoundEngine {
   }
 
   public setKilyosStormAmbient(active: boolean): void {
-    const ctx = this.getContext();
-    if (!ctx) return;
-    const out = this.masterGain || ctx.destination;
-
     if (!active) {
-      if (this.rainGain && ctx) {
-        this.rainGain.gain.setValueAtTime(0.0001, ctx.currentTime);
+      if (this.rainGain && this.ctx) {
+        this.rainGain.gain.setValueAtTime(0.0001, this.ctx.currentTime);
       }
       return;
     }
+
+    const ctx = this.getContext();
+    if (!ctx) return;
+    const out = this.getBgmOut();
+    if (!out) return;
 
     if (!this.rainNode) {
       const bufferSize = ctx.sampleRate * 2;

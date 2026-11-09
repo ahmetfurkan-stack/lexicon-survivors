@@ -2,7 +2,7 @@
 
 import React, { useEffect, useRef } from 'react';
 import { soundEngine } from '@/lib/sound';
-import { Award, RotateCcw, Sparkles, Trophy } from 'lucide-react';
+import { Award, RotateCcw, Sparkles, Trophy, Home } from 'lucide-react';
 
 interface VictorySceneProps {
   netScore: number;
@@ -176,10 +176,11 @@ export const VictoryScene: React.FC<VictorySceneProps> = ({
       <div className="flex flex-wrap items-center justify-center gap-3 pt-2">
         <button
           onClick={onRestart}
-          className="px-6 py-3 rounded-xl bg-gradient-to-r from-indigo-600 to-pink-600 hover:from-indigo-500 hover:to-pink-500 text-white font-extrabold text-xs sm:text-sm flex items-center gap-2 shadow-lg transition"
+          data-testid="legacy-return-to-main-menu"
+          className="px-6 py-3 rounded-xl bg-gradient-to-r from-indigo-600 to-pink-600 hover:from-indigo-500 hover:to-pink-500 text-white font-extrabold text-xs sm:text-sm flex items-center gap-2 shadow-lg transition cursor-pointer"
         >
-          <RotateCcw className="w-4 h-4" />
-          Yeni Sezon Başlat / Odaya Dön
+          <Home className="w-4 h-4" />
+          Ana Menüye Dön
         </button>
       </div>
     </div>

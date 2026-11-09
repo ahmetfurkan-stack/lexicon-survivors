@@ -10,6 +10,7 @@ import {
   ArrowRight,
   Combine,
   Store,
+  Home,
 } from 'lucide-react';
 import type { ShopSlot, PlayerRPGStats, ActiveWeaponInstance } from '@/types/brotato';
 
@@ -26,6 +27,7 @@ export interface ShopModalProps {
   onReroll: () => void;
   onCombineWeapons?: (slotA: number, slotB: number) => void;
   onNextWave: () => void;
+  onReturnToMenu?: () => void;
 }
 
 const TIER_BADGE_COLORS: Record<number, string> = {
@@ -48,6 +50,7 @@ export const ShopModal: React.FC<ShopModalProps> = ({
   onReroll,
   onCombineWeapons,
   onNextWave,
+  onReturnToMenu,
 }) => {
   // Check if any two weapons can be combined
   const combinablePair: [number, number] | null = (() => {
@@ -246,13 +249,26 @@ export const ShopModal: React.FC<ShopModalProps> = ({
             <span>Hasat: <strong className="text-lime-400">+{playerStats.harvesting}</strong></span>
           </div>
 
-          <button
-            onClick={onNextWave}
-            className="w-full sm:w-auto px-8 py-3.5 rounded-2xl bg-gradient-to-r from-indigo-600 via-purple-600 to-pink-600 hover:from-indigo-500 hover:via-purple-500 hover:to-pink-500 text-white font-black text-sm tracking-wide shadow-xl shadow-indigo-600/30 transition flex items-center justify-center gap-2 cursor-pointer"
-          >
-            <span>SONRAKİ DALGAYA BAŞLA (DALGA {currentWave + 1})</span>
-            <ArrowRight className="h-4 w-4" />
-          </button>
+          <div className="flex flex-col sm:flex-row items-center gap-2.5 w-full sm:w-auto">
+            {onReturnToMenu && (
+              <button
+                onClick={onReturnToMenu}
+                data-testid="return-to-main-menu-shop"
+                className="w-full sm:w-auto px-4 py-3 rounded-2xl bg-rose-600/20 border border-rose-500/40 hover:bg-rose-600/30 text-rose-300 font-bold text-xs transition flex items-center justify-center gap-2 cursor-pointer"
+              >
+                <Home className="h-4 w-4 text-rose-400" />
+                <span>Ana Menüye Dön</span>
+              </button>
+            )}
+
+            <button
+              onClick={onNextWave}
+              className="w-full sm:w-auto px-8 py-3.5 rounded-2xl bg-gradient-to-r from-indigo-600 via-purple-600 to-pink-600 hover:from-indigo-500 hover:via-purple-500 hover:to-pink-500 text-white font-black text-sm tracking-wide shadow-xl shadow-indigo-600/30 transition flex items-center justify-center gap-2 cursor-pointer"
+            >
+              <span>SONRAKİ DALGAYA BAŞLA (DALGA {currentWave + 1})</span>
+              <ArrowRight className="h-4 w-4" />
+            </button>
+          </div>
         </div>
       </div>
     </div>

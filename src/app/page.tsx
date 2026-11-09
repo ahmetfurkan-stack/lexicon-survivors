@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import Link from 'next/link';
 import {
   Shield,
@@ -16,11 +16,15 @@ import {
   Magnet,
   RotateCcw,
   Scroll,
+  Home,
+  Trophy,
+  Sliders,
 } from 'lucide-react';
 import { soundEngine } from '@/lib/sound';
 import { PlayerRPGStats, ActiveWeaponInstance, ShopSlot } from '@/types/brotato';
 import { TacticalQuestion } from '@/types/game';
 import { ALL_QUESTIONS } from '@/data/questions';
+import { AudioSettingsModal } from '@/game/settings';
 import {
   CharacterQuestId,
   StoryMilestone,
@@ -192,18 +196,17 @@ const CHARACTERS: CharacterOption[] = [
   },
 ];
 
-type GameScreen = 'hub' | 'arena' | 'shop' | 'gameover';
+type GameScreen = 'hub' | 'arena' | 'shop' | 'gameover' | 'victory';
 
 export default function BrotatoMainPage() {
   const [gameScreen, setGameScreen] = useState<GameScreen>('hub');
   const [selectedCharId, setSelectedCharId] = useState<string>('rune_sorceress');
   const [activeAct, setActiveAct] = useState<'yks' | 'buept'>('yks');
   const [sfxEnabled, setSfxEnabled] = useState<boolean>(true);
+  const [isSettingsModalOpen, setIsSettingsModalOpen] = useState<boolean>(false);
 
-  // Active Run State
-  const [currentWave, setCurrentWave] = useState<number>(1);
-  const [runMaterials, setRunMaterials] = useState<number>(0);
-  const [runStats, setRunStats] = useState<PlayerRPGStats>({
+  // Clean Default RPG Schema to prevent cross-run residual stat bleed
+  const DEFAULT_INITIAL_STATS: PlayerRPGStats = {
     maxHp: 100,
     currentHp: 100,
     hpRegen: 0,
@@ -222,7 +225,12 @@ export default function BrotatoMainPage() {
     luck: 0,
     harvesting: 0,
     pickupRange: 120,
-  });
+  };
+
+  // Active Run State
+  const [currentWave, setCurrentWave] = useState<number>(1);
+  const [runMaterials, setRunMaterials] = useState<number>(0);
+  const [runStats, setRunStats] = useState<PlayerRPGStats>(DEFAULT_INITIAL_STATS);
   const [activeWeapons, setActiveWeapons] = useState<(ActiveWeaponInstance | null)[]>([null, null, null, null, null, null]);
 
   // Narrative Story Milestone & Relic State
@@ -245,30 +253,47 @@ export default function BrotatoMainPage() {
 
   const selectedChar = CHARACTERS.find((c) => c.id === selectedCharId) || CHARACTERS[0];
 
+  useEffect(() => {
+    const unsub = soundEngine.subscribe((settings) => {
+      setSfxEnabled(!settings.isMuted && soundEngine.enabled);
+    });
+    return unsub;
+  }, []);
+
   const toggleSfx = () => {
-    const next = !sfxEnabled;
-    setSfxEnabled(next);
-    soundEngine.enabled = next;
-    if (next) soundEngine.playHit();
+    const isCurrentlyMuted = soundEngine.isMuted || !soundEngine.enabled || !sfxEnabled;
+    const nextMuted = !isCurrentlyMuted;
+    soundEngine.setMuted(nextMuted);
+    soundEngine.enabled = !nextMuted;
+    setSfxEnabled(!nextMuted);
+    if (!nextMuted) soundEngine.playHit();
   };
 
   const handleSelectChar = (id: string) => {
     setSelectedCharId(id);
-    if (sfxEnabled) soundEngine.playComboUp(2);
+    if (sfxEnabled && soundEngine.enabled && !soundEngine.isMuted) soundEngine.playComboUp(2);
   };
 
   const handleStartRun = () => {
-    if (sfxEnabled) soundEngine.playOrbitalLaser();
+    if (sfxEnabled && soundEngine.enabled && !soundEngine.isMuted) soundEngine.playOrbitalLaser();
+    shopManagerRef.current = null;
     relicEngine.reset();
     setActiveRelics([]);
     setCurrentWave(1);
     setRunMaterials(0);
     setRunStats({
-      ...runStats,
+      ...DEFAULT_INITIAL_STATS,
       ...selectedChar.baseStats,
       currentHp: selectedChar.baseStats.maxHp ?? 100,
       maxHp: selectedChar.baseStats.maxHp ?? 100,
     });
+    setActiveWeapons([null, null, null, null, null, null]);
+    setShopSlots([null, null, null, null]);
+    setLockedShopSlots(new Set());
+    setRerollCost(1);
+    setCurrentMilestone(null);
+    setIsMilestoneModalOpen(false);
+    setIsStudyModalOpen(false);
     setGameScreen('arena');
   };
 
@@ -320,6 +345,13 @@ export default function BrotatoMainPage() {
     setLockedShopSlots(new Set(sm.lockedSlots));
     setRerollCost(calculateRerollCost(sm.rerollCount, completedWave));
 
+    // Standard run victory upon completing 20 waves
+    if (completedWave >= 20) {
+      soundEngine.playVictoryFanfare();
+      setGameScreen('victory');
+      return;
+    }
+
     // Check for story milestone event (Waves 5, 10, ..., 100)
     if (isMilestoneWave(completedWave) && selectedChar.questId) {
       const milestone = getStoryMilestone(selectedChar.questId, completedWave);
@@ -355,7 +387,8 @@ export default function BrotatoMainPage() {
     setIsMilestoneModalOpen(false);
     setCurrentMilestone(null);
     if (currentWave >= 100) {
-      setGameScreen('gameover');
+      soundEngine.playVictoryFanfare();
+      setGameScreen('victory');
     } else {
       setIsStudyModalOpen(true);
       setGameScreen('shop');
@@ -426,10 +459,30 @@ export default function BrotatoMainPage() {
   };
 
   const handleReturnToHub = () => {
+    soundEngine.stopCombatBgm();
+    soundEngine.playMenuClick();
     setGameScreen('hub');
     shopManagerRef.current = null;
     relicEngine.reset();
     setActiveRelics([]);
+    setCurrentWave(1);
+    setRunMaterials(0);
+    setRunStats({
+      ...DEFAULT_INITIAL_STATS,
+      ...selectedChar.baseStats,
+      currentHp: selectedChar.baseStats.maxHp ?? 100,
+      maxHp: selectedChar.baseStats.maxHp ?? 100,
+    });
+    setActiveWeapons([null, null, null, null, null, null]);
+    setShopSlots([null, null, null, null]);
+    setLockedShopSlots(new Set());
+    setRerollCost(1);
+    setCurrentMilestone(null);
+    setIsMilestoneModalOpen(false);
+    setIsStudyModalOpen(false);
+    setIsSettingsModalOpen(false);
+    setIsMistakeNotebookOpen(false);
+    setIsRadarModalOpen(false);
   };
 
   // Render Active Arena
@@ -453,6 +506,7 @@ export default function BrotatoMainPage() {
         startingWeaponId={selectedChar.startingWeaponId}
         onWaveComplete={handleWaveComplete}
         onGameOver={handleGameOver}
+        onReturnToMenu={handleReturnToHub}
         onRecordMistake={handleRecordMistake}
       />
     );
@@ -519,12 +573,31 @@ export default function BrotatoMainPage() {
               </button>
             )}
 
+            {/* Audio Settings Granular Modal Button */}
+            <button
+              onClick={() => {
+                setIsSettingsModalOpen(true);
+                soundEngine.playMenuClick();
+              }}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-indigo-500/10 border border-indigo-500/30 hover:bg-indigo-500/20 text-indigo-300 text-xs font-bold transition cursor-pointer"
+              title="Ses ve Müzik Ayarları"
+              data-testid="hub-audio-settings-button"
+            >
+              <Sliders className="w-3.5 h-3.5 text-indigo-400" />
+              <span>Ses Ayarları</span>
+            </button>
+
             <button
               onClick={toggleSfx}
               className="p-2 rounded-lg bg-slate-900 border border-slate-800 hover:border-slate-700 text-slate-300 transition cursor-pointer"
-              title={sfxEnabled ? 'Sesi Kapat' : 'Sesi Aç'}
+              title={sfxEnabled && soundEngine.enabled && !soundEngine.isMuted ? 'Tüm Sesleri Sustur' : 'Sesi Aç'}
+              data-testid="hub-sound-toggle-button"
             >
-              {sfxEnabled ? <Volume2 className="w-4 h-4 text-emerald-400" /> : <VolumeX className="w-4 h-4 text-slate-500" />}
+              {sfxEnabled && soundEngine.enabled && !soundEngine.isMuted ? (
+                <Volume2 className="w-4 h-4 text-emerald-400" />
+              ) : (
+                <VolumeX className="w-4 h-4 text-slate-500" />
+              )}
             </button>
 
             {/* Direct Link to Archived Legacy Prototype for Jury */}
@@ -892,6 +965,7 @@ export default function BrotatoMainPage() {
           onToggleLockSlot={handleToggleLockSlot}
           onReroll={handleRerollShop}
           onNextWave={handleNextWaveFromShop}
+          onReturnToMenu={handleReturnToHub}
         />
       )}
 
@@ -974,7 +1048,10 @@ export default function BrotatoMainPage() {
 
       {/* Game Over Modal */}
       {gameScreen === 'gameover' && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/85 backdrop-blur-md p-4">
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/85 backdrop-blur-md p-4 animate-in fade-in duration-150"
+          data-testid="gameover-modal"
+        >
           <div className="max-w-md w-full rounded-3xl border border-rose-500/40 bg-slate-950 p-6 text-center space-y-5 shadow-2xl">
             <div className="text-4xl">💀</div>
             <div className="space-y-1">
@@ -990,17 +1067,107 @@ export default function BrotatoMainPage() {
               >
                 <span>📓 Yanlış Defterini İncele</span>
               </button>
+
+              <div className="flex gap-2">
+                <button
+                  onClick={handleStartRun}
+                  data-testid="restart-gameover"
+                  className="flex-1 py-3 rounded-xl bg-slate-900 border border-slate-700 hover:border-slate-600 text-slate-200 font-bold text-xs transition cursor-pointer flex items-center justify-center gap-1.5"
+                >
+                  <RotateCcw className="h-3.5 w-3.5" />
+                  <span>Yeniden Başla</span>
+                </button>
+
+                <button
+                  onClick={handleReturnToHub}
+                  data-testid="return-to-main-menu-gameover"
+                  className="flex-1 py-3 rounded-xl bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-500 hover:to-purple-500 text-white font-black text-xs transition cursor-pointer flex items-center justify-center gap-1.5 shadow-lg shadow-indigo-600/20"
+                >
+                  <Home className="h-3.5 w-3.5" />
+                  <span>Ana Menüye Dön</span>
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Victory Modal */}
+      {gameScreen === 'victory' && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/85 backdrop-blur-md p-4 animate-in fade-in duration-150"
+          data-testid="victory-modal"
+        >
+          <div className="max-w-md w-full rounded-3xl border border-amber-500/50 bg-slate-950 p-6 text-center space-y-5 shadow-2xl">
+            <div className="text-4xl text-amber-400 flex items-center justify-center">
+              <Trophy className="w-12 h-12 text-amber-400 animate-bounce" />
+            </div>
+            <div className="space-y-1">
+              <h2 className="text-2xl font-black text-amber-400">KAMPÜS ZAFERİ!</h2>
+              <p className="text-xs text-slate-300">
+                Tüm dalgaları başarıyla tamamladın ve Güney Kampüs&apos;e adım attın!
+              </p>
+            </div>
+
+            <div className="grid grid-cols-2 gap-2 text-xs">
+              <div className="p-2.5 rounded-xl bg-slate-900 border border-slate-800">
+                <span className="text-[10px] text-slate-400 block font-semibold">Ulaşılan Dalga</span>
+                <span className="text-sm font-black text-indigo-400">{currentWave} (Zafer)</span>
+              </div>
+              <div className="p-2.5 rounded-xl bg-slate-900 border border-slate-800">
+                <span className="text-[10px] text-slate-400 block font-semibold">Kazanılan Materyal</span>
+                <span className="text-sm font-black text-amber-400">{runMaterials} 💎</span>
+              </div>
+              <div className="p-2.5 rounded-xl bg-slate-900 border border-slate-800">
+                <span className="text-[10px] text-slate-400 block font-semibold">Kalan Can</span>
+                <span className="text-sm font-black text-rose-400">
+                  {Math.round(runStats.currentHp)} / {runStats.maxHp}
+                </span>
+              </div>
+              <div className="p-2.5 rounded-xl bg-slate-900 border border-slate-800">
+                <span className="text-[10px] text-slate-400 block font-semibold">Kahraman</span>
+                <span className="text-sm font-black text-emerald-400 truncate block">
+                  {selectedChar.name}
+                </span>
+              </div>
+            </div>
+
+            <div className="flex flex-col gap-2 pt-1">
+              <div className="flex gap-2">
+                <button
+                  onClick={() => setIsMistakeNotebookOpen(true)}
+                  className="flex-1 py-2 rounded-xl bg-indigo-600/20 border border-indigo-500/40 hover:bg-indigo-600/30 text-indigo-300 font-bold text-xs transition cursor-pointer flex items-center justify-center gap-1.5"
+                >
+                  <BookOpen className="w-3.5 h-3.5" />
+                  <span>Yanlış Defteri</span>
+                </button>
+                <button
+                  onClick={() => setIsRadarModalOpen(true)}
+                  className="flex-1 py-2 rounded-xl bg-sky-600/20 border border-sky-500/40 hover:bg-sky-600/30 text-sky-300 font-bold text-xs transition cursor-pointer flex items-center justify-center gap-1.5"
+                >
+                  <Brain className="w-3.5 h-3.5" />
+                  <span>Yetenek Radarı</span>
+                </button>
+              </div>
+
               <button
                 onClick={handleReturnToHub}
-                className="w-full py-3.5 rounded-xl bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-500 hover:to-purple-500 text-white font-black text-xs transition cursor-pointer flex items-center justify-center gap-2"
+                data-testid="return-to-main-menu-victory"
+                className="w-full py-3.5 rounded-xl bg-gradient-to-r from-amber-500 to-indigo-600 hover:from-amber-400 hover:to-indigo-500 text-white font-black text-xs transition cursor-pointer flex items-center justify-center gap-2 shadow-lg shadow-indigo-600/20"
               >
-                <RotateCcw className="h-4 w-4" />
-                <span>Yeniden Başla</span>
+                <Home className="h-4 w-4" />
+                <span>Ana Menüye Dön</span>
               </button>
             </div>
           </div>
         </div>
       )}
+
+      {/* Audio Settings Modal */}
+      <AudioSettingsModal
+        isOpen={isSettingsModalOpen}
+        onClose={() => setIsSettingsModalOpen(false)}
+      />
 
       {/* Footer */}
       <footer className="border-t border-slate-800/80 py-4 text-center text-xs text-slate-500">
