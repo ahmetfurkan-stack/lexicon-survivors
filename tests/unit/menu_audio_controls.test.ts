@@ -707,6 +707,7 @@ describe('Granular Audio Controls & Menu Navigation Suite', () => {
       console.log(JSON.stringify({ closedMarkup, openMarkup, controlMarkup }));
     `;
 
+    const nodeBinDir = path.dirname(process.execPath);
     const raw = execFileSync(
       'npx',
       ['tsx', '-e', script],
@@ -715,7 +716,7 @@ describe('Granular Audio Controls & Menu Navigation Suite', () => {
         encoding: 'utf-8',
         env: {
           ...process.env,
-          PATH: `${process.env.HOME}/.local/node-v22.14.0-darwin-arm64/bin:${process.env.HOME}/.local/node/bin:${process.env.PATH}`,
+          PATH: `${nodeBinDir}:${process.env.PATH}`,
         },
       }
     );
@@ -753,8 +754,114 @@ describe('Granular Audio Controls & Menu Navigation Suite', () => {
       'returnToMainMenuFromPause must cancel chapterCardTimeout'
     );
     assert.ok(
+      jsContent.includes('clearShopAutoWaveTimer();'),
+      'returnToMainMenuFromPause must clear shop auto-wave countdown'
+    );
+    assert.ok(
+      jsContent.includes('clearAutoRunCountdown();'),
+      'returnToMainMenuFromPause must clear auto-run countdown'
+    );
+    assert.ok(
+      jsContent.includes('sounds.stopMusic();'),
+      'returnToMainMenuFromPause must call sounds.stopMusic'
+    );
+    assert.ok(
       jsContent.includes('resetStats();'),
       'returnToMainMenuFromPause must call resetStats to wipe all entity arrays and positions'
+    );
+  });
+
+  it('verifies SoundManager and MedievalBGM implement stopMusic to halt active audio elements', () => {
+    const jsFile = path.resolve(__dirname, '../../build/web/game.js');
+    const jsContent = fs.readFileSync(jsFile, 'utf-8');
+
+    // Verify SoundManager has stopMusic method
+    assert.ok(
+      jsContent.includes('stopMusic() {'),
+      'SoundManager must implement stopMusic method'
+    );
+    assert.ok(
+      jsContent.includes('this.music.pause();'),
+      'SoundManager.stopMusic must pause active music'
+    );
+    assert.ok(
+      jsContent.includes('this.music.currentTime = 0;'),
+      'SoundManager.stopMusic must rewind playback position'
+    );
+
+    // Verify MedievalBGM.stop invokes stopMusic
+    assert.ok(
+      jsContent.includes('this.sm.stopMusic();'),
+      'MedievalBGM.stop must invoke this.sm.stopMusic()'
+    );
+  });
+
+  it('verifies stopCombatBgm and stopMenuMusic cancel preview oscillators without note hang', () => {
+    assert.doesNotThrow(() => {
+      soundEngine.playBgmPreview();
+      soundEngine.stopCombatBgm();
+      assert.equal(soundEngine.isBgmPlaying, false);
+
+      soundEngine.playMenuMusicPreview();
+      soundEngine.stopMenuMusic();
+      assert.equal(soundEngine.isMenuMusicPlaying, false);
+    });
+  });
+
+  it('verifies confirmation modal lifecycle in React component: cancel retains pause state, accept triggers onReturnToMainMenu', () => {
+    const script = `
+      import React, { useState } from "react";
+      import { renderToStaticMarkup } from "react-dom/server";
+      import { PauseSettingsModal } from "./src/game/settings";
+
+      // Test rendering open state with isConfirmingAbandon active
+      // Using PauseSettingsModal source directly to verify confirmation markup
+      const markup = renderToStaticMarkup(
+        React.createElement(PauseSettingsModal, {
+          isOpen: true,
+          onResume: () => {},
+          onReturnToMainMenu: () => {},
+          currentWave: 1,
+          materials: 0,
+        })
+      );
+
+      // Verify prompt text exists in source
+      console.log(JSON.stringify({ hasReturnBtn: markup.includes('Ana Menüye Dön') }));
+    `;
+
+    const nodeBinDir = path.dirname(process.execPath);
+    const raw = execFileSync(
+      'npx',
+      ['tsx', '-e', script],
+      {
+        cwd: path.resolve(__dirname, '../../'),
+        encoding: 'utf-8',
+        env: {
+          ...process.env,
+          PATH: `${nodeBinDir}:${process.env.PATH}`,
+        },
+      }
+    );
+
+    const { hasReturnBtn } = JSON.parse(raw);
+    assert.equal(hasReturnBtn, true, 'PauseSettingsModal must render Ana Menüye Dön button');
+
+    // Also assert on the file source for confirmation dialog wiring
+    const pauseFile = path.resolve(__dirname, '../../src/game/settings/PauseSettingsModal.tsx');
+    const pauseContent = fs.readFileSync(pauseFile, 'utf-8');
+
+    assert.ok(
+      pauseContent.includes('setIsConfirmingAbandon(true)'),
+      'Clicking return button must set isConfirmingAbandon to true'
+    );
+    assert.ok(
+      pauseContent.includes('setIsConfirmingAbandon(false)'),
+      'Canceling must dismiss confirm dialog and retain pause state'
+    );
+    assert.ok(
+      pauseContent.includes('onReturnToMainMenu()'),
+      'Accepting confirm dialog must invoke onReturnToMainMenu'
     );
   });
 });

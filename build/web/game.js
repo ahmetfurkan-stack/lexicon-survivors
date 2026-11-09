@@ -726,6 +726,15 @@ class SoundManager {
     this.music.play().catch(() => {});
   }
 
+  stopMusic() {
+    if (this.music) {
+      try {
+        this.music.pause();
+        this.music.currentTime = 0;
+      } catch (_) {}
+    }
+  }
+
   setMusicSource(path) {
     if (!this.music) {
       this.music = new Audio();
@@ -969,6 +978,9 @@ class MedievalBGM {
     if (this.timerId) {
       clearTimeout(this.timerId);
       this.timerId = null;
+    }
+    if (this.sm && typeof this.sm.stopMusic === "function") {
+      this.sm.stopMusic();
     }
   }
 
@@ -7692,6 +7704,13 @@ function toggleGamePause(forceState) {
     pauseModal.style.display = window.isGamePaused ? "flex" : "none";
   }
   if (window.isGamePaused) {
+    const titleEl = document.getElementById("pause-modal-title");
+    if (titleEl) titleEl.textContent = "KÜTÜPHANE BEKLEMEDE";
+    const resumeBtn = document.getElementById("resume-game-btn");
+    if (resumeBtn) resumeBtn.style.display = "";
+    const returnBtn = document.getElementById("pause-return-to-menu-btn");
+    if (returnBtn) returnBtn.style.display = "";
+
     if (state.player) {
       state.player.vx = 0;
       state.player.vy = 0;
@@ -7717,6 +7736,11 @@ function returnToMainMenuFromPause() {
 
   // Stop active combat music, timers, and alert banners
   bgm.stop();
+  if (typeof sounds !== "undefined" && typeof sounds.stopMusic === "function") {
+    sounds.stopMusic();
+  }
+  clearShopAutoWaveTimer();
+  clearAutoRunCountdown();
   state.is_wave_active = false;
   if (state.alert_timeout) {
     clearTimeout(state.alert_timeout);

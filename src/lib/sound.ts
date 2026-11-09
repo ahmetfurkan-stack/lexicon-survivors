@@ -658,6 +658,14 @@ export class ProceduralSoundEngine {
       } catch {}
     }
     this.bgmOscillators.clear();
+
+    for (const osc of this.bgmPreviewOscillators) {
+      try {
+        osc.stop();
+        osc.disconnect();
+      } catch {}
+    }
+    this.bgmPreviewOscillators.clear();
   }
 
   // Procedural Main Menu Music Generation
@@ -713,6 +721,14 @@ export class ProceduralSoundEngine {
       } catch {}
     }
     this.menuBgmOscillators.clear();
+
+    for (const osc of this.menuPreviewOscillators) {
+      try {
+        osc.stop();
+        osc.disconnect();
+      } catch {}
+    }
+    this.menuPreviewOscillators.clear();
   }
 
   public playMenuMusicPreview(): void {
