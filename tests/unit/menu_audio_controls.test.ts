@@ -433,4 +433,214 @@ describe('Granular Audio Controls & Menu Navigation Suite', () => {
     });
     soundEngine.setBgmMuted(false);
   });
+
+  it('verifies PauseSettingsModal provides a confirmation-gated return to main menu', () => {
+    const pauseFile = path.resolve(__dirname, '../../src/game/settings/PauseSettingsModal.tsx');
+    const pauseContent = fs.readFileSync(pauseFile, 'utf-8');
+
+    // 1. Initial return button
+    assert.ok(
+      pauseContent.includes('data-testid="pause-return-to-main-menu"'),
+      'Pause modal must contain return-to-main-menu trigger button'
+    );
+    assert.ok(
+      pauseContent.includes('Ana Menüye Dön'),
+      'Button must display "Ana Menüye Dön"'
+    );
+
+    // 2. Confirmation dialog overlay
+    assert.ok(
+      pauseContent.includes('data-testid="pause-confirm-dialog"'),
+      'Pause modal must render confirmation dialog when return is triggered'
+    );
+    assert.ok(
+      pauseContent.includes('data-testid="pause-confirm-cancel-button"'),
+      'Confirmation dialog must have a cancel button to keep game paused'
+    );
+    assert.ok(
+      pauseContent.includes('data-testid="pause-confirm-accept-button"'),
+      'Confirmation dialog must have an accept button to abandon run and return to menu'
+    );
+
+    // 3. Canceling keeps game paused (Escape or cancel button)
+    assert.ok(
+      pauseContent.includes('isConfirmingAbandon'),
+      'PauseSettingsModal must maintain confirmation state'
+    );
+  });
+
+  it('splits music controls so Main Menu Music and In-Game Music are independently adjustable', () => {
+    // 1. Independent adjustments via soundEngine
+    soundEngine.setInGameMusicVolume(0.42);
+    soundEngine.setMainMenuMusicVolume(0.88);
+
+    assert.equal(soundEngine.inGameMusicVolume, 0.42);
+    assert.equal(soundEngine.bgmVolume, 0.42);
+    assert.equal(soundEngine.mainMenuMusicVolume, 0.88);
+    assert.equal(soundEngine.menuVolume, 0.88);
+
+    // Adjusting in-game music MUST NOT affect main menu music
+    soundEngine.setInGameMusicVolume(0.95);
+    assert.equal(soundEngine.inGameMusicVolume, 0.95);
+    assert.equal(soundEngine.mainMenuMusicVolume, 0.88, 'Main menu music volume must remain unchanged');
+
+    // Adjusting main menu music MUST NOT affect in-game music
+    soundEngine.setMainMenuMusicVolume(0.15);
+    assert.equal(soundEngine.mainMenuMusicVolume, 0.15);
+    assert.equal(soundEngine.inGameMusicVolume, 0.95, 'In-game music volume must remain unchanged');
+
+    // 2. AudioSettingsControl UI has separate labeled controls
+    const controlFile = path.resolve(__dirname, '../../src/game/settings/AudioSettingsControl.tsx');
+    const controlContent = fs.readFileSync(controlFile, 'utf-8');
+
+    assert.ok(
+      controlContent.includes('data-testid="label-in-game-music"'),
+      'AudioSettingsControl must contain labeled header for In-Game Music'
+    );
+    assert.ok(
+      controlContent.includes('In-Game Music'),
+      'AudioSettingsControl must display In-Game Music label'
+    );
+    assert.ok(
+      controlContent.includes('data-testid="volume-slider-bgm"'),
+      'AudioSettingsControl must have volume-slider-bgm'
+    );
+
+    assert.ok(
+      controlContent.includes('data-testid="label-main-menu-music"'),
+      'AudioSettingsControl must contain labeled header for Main Menu Music'
+    );
+    assert.ok(
+      controlContent.includes('Main Menu Music'),
+      'AudioSettingsControl must display Main Menu Music label'
+    );
+    assert.ok(
+      controlContent.includes('data-testid="volume-slider-menu"'),
+      'AudioSettingsControl must have volume-slider-menu'
+    );
+  });
+
+  it('persists and restores audio volume settings across page reloads via localStorage', () => {
+    // Setup mock localStorage in Node/Vitest environment
+    const storageMap: Record<string, string> = {};
+    const mockStorage = {
+      getItem: (key: string) => storageMap[key] ?? null,
+      setItem: (key: string, value: string) => { storageMap[key] = String(value); },
+      removeItem: (key: string) => { delete storageMap[key]; },
+      clear: () => { Object.keys(storageMap).forEach((k) => delete storageMap[k]); },
+    };
+
+    const prevGlobalStorage = (globalThis as any).localStorage;
+    const prevWindowStorage = typeof window !== 'undefined' ? (window as any).localStorage : undefined;
+    (globalThis as any).localStorage = mockStorage;
+    if (typeof window !== 'undefined') {
+      (window as any).localStorage = mockStorage;
+    }
+
+    try {
+      // Modify volumes
+      soundEngine.setInGameMusicVolume(0.52);
+      soundEngine.setMainMenuMusicVolume(0.77);
+      soundEngine.saveToLocalStorage();
+
+      // Verify saveToLocalStorage wrote to storage
+      assert.equal(mockStorage.getItem('inGameMusicVolume'), '0.52');
+      assert.equal(mockStorage.getItem('mainMenuMusicVolume'), '0.77');
+      const serialized = mockStorage.getItem('lexicon_survivors_audio_settings');
+      assert.ok(serialized);
+      const parsed = JSON.parse(serialized);
+      assert.equal(parsed.inGameMusicVolume, 0.52);
+      assert.equal(parsed.mainMenuMusicVolume, 0.77);
+
+      // Simulate a page reload with distinct stored values in localStorage
+      mockStorage.setItem('lexicon_survivors_audio_settings', JSON.stringify({
+        inGameMusicVolume: 0.38,
+        mainMenuMusicVolume: 0.64,
+      }));
+      mockStorage.setItem('inGameMusicVolume', '0.38');
+      mockStorage.setItem('mainMenuMusicVolume', '0.64');
+
+      soundEngine.loadFromLocalStorage();
+      assert.equal(soundEngine.inGameMusicVolume, 0.38);
+      assert.equal(soundEngine.mainMenuMusicVolume, 0.64);
+    } finally {
+      if (prevGlobalStorage !== undefined) {
+        (globalThis as any).localStorage = prevGlobalStorage;
+      } else {
+        delete (globalThis as any).localStorage;
+      }
+      if (typeof window !== 'undefined') {
+        (window as any).localStorage = prevWindowStorage;
+      }
+    }
+  });
+
+  it('manages Main Menu music playback lifecycle and preview generation', () => {
+    assert.equal(typeof soundEngine.startMenuMusic, 'function');
+    assert.equal(typeof soundEngine.stopMenuMusic, 'function');
+    assert.equal(typeof soundEngine.playMenuMusicPreview, 'function');
+
+    assert.doesNotThrow(() => {
+      soundEngine.startMenuMusic();
+      soundEngine.playMenuMusicPreview();
+      soundEngine.stopMenuMusic();
+    });
+  });
+
+  it('verifies build/web/index.html and game.js implement confirmation modal and independent volume controls', () => {
+    const htmlFile = path.resolve(__dirname, '../../build/web/index.html');
+    const jsFile = path.resolve(__dirname, '../../build/web/game.js');
+
+    assert.ok(fs.existsSync(htmlFile), 'build/web/index.html must exist');
+    assert.ok(fs.existsSync(jsFile), 'build/web/game.js must exist');
+
+    const htmlContent = fs.readFileSync(htmlFile, 'utf-8');
+    const jsContent = fs.readFileSync(jsFile, 'utf-8');
+
+    // 1. Confirm dialog in build/web/index.html
+    assert.ok(
+      htmlContent.includes('id="pause-confirm-modal"'),
+      'build/web/index.html must include pause-confirm-modal'
+    );
+    assert.ok(
+      htmlContent.includes('id="pause-confirm-cancel-btn"'),
+      'build/web/index.html must include pause-confirm-cancel-btn'
+    );
+    assert.ok(
+      htmlContent.includes('id="pause-confirm-accept-btn"'),
+      'build/web/index.html must include pause-confirm-accept-btn'
+    );
+
+    // 2. Independent labeled sliders in build/web/index.html
+    assert.ok(
+      htmlContent.includes('id="label-in-game-music"'),
+      'build/web/index.html must have label-in-game-music'
+    );
+    assert.ok(
+      htmlContent.includes('id="label-main-menu-music"'),
+      'build/web/index.html must have label-main-menu-music'
+    );
+    assert.ok(
+      htmlContent.includes('id="bgm-vol-slider"'),
+      'build/web/index.html must have bgm-vol-slider'
+    );
+    assert.ok(
+      htmlContent.includes('id="menu-vol-slider"'),
+      'build/web/index.html must have menu-vol-slider'
+    );
+
+    // 3. Logic in build/web/game.js
+    assert.ok(
+      jsContent.includes('pause-confirm-modal'),
+      'build/web/game.js must reference pause-confirm-modal'
+    );
+    assert.ok(
+      jsContent.includes('inGameMusicVolume'),
+      'build/web/game.js must support inGameMusicVolume'
+    );
+    assert.ok(
+      jsContent.includes('mainMenuMusicVolume'),
+      'build/web/game.js must support mainMenuMusicVolume'
+    );
+  });
 });

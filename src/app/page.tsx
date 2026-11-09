@@ -257,8 +257,16 @@ export default function BrotatoMainPage() {
     const unsub = soundEngine.subscribe((settings) => {
       setSfxEnabled(!settings.isMuted && soundEngine.enabled);
     });
-    return unsub;
-  }, []);
+    if (gameScreen === 'hub') {
+      soundEngine.startMenuMusic();
+    } else {
+      soundEngine.stopMenuMusic();
+    }
+    return () => {
+      unsub();
+      soundEngine.stopMenuMusic();
+    };
+  }, [gameScreen]);
 
   const toggleSfx = () => {
     const isCurrentlyMuted = soundEngine.isMuted || !soundEngine.enabled || !sfxEnabled;
@@ -275,6 +283,7 @@ export default function BrotatoMainPage() {
   };
 
   const handleStartRun = () => {
+    soundEngine.stopMenuMusic();
     if (sfxEnabled && soundEngine.enabled && !soundEngine.isMuted) soundEngine.playOrbitalLaser();
     shopManagerRef.current = null;
     relicEngine.reset();

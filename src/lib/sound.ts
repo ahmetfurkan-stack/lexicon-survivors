@@ -12,6 +12,8 @@
  * - Safe for Headless / SSR / Node environments (returns cleanly if window/AudioContext undefined)
  */
 
+export const AUDIO_SETTINGS_STORAGE_KEY = 'lexicon_survivors_audio_settings';
+
 export interface AudioSettingsState {
   masterVolume: number;
   isMuted: boolean;
@@ -21,6 +23,8 @@ export interface AudioSettingsState {
   bgmMuted: boolean;
   menuVolume: number;
   menuMuted: boolean;
+  inGameMusicVolume?: number;
+  mainMenuMusicVolume?: number;
 }
 
 function sanitizeVolume(val: unknown, currentVal: number, fallback: number = 0.8): number {
@@ -63,6 +67,12 @@ export class ProceduralSoundEngine {
   private bgmOscillators: Set<OscillatorNode> = new Set();
   private bgmPreviewOscillators: Set<OscillatorNode> = new Set();
   public isBgmPlaying: boolean = false;
+
+  private menuBgmIntervalId: ReturnType<typeof setInterval> | null = null;
+  private menuBgmOscillators: Set<OscillatorNode> = new Set();
+  private menuPreviewOscillators: Set<OscillatorNode> = new Set();
+  public isMenuMusicPlaying: boolean = false;
+
   private listeners: Set<(settings: AudioSettingsState) => void> = new Set();
 
   public get enabled(): boolean {
@@ -92,7 +102,80 @@ export class ProceduralSoundEngine {
     }
   }
 
+  private getStorage(): Storage | null {
+    if (typeof window !== 'undefined' && window.localStorage) {
+      return window.localStorage;
+    }
+    if (typeof globalThis !== 'undefined' && (globalThis as any).localStorage) {
+      return (globalThis as any).localStorage;
+    }
+    return null;
+  }
+
+  public saveToLocalStorage(): void {
+    try {
+      const storage = this.getStorage();
+      if (!storage) return;
+
+      const data: AudioSettingsState = {
+        masterVolume: this._masterVolume,
+        isMuted: this._isMuted,
+        sfxVolume: this._sfxVolume,
+        sfxMuted: this._sfxMuted,
+        bgmVolume: this._bgmVolume,
+        bgmMuted: this._bgmMuted,
+        menuVolume: this._menuVolume,
+        menuMuted: this._menuMuted,
+        inGameMusicVolume: this._bgmVolume,
+        mainMenuMusicVolume: this._menuVolume,
+      };
+
+      storage.setItem(AUDIO_SETTINGS_STORAGE_KEY, JSON.stringify(data));
+      storage.setItem('mainMenuMusicVolume', String(this._menuVolume));
+      storage.setItem('inGameMusicVolume', String(this._bgmVolume));
+    } catch {}
+  }
+
+  public loadFromLocalStorage(): void {
+    try {
+      const storage = this.getStorage();
+      if (!storage) return;
+
+      const raw = storage.getItem(AUDIO_SETTINGS_STORAGE_KEY);
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        if (parsed && typeof parsed === 'object') {
+          if (typeof parsed.masterVolume === 'number') this._masterVolume = sanitizeVolume(parsed.masterVolume, this._masterVolume);
+          if (typeof parsed.isMuted === 'boolean') {
+            this._isMuted = parsed.isMuted;
+            this._enabled = !parsed.isMuted;
+          }
+          if (typeof parsed.sfxVolume === 'number') this._sfxVolume = sanitizeVolume(parsed.sfxVolume, this._sfxVolume);
+          if (typeof parsed.sfxMuted === 'boolean') this._sfxMuted = parsed.sfxMuted;
+          const bgmVal = typeof parsed.inGameMusicVolume === 'number' ? parsed.inGameMusicVolume : parsed.bgmVolume;
+          if (typeof bgmVal === 'number') this._bgmVolume = sanitizeVolume(bgmVal, this._bgmVolume, 0.6);
+          if (typeof parsed.bgmMuted === 'boolean') this._bgmMuted = parsed.bgmMuted;
+          const menuVal = typeof parsed.mainMenuMusicVolume === 'number' ? parsed.mainMenuMusicVolume : parsed.menuVolume;
+          if (typeof menuVal === 'number') this._menuVolume = sanitizeVolume(menuVal, this._menuVolume, 0.7);
+          if (typeof parsed.menuMuted === 'boolean') this._menuMuted = parsed.menuMuted;
+        }
+      } else {
+        const savedBgm = storage.getItem('inGameMusicVolume');
+        if (savedBgm !== null) {
+          const val = parseFloat(savedBgm);
+          if (Number.isFinite(val)) this._bgmVolume = sanitizeVolume(val, this._bgmVolume, 0.6);
+        }
+        const savedMenu = storage.getItem('mainMenuMusicVolume');
+        if (savedMenu !== null) {
+          const val = parseFloat(savedMenu);
+          if (Number.isFinite(val)) this._menuVolume = sanitizeVolume(val, this._menuVolume, 0.7);
+        }
+      }
+    } catch {}
+  }
+
   constructor() {
+    this.loadFromLocalStorage();
     this.attachAutoUnlock();
   }
 
@@ -240,6 +323,7 @@ export class ProceduralSoundEngine {
     if (this.ctx && this.masterGain && !this._isMuted) {
       this.masterGain.gain.setValueAtTime(this._masterVolume, this.ctx.currentTime);
     }
+    this.saveToLocalStorage();
     this.notifyListeners();
   }
 
@@ -258,6 +342,7 @@ export class ProceduralSoundEngine {
     if (this.ctx && this.masterGain) {
       this.masterGain.gain.setValueAtTime(isMutedBool ? 0 : this._masterVolume, this.ctx.currentTime);
     }
+    this.saveToLocalStorage();
     this.notifyListeners();
   }
 
@@ -280,6 +365,7 @@ export class ProceduralSoundEngine {
     if (this.ctx && this.sfxGain && !this._sfxMuted) {
       this.sfxGain.gain.setValueAtTime(this._sfxVolume, this.ctx.currentTime);
     }
+    this.saveToLocalStorage();
     this.notifyListeners();
   }
 
@@ -296,6 +382,7 @@ export class ProceduralSoundEngine {
     if (this.ctx && this.sfxGain) {
       this.sfxGain.gain.setValueAtTime(this._sfxMuted ? 0 : this._sfxVolume, this.ctx.currentTime);
     }
+    this.saveToLocalStorage();
     this.notifyListeners();
   }
 
@@ -318,7 +405,20 @@ export class ProceduralSoundEngine {
     if (this.ctx && this.bgmGain && !this._bgmMuted) {
       this.bgmGain.gain.setValueAtTime(this._bgmVolume, this.ctx.currentTime);
     }
+    this.saveToLocalStorage();
     this.notifyListeners();
+  }
+
+  public get inGameMusicVolume(): number {
+    return this._bgmVolume;
+  }
+
+  public set inGameMusicVolume(val: number) {
+    this.setBgmVolume(val);
+  }
+
+  public setInGameMusicVolume(val: number): void {
+    this.setBgmVolume(val);
   }
 
   public get bgmMuted(): boolean {
@@ -334,6 +434,7 @@ export class ProceduralSoundEngine {
     if (this.ctx && this.bgmGain) {
       this.bgmGain.gain.setValueAtTime(this._bgmMuted ? 0 : this._bgmVolume, this.ctx.currentTime);
     }
+    this.saveToLocalStorage();
     this.notifyListeners();
   }
 
@@ -356,7 +457,20 @@ export class ProceduralSoundEngine {
     if (this.ctx && this.menuGain && !this._menuMuted) {
       this.menuGain.gain.setValueAtTime(this._menuVolume, this.ctx.currentTime);
     }
+    this.saveToLocalStorage();
     this.notifyListeners();
+  }
+
+  public get mainMenuMusicVolume(): number {
+    return this._menuVolume;
+  }
+
+  public set mainMenuMusicVolume(val: number) {
+    this.setMenuVolume(val);
+  }
+
+  public setMainMenuMusicVolume(val: number): void {
+    this.setMenuVolume(val);
   }
 
   public get menuMuted(): boolean {
@@ -372,6 +486,7 @@ export class ProceduralSoundEngine {
     if (this.ctx && this.menuGain) {
       this.menuGain.gain.setValueAtTime(this._menuMuted ? 0 : this._menuVolume, this.ctx.currentTime);
     }
+    this.saveToLocalStorage();
     this.notifyListeners();
   }
 
@@ -391,6 +506,8 @@ export class ProceduralSoundEngine {
       bgmMuted: this._bgmMuted,
       menuVolume: this._menuVolume,
       menuMuted: this._menuMuted,
+      inGameMusicVolume: this._bgmVolume,
+      mainMenuMusicVolume: this._menuVolume,
     };
   }
 
@@ -410,14 +527,16 @@ export class ProceduralSoundEngine {
     if (typeof settings.sfxMuted === 'boolean') {
       this._sfxMuted = settings.sfxMuted;
     }
-    if (settings.bgmVolume !== undefined) {
-      this._bgmVolume = sanitizeVolume(settings.bgmVolume, this._bgmVolume, 0.6);
+    const inGameVol = settings.inGameMusicVolume !== undefined ? settings.inGameMusicVolume : settings.bgmVolume;
+    if (inGameVol !== undefined) {
+      this._bgmVolume = sanitizeVolume(inGameVol, this._bgmVolume, 0.6);
     }
     if (typeof settings.bgmMuted === 'boolean') {
       this._bgmMuted = settings.bgmMuted;
     }
-    if (settings.menuVolume !== undefined) {
-      this._menuVolume = sanitizeVolume(settings.menuVolume, this._menuVolume, 0.7);
+    const mainMenuVol = settings.mainMenuMusicVolume !== undefined ? settings.mainMenuMusicVolume : settings.menuVolume;
+    if (mainMenuVol !== undefined) {
+      this._menuVolume = sanitizeVolume(mainMenuVol, this._menuVolume, 0.7);
     }
     if (typeof settings.menuMuted === 'boolean') {
       this._menuMuted = settings.menuMuted;
@@ -430,6 +549,7 @@ export class ProceduralSoundEngine {
       if (this.bgmGain) this.bgmGain.gain.setValueAtTime(this._bgmMuted ? 0 : this._bgmVolume, now);
       if (this.menuGain) this.menuGain.gain.setValueAtTime(this._menuMuted ? 0 : this._menuVolume, now);
     }
+    this.saveToLocalStorage();
     this.notifyListeners();
   }
 
@@ -530,6 +650,100 @@ export class ProceduralSoundEngine {
       } catch {}
     }
     this.bgmOscillators.clear();
+  }
+
+  // Procedural Main Menu Music Generation
+  public startMenuMusic(): void {
+    if (this.isMenuMusicPlaying || typeof window === 'undefined') return;
+    this.isMenuMusicPlaying = true;
+
+    const playBar = () => {
+      if (!this.isMenuMusicPlaying) return;
+      const c = this.getContext();
+      if (!c) return;
+      const out = this.getMenuOut();
+      if (!out) return;
+
+      const now = c.currentTime;
+      const notes = [261.63, 329.63, 392.00, 440.00, 392.00, 329.63, 261.63, 196.00];
+      const step = 0.45;
+      notes.forEach((freq, idx) => {
+        const t = now + idx * step;
+        const osc = c.createOscillator();
+        const g = c.createGain();
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(freq, t);
+        g.gain.setValueAtTime(0.025, t);
+        g.gain.exponentialRampToValueAtTime(0.001, t + step * 0.95);
+        osc.connect(g);
+        g.connect(out);
+
+        this.menuBgmOscillators.add(osc);
+        osc.onended = () => {
+          this.menuBgmOscillators.delete(osc);
+        };
+
+        osc.start(t);
+        osc.stop(t + step * 0.95);
+      });
+    };
+
+    playBar();
+    this.menuBgmIntervalId = setInterval(playBar, 8 * 450);
+  }
+
+  public stopMenuMusic(): void {
+    this.isMenuMusicPlaying = false;
+    if (this.menuBgmIntervalId) {
+      clearInterval(this.menuBgmIntervalId);
+      this.menuBgmIntervalId = null;
+    }
+    for (const osc of this.menuBgmOscillators) {
+      try {
+        osc.stop();
+        osc.disconnect();
+      } catch {}
+    }
+    this.menuBgmOscillators.clear();
+  }
+
+  public playMenuMusicPreview(): void {
+    if (typeof window === 'undefined') return;
+    const c = this.getContext();
+    if (!c) return;
+    const out = this.getMenuOut();
+    if (!out) return;
+
+    for (const osc of this.menuPreviewOscillators) {
+      try {
+        osc.stop();
+        osc.disconnect();
+      } catch {}
+    }
+    this.menuPreviewOscillators.clear();
+
+    const now = c.currentTime;
+    const notes = [261.63, 329.63, 392.00, 440.00, 392.00, 329.63, 261.63, 196.00];
+    const step = 0.22;
+    notes.forEach((freq, idx) => {
+      const t = now + idx * step;
+      const osc = c.createOscillator();
+      const g = c.createGain();
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(freq, t);
+      g.gain.setValueAtTime(0.03, t);
+      g.gain.exponentialRampToValueAtTime(0.001, t + step * 0.9);
+      osc.connect(g);
+      g.connect(out);
+
+      this.menuPreviewOscillators.add(osc);
+      osc.onended = () => {
+        this.menuPreviewOscillators.delete(osc);
+      };
+
+      osc.start(t);
+      osc.stop(t + step * 0.9);
+    });
   }
 
   // Procedural UI / Menu Sound Synthesizers

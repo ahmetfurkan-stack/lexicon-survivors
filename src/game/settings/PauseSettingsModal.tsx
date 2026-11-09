@@ -44,14 +44,22 @@ export const PauseSettingsModal: React.FC<PauseSettingsModalProps> = ({
   onToggleDamageNumbers,
 }) => {
   const [activeTab, setActiveTab] = useState<'audio' | 'gameplay' | 'stats'>('audio');
+  const [isConfirmingAbandon, setIsConfirmingAbandon] = useState<boolean>(false);
 
   useEffect(() => {
-    if (!isOpen) return;
+    if (!isOpen) {
+      setIsConfirmingAbandon(false);
+      return;
+    }
 
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
         e.stopImmediatePropagation();
-        onResume();
+        if (isConfirmingAbandon) {
+          setIsConfirmingAbandon(false);
+        } else {
+          onResume();
+        }
       }
     };
 
@@ -59,7 +67,7 @@ export const PauseSettingsModal: React.FC<PauseSettingsModalProps> = ({
     return () => {
       window.removeEventListener('keydown', handleKeyDown);
     };
-  }, [isOpen, onResume]);
+  }, [isOpen, onResume, isConfirmingAbandon]);
 
   if (!isOpen) return null;
 
@@ -303,15 +311,62 @@ export const PauseSettingsModal: React.FC<PauseSettingsModalProps> = ({
           </button>
 
           <button
-            onClick={onReturnToMainMenu}
+            onClick={() => setIsConfirmingAbandon(true)}
             className="w-full sm:flex-1 py-3 px-4 rounded-xl bg-rose-600/20 border border-rose-500/40 hover:bg-rose-600/30 text-rose-300 font-bold text-xs transition cursor-pointer flex items-center justify-center gap-2"
             data-testid="pause-return-to-main-menu"
           >
             <Home className="w-4 h-4 text-rose-400" />
-            <span>Ana Menuye Don</span>
+            <span>Ana Menüye Dön</span>
           </button>
         </div>
       </div>
+
+      {/* Confirmation Modal for Abandoning Run */}
+      {isConfirmingAbandon && (
+        <div
+          className="fixed inset-0 z-60 flex items-center justify-center bg-black/85 backdrop-blur-sm p-4 animate-in fade-in duration-100"
+          data-testid="pause-confirm-dialog"
+        >
+          <div className="max-w-md w-full rounded-2xl border border-rose-500/50 bg-slate-950 p-6 space-y-4 shadow-2xl text-center">
+            <div className="w-12 h-12 rounded-full bg-rose-950/60 border border-rose-500/40 mx-auto flex items-center justify-center text-rose-400">
+              <Home className="w-6 h-6" />
+            </div>
+            <div className="space-y-1">
+              <h3 className="text-base font-black text-white tracking-wide" data-testid="pause-confirm-title">
+                ANA MENÜYE DÖNÜŞ ONAYI
+              </h3>
+              <p className="text-xs text-slate-300" data-testid="pause-confirm-message">
+                Mevcut koşuyu sonlandırıp ana menüye dönmek istediğinize emin misiniz?
+              </p>
+              <p className="text-[11px] text-rose-400 font-medium">
+                Kaydedilmemiş koşu ilerlemeniz ve toplanan materyaller silinecektir.
+              </p>
+            </div>
+
+            <div className="flex items-center gap-3 pt-2">
+              <button
+                type="button"
+                onClick={() => setIsConfirmingAbandon(false)}
+                className="flex-1 py-2.5 px-4 rounded-xl border border-slate-700 bg-slate-900 hover:bg-slate-800 text-slate-200 font-bold text-xs transition cursor-pointer"
+                data-testid="pause-confirm-cancel-button"
+              >
+                Vazgeç
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setIsConfirmingAbandon(false);
+                  onReturnToMainMenu();
+                }}
+                className="flex-1 py-2.5 px-4 rounded-xl bg-rose-600 hover:bg-rose-500 text-white font-bold text-xs transition cursor-pointer shadow-lg shadow-rose-600/30"
+                data-testid="pause-confirm-accept-button"
+              >
+                Ana Menüye Dön
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

@@ -592,24 +592,47 @@ class SoundManager {
 
   loadAudioSettings() {
     try {
-      const saved = localStorage.getItem("lexicon_granular_audio");
+      const saved = localStorage.getItem("lexicon_granular_audio") || localStorage.getItem("lexicon_survivors_audio_settings");
       if (saved) {
         const p = JSON.parse(saved);
         if (typeof p.masterVolume === "number") this.masterVolume = p.masterVolume;
         if (typeof p.masterMuted === "boolean") this.masterMuted = p.masterMuted;
         if (typeof p.sfxVolume === "number") this.sfxVolume = p.sfxVolume;
         if (typeof p.sfxMuted === "boolean") this.sfxMuted = p.sfxMuted;
-        if (typeof p.bgmVolume === "number") this.bgmVolume = p.bgmVolume;
+        const bgmVal = typeof p.inGameMusicVolume === "number" ? p.inGameMusicVolume : p.bgmVolume;
+        if (typeof bgmVal === "number") this.bgmVolume = bgmVal;
         if (typeof p.bgmMuted === "boolean") this.bgmMuted = p.bgmMuted;
-        if (typeof p.menuVolume === "number") this.menuVolume = p.menuVolume;
+        const menuVal = typeof p.mainMenuMusicVolume === "number" ? p.mainMenuMusicVolume : p.menuVolume;
+        if (typeof menuVal === "number") this.menuVolume = menuVal;
         if (typeof p.menuMuted === "boolean") this.menuMuted = p.menuMuted;
+      } else {
+        const savedBgm = localStorage.getItem("inGameMusicVolume");
+        if (savedBgm !== null) this.bgmVolume = parseFloat(savedBgm);
+        const savedMenu = localStorage.getItem("mainMenuMusicVolume");
+        if (savedMenu !== null) this.menuVolume = parseFloat(savedMenu);
       }
     } catch (_) {}
   }
 
+  get inGameMusicVolume() {
+    return this.bgmVolume;
+  }
+  set inGameMusicVolume(v) {
+    this.bgmVolume = v;
+    this.saveAudioSettings();
+  }
+
+  get mainMenuMusicVolume() {
+    return this.menuVolume;
+  }
+  set mainMenuMusicVolume(v) {
+    this.menuVolume = v;
+    this.saveAudioSettings();
+  }
+
   saveAudioSettings() {
     try {
-      localStorage.setItem("lexicon_granular_audio", JSON.stringify({
+      const data = {
         masterVolume: this.masterVolume,
         masterMuted: this.masterMuted,
         sfxVolume: this.sfxVolume,
@@ -618,7 +641,13 @@ class SoundManager {
         bgmMuted: this.bgmMuted,
         menuVolume: this.menuVolume,
         menuMuted: this.menuMuted,
-      }));
+        inGameMusicVolume: this.bgmVolume,
+        mainMenuMusicVolume: this.menuVolume,
+      };
+      localStorage.setItem("lexicon_granular_audio", JSON.stringify(data));
+      localStorage.setItem("lexicon_survivors_audio_settings", JSON.stringify(data));
+      localStorage.setItem("mainMenuMusicVolume", String(this.menuVolume));
+      localStorage.setItem("inGameMusicVolume", String(this.bgmVolume));
     } catch (_) {}
     this.applyMusicVolume();
   }
@@ -7675,6 +7704,8 @@ function toggleGamePause(forceState) {
 
 function returnToMainMenuFromPause() {
   window.isGamePaused = false;
+  const confirmModal = document.getElementById("pause-confirm-modal");
+  if (confirmModal) confirmModal.style.display = "none";
   const pauseModal = document.getElementById("pause-modal");
   if (pauseModal) pauseModal.style.display = "none";
   const shopScreen = document.getElementById("shop-screen");
@@ -7793,10 +7824,34 @@ window.addEventListener("DOMContentLoaded", () => {
     resumeBtn.onclick = () => toggleGamePause(false);
   }
 
-  // Return to main menu from pause
+  // Return to main menu from pause (gated by confirmation modal)
   const pauseReturnBtn = document.getElementById("pause-return-to-menu-btn");
   if (pauseReturnBtn) {
-    pauseReturnBtn.onclick = returnToMainMenuFromPause;
+    pauseReturnBtn.onclick = () => {
+      const confirmModal = document.getElementById("pause-confirm-modal");
+      if (confirmModal) {
+        confirmModal.style.display = "flex";
+      } else {
+        returnToMainMenuFromPause();
+      }
+    };
+  }
+
+  const confirmCancelBtn = document.getElementById("pause-confirm-cancel-btn");
+  if (confirmCancelBtn) {
+    confirmCancelBtn.onclick = () => {
+      const confirmModal = document.getElementById("pause-confirm-modal");
+      if (confirmModal) confirmModal.style.display = "none";
+    };
+  }
+
+  const confirmAcceptBtn = document.getElementById("pause-confirm-accept-btn");
+  if (confirmAcceptBtn) {
+    confirmAcceptBtn.onclick = () => {
+      const confirmModal = document.getElementById("pause-confirm-modal");
+      if (confirmModal) confirmModal.style.display = "none";
+      returnToMainMenuFromPause();
+    };
   }
 
   // Bottom close button
@@ -7957,6 +8012,12 @@ window.addEventListener("DOMContentLoaded", () => {
 // Keydown listener for Escape and P
 window.addEventListener("keydown", (e) => {
   if (e.key === "Escape" || e.key.toLowerCase() === "p") {
+    const confirmModal = document.getElementById("pause-confirm-modal");
+    if (confirmModal && confirmModal.style.display !== "none") {
+      e.preventDefault();
+      confirmModal.style.display = "none";
+      return;
+    }
     const titleScreen = document.getElementById("title-screen");
     const isTitleOpen = titleScreen && titleScreen.style.display !== "none";
     const pauseModal = document.getElementById("pause-modal");

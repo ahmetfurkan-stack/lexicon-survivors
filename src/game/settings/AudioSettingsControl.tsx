@@ -197,9 +197,9 @@ export const AudioSettingsControl: React.FC = () => {
       {/* 3. In-Game Music (BGM) */}
       <div className="bg-slate-950/70 p-3 rounded-xl border border-slate-800 space-y-2">
         <div className="flex items-center justify-between">
-          <span className="font-bold text-white flex items-center gap-1.5">
+          <span className="font-bold text-white flex items-center gap-1.5" data-testid="label-in-game-music">
             <Music className="w-3.5 h-3.5 text-emerald-400" />
-            Oyun Ici Muzik (BGM)
+            Oyun İçi Müzik (In-Game Music)
           </span>
           <div className="flex items-center gap-2">
             <button
@@ -218,7 +218,7 @@ export const AudioSettingsControl: React.FC = () => {
                   ? 'bg-rose-950/50 border-rose-800 text-rose-400'
                   : 'bg-emerald-950/50 border-emerald-700 text-emerald-300'
               }`}
-              title={bgmMuted ? 'BGM Ac' : 'BGM Kapat'}
+              title={bgmMuted ? 'In-Game Music Aç' : 'In-Game Music Kapat'}
               data-testid="mute-toggle-bgm"
             >
               {bgmMuted ? <VolumeX className="w-3.5 h-3.5" /> : <Volume2 className="w-3.5 h-3.5" />}
@@ -234,19 +234,21 @@ export const AudioSettingsControl: React.FC = () => {
           onChange={(e) => handleBgmVolChange(Number(e.target.value))}
           className="w-full accent-emerald-500 cursor-pointer disabled:opacity-40"
           data-testid="volume-slider-bgm"
+          aria-label="In-Game Music"
+          title="In-Game Music"
         />
       </div>
 
-      {/* 4. Main Menu & UI Sounds */}
+      {/* 4. Main Menu Music */}
       <div className="bg-slate-950/70 p-3 rounded-xl border border-slate-800 space-y-2">
         <div className="flex items-center justify-between">
-          <span className="font-bold text-white flex items-center gap-1.5">
+          <span className="font-bold text-white flex items-center gap-1.5" data-testid="label-main-menu-music">
             <Sliders className="w-3.5 h-3.5 text-sky-400" />
-            Ana Menu &amp; Arayuz Sesi
+            Ana Menü Müziği (Main Menu Music)
           </span>
           <div className="flex items-center gap-2">
             <button
-              onClick={() => soundEngine.playMenuClick()}
+              onClick={() => soundEngine.playMenuMusicPreview()}
               className="text-[10px] px-2 py-0.5 rounded bg-slate-900 border border-slate-800 text-slate-300 hover:text-white hover:border-slate-700 transition cursor-pointer"
             >
               Test Et
@@ -261,7 +263,7 @@ export const AudioSettingsControl: React.FC = () => {
                   ? 'bg-rose-950/50 border-rose-800 text-rose-400'
                   : 'bg-sky-950/50 border-sky-700 text-sky-300'
               }`}
-              title={menuMuted ? 'Menu Sesi Ac' : 'Menu Sesi Kapat'}
+              title={menuMuted ? 'Main Menu Music Aç' : 'Main Menu Music Kapat'}
               data-testid="mute-toggle-menu"
             >
               {menuMuted ? <VolumeX className="w-3.5 h-3.5" /> : <Volume2 className="w-3.5 h-3.5" />}
@@ -277,6 +279,8 @@ export const AudioSettingsControl: React.FC = () => {
           onChange={(e) => handleMenuVolChange(Number(e.target.value))}
           className="w-full accent-sky-500 cursor-pointer disabled:opacity-40"
           data-testid="volume-slider-menu"
+          aria-label="Main Menu Music"
+          title="Main Menu Music"
         />
       </div>
     </div>
