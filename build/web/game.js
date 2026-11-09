@@ -2517,6 +2517,7 @@ const chapterTransitions = [
 ];
 
 let chapterCardTimeout = null;
+let skipWaveTimeout = null;
 
 function showChapterCard(stageIndex) {
   const chapter = chapterTransitions[Math.max(0, Math.min(chapterTransitions.length - 1, stageIndex))];
@@ -3217,7 +3218,14 @@ function endWave() {
     // Kullanıcı dalga sonu dükkanını atlamak istediğinde: doğrudan sonraki dalgaya kesintisiz geçiş
     const nextWaveNum = state.current_wave + 1;
     triggerTacticalAlert("KESİNTİSİZ GEÇİŞ", `Dalga ${nextWaveNum} Başlıyor...`);
-    setTimeout(() => {
+    if (skipWaveTimeout) {
+      clearTimeout(skipWaveTimeout);
+      skipWaveTimeout = null;
+    }
+    skipWaveTimeout = setTimeout(() => {
+      skipWaveTimeout = null;
+      const titleScreen = document.getElementById("title-screen");
+      if (titleScreen && titleScreen.style.display !== "none") return;
       if (!state.is_wave_active && !window.isGamePaused && !state.is_inventory_open) {
         startWave();
       }
@@ -7756,6 +7764,16 @@ function returnToMainMenuFromPause() {
   const chapterCard = document.getElementById("chapter-transition-card");
   if (chapterCard) chapterCard.hidden = true;
 
+  if (skipWaveTimeout) {
+    clearTimeout(skipWaveTimeout);
+    skipWaveTimeout = null;
+  }
+  const storyIntermission = document.getElementById("story-intermission");
+  if (storyIntermission) storyIntermission.hidden = true;
+  storyWavePending = 0;
+  storyEpisodeIndex = -1;
+  storyPanelIndex = 0;
+
   // Fully reset stats, player coordinates, and entity arrays so next run starts clean
   state.pickups = [];
   state.floating_texts = [];
@@ -7878,6 +7896,15 @@ window.addEventListener("DOMContentLoaded", () => {
     confirmCancelBtn.onclick = () => {
       const confirmModal = document.getElementById("pause-confirm-modal");
       if (confirmModal) confirmModal.style.display = "none";
+    };
+  }
+
+  const confirmModalEl = document.getElementById("pause-confirm-modal");
+  if (confirmModalEl) {
+    confirmModalEl.onclick = (e) => {
+      if (e.target === confirmModalEl) {
+        confirmModalEl.style.display = "none";
+      }
     };
   }
 

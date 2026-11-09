@@ -53,8 +53,10 @@ export const PauseSettingsModal: React.FC<PauseSettingsModalProps> = ({
     }
 
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') {
+      const key = e.key.toLowerCase();
+      if (key === 'escape' || key === 'p') {
         e.stopImmediatePropagation();
+        e.preventDefault();
         if (isConfirmingAbandon) {
           setIsConfirmingAbandon(false);
         } else {
@@ -63,9 +65,9 @@ export const PauseSettingsModal: React.FC<PauseSettingsModalProps> = ({
       }
     };
 
-    window.addEventListener('keydown', handleKeyDown);
+    window.addEventListener('keydown', handleKeyDown, true);
     return () => {
-      window.removeEventListener('keydown', handleKeyDown);
+      window.removeEventListener('keydown', handleKeyDown, true);
     };
   }, [isOpen, onResume, isConfirmingAbandon]);
 
@@ -326,6 +328,11 @@ export const PauseSettingsModal: React.FC<PauseSettingsModalProps> = ({
         <div
           className="fixed inset-0 z-60 flex items-center justify-center bg-black/85 backdrop-blur-sm p-4 animate-in fade-in duration-100"
           data-testid="pause-confirm-dialog"
+          onClick={(e) => {
+            if (e.target === e.currentTarget) {
+              setIsConfirmingAbandon(false);
+            }
+          }}
         >
           <div className="max-w-md w-full rounded-2xl border border-rose-500/50 bg-slate-950 p-6 space-y-4 shadow-2xl text-center">
             <div className="w-12 h-12 rounded-full bg-rose-950/60 border border-rose-500/40 mx-auto flex items-center justify-center text-rose-400">

@@ -762,6 +762,14 @@ describe('Granular Audio Controls & Menu Navigation Suite', () => {
       'returnToMainMenuFromPause must clear auto-run countdown'
     );
     assert.ok(
+      jsContent.includes('skipWaveTimeout = null;'),
+      'returnToMainMenuFromPause must clear skipWaveTimeout to prevent wave start on title screen'
+    );
+    assert.ok(
+      jsContent.includes('storyIntermission.hidden = true;'),
+      'returnToMainMenuFromPause must hide storyIntermission'
+    );
+    assert.ok(
       jsContent.includes('sounds.stopMusic();'),
       'returnToMainMenuFromPause must call sounds.stopMusic'
     );
@@ -862,6 +870,14 @@ describe('Granular Audio Controls & Menu Navigation Suite', () => {
     assert.ok(
       pauseContent.includes('onReturnToMainMenu()'),
       'Accepting confirm dialog must invoke onReturnToMainMenu'
+    );
+    assert.ok(
+      pauseContent.includes("window.addEventListener('keydown', handleKeyDown, true)"),
+      'PauseSettingsModal must attach keydown listener in capture phase to reliably intercept keys before game loops'
+    );
+    assert.ok(
+      pauseContent.includes("key === 'escape' || key === 'p'"),
+      'PauseSettingsModal must handle both Escape and P keys'
     );
   });
 });
