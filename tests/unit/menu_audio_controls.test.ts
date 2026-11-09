@@ -2,6 +2,7 @@ import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
 import * as fs from 'fs';
 import * as path from 'path';
+import { execFileSync } from 'child_process';
 import ts from 'typescript';
 import { soundEngine, ProceduralSoundEngine } from '@/lib/sound';
 
@@ -641,6 +642,119 @@ describe('Granular Audio Controls & Menu Navigation Suite', () => {
     assert.ok(
       jsContent.includes('mainMenuMusicVolume'),
       'build/web/game.js must support mainMenuMusicVolume'
+    );
+  });
+
+  it('handles restricted localStorage and SecurityError gracefully without crashing', () => {
+    // Simulate an environment where window.localStorage throws SecurityError / DOMException
+    const restrictedStorageGetter = {
+      get: () => {
+        const err = new Error('The operation is insecure.');
+        err.name = 'SecurityError';
+        throw err;
+      },
+      configurable: true,
+    };
+
+    const prevGlobalStorage = Object.getOwnPropertyDescriptor(globalThis, 'localStorage');
+    Object.defineProperty(globalThis, 'localStorage', restrictedStorageGetter);
+
+    try {
+      // Must not throw even when storage throws SecurityError
+      assert.doesNotThrow(() => {
+        soundEngine.saveToLocalStorage();
+        soundEngine.loadFromLocalStorage();
+      });
+    } finally {
+      if (prevGlobalStorage) {
+        Object.defineProperty(globalThis, 'localStorage', prevGlobalStorage);
+      } else {
+        delete (globalThis as any).localStorage;
+      }
+    }
+  });
+
+  it('deep-renders PauseSettingsModal and AudioSettingsControl markup with all controls', () => {
+    const script = `
+      import React from "react";
+      import { renderToStaticMarkup } from "react-dom/server";
+      import { PauseSettingsModal, AudioSettingsControl } from "./src/game/settings";
+
+      const closedMarkup = renderToStaticMarkup(
+        React.createElement(PauseSettingsModal, {
+          isOpen: false,
+          onResume: () => {},
+          onReturnToMainMenu: () => {},
+          currentWave: 3,
+          materials: 42,
+        })
+      );
+
+      const openMarkup = renderToStaticMarkup(
+        React.createElement(PauseSettingsModal, {
+          isOpen: true,
+          onResume: () => {},
+          onReturnToMainMenu: () => {},
+          currentWave: 5,
+          materials: 120,
+        })
+      );
+
+      const controlMarkup = renderToStaticMarkup(
+        React.createElement(AudioSettingsControl, {})
+      );
+
+      console.log(JSON.stringify({ closedMarkup, openMarkup, controlMarkup }));
+    `;
+
+    const raw = execFileSync(
+      'npx',
+      ['tsx', '-e', script],
+      {
+        cwd: path.resolve(__dirname, '../../'),
+        encoding: 'utf-8',
+        env: {
+          ...process.env,
+          PATH: `${process.env.HOME}/.local/node-v22.14.0-darwin-arm64/bin:${process.env.HOME}/.local/node/bin:${process.env.PATH}`,
+        },
+      }
+    );
+
+    const { closedMarkup, openMarkup, controlMarkup } = JSON.parse(raw);
+
+    assert.equal(closedMarkup, '', 'Closed modal must render null/empty');
+
+    assert.ok(openMarkup.includes('data-testid="pause-settings-modal"'));
+    assert.ok(openMarkup.includes('data-testid="pause-resume-button"'));
+    assert.ok(openMarkup.includes('data-testid="pause-return-to-main-menu"'));
+    assert.ok(openMarkup.includes('Ana Menüye Dön'));
+    assert.ok(openMarkup.includes('data-testid="label-in-game-music"'));
+    assert.ok(openMarkup.includes('data-testid="label-main-menu-music"'));
+    assert.ok(openMarkup.includes('data-testid="volume-slider-bgm"'));
+    assert.ok(openMarkup.includes('data-testid="volume-slider-menu"'));
+
+    assert.ok(controlMarkup.includes('data-testid="volume-slider-master"'));
+    assert.ok(controlMarkup.includes('data-testid="volume-slider-sfx"'));
+    assert.ok(controlMarkup.includes('data-testid="volume-slider-bgm"'));
+    assert.ok(controlMarkup.includes('data-testid="volume-slider-menu"'));
+  });
+
+  it('verifies build/web/game.js cancels active timers and resets combat entities on run abandonment', () => {
+    const jsFile = path.resolve(__dirname, '../../build/web/game.js');
+    const jsContent = fs.readFileSync(jsFile, 'utf-8');
+
+    // Verify returnToMainMenuFromPause clears alert_timeout and chapterCardTimeout
+    assert.ok(
+      jsContent.includes('state.alert_timeout = null;'),
+      'returnToMainMenuFromPause must cancel state.alert_timeout'
+    );
+    assert.ok(
+      jsContent.includes('chapterCardTimeout = null;'),
+      'returnToMainMenuFromPause must cancel chapterCardTimeout'
+    );
+    assert.ok(
+      jsContent.includes('resetStats();'),
+      'returnToMainMenuFromPause must call resetStats to wipe all entity arrays and positions'
     );
   });
 });

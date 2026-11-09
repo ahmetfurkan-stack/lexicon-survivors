@@ -103,11 +103,19 @@ export class ProceduralSoundEngine {
   }
 
   private getStorage(): Storage | null {
-    if (typeof window !== 'undefined' && window.localStorage) {
-      return window.localStorage;
+    try {
+      if (typeof window !== 'undefined' && window.localStorage) {
+        return window.localStorage;
+      }
+    } catch {
+      // Restricted security context / private browsing
     }
-    if (typeof globalThis !== 'undefined' && (globalThis as any).localStorage) {
-      return (globalThis as any).localStorage;
+    try {
+      if (typeof globalThis !== 'undefined' && (globalThis as any).localStorage) {
+        return (globalThis as any).localStorage;
+      }
+    } catch {
+      // Restricted
     }
     return null;
   }

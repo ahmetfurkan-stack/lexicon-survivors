@@ -7715,17 +7715,29 @@ function returnToMainMenuFromPause() {
   const quizModal = document.getElementById("quiz-modal");
   if (quizModal) quizModal.style.display = "none";
 
-  // Stop active combat music and effects
+  // Stop active combat music, timers, and alert banners
   bgm.stop();
   state.is_wave_active = false;
-  state.enemies = [];
-  state.projectiles = [];
-  state.enemy_projectiles = [];
-  state.pickups = [];
-  state.hit_effects = [];
-  state.floating_texts = [];
+  if (state.alert_timeout) {
+    clearTimeout(state.alert_timeout);
+    state.alert_timeout = null;
+  }
+  const alertBanner = document.getElementById("tactical-alert-banner");
+  if (alertBanner) alertBanner.style.display = "none";
 
-  // Reset stats & show title screen cleanly
+  if (chapterCardTimeout) {
+    clearTimeout(chapterCardTimeout);
+    chapterCardTimeout = null;
+  }
+  const chapterCard = document.getElementById("chapter-transition-card");
+  if (chapterCard) chapterCard.hidden = true;
+
+  // Fully reset stats, player coordinates, and entity arrays so next run starts clean
+  state.pickups = [];
+  state.floating_texts = [];
+  resetStats();
+
+  // Show title screen cleanly
   document.getElementById("title-screen").style.display = "flex";
   initTitleScreen();
   syncMobileControlsVisibility();
