@@ -428,4 +428,16 @@ describe('React Application Story Dialogue Audio Parity (Milestone 2)', () => {
     expect(modalContent).toMatch(/soundEngine\.playDialogueVoice/);
     expect(modalContent).toMatch(/soundEngine\.stopDialogueVoice/);
   });
+
+  it('silences legacy story background music, chapter chimes, and beat advance tones so only character dialogue voices play', () => {
+    const gameJsPath = path.join(root, 'build/web/game.js');
+    const gameJsContent = fs.readFileSync(gameJsPath, 'utf-8');
+    const showIntermissionBlock = gameJsContent.match(/function showStoryIntermission\(wave\)\s*\{[\s\S]*?\n\}/)?.[0] || '';
+    const closeIntermissionBlock = gameJsContent.match(/function closeStoryIntermission\(\)\s*\{[\s\S]*?\n\}/)?.[0] || '';
+
+    expect(showIntermissionBlock).toContain('bgm.stop()');
+    expect(showIntermissionBlock).not.toContain('bgm.setMode(episode.music)');
+    expect(showIntermissionBlock).not.toContain('bgm.playChapterChime()');
+    expect(closeIntermissionBlock).not.toContain('sounds.playTone(540 + storyPanelIndex * 34');
+  });
 });

@@ -53,7 +53,7 @@ export const StoryMilestoneModal: React.FC<StoryMilestoneModalProps> = ({
   const [activeDialogueIndex, setActiveDialogueIndex] = useState(0);
 
   useEffect(() => {
-    soundEngine.playComboUp(3);
+    soundEngine.stopCombatBgm();
   }, []);
 
   // Trigger dialogue voice playback whenever active beat changes and clean up on unmount

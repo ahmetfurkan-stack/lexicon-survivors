@@ -3403,17 +3403,14 @@ function showStoryIntermission(wave) {
   if (storyEpisodeIndex < 0) return openShop();
   storyWavePending = wave;
   storyPanelIndex = 0;
-  const episode = STORY_ARC_DATA.characters[state.selected_char].episodes[storyEpisodeIndex];
   document.getElementById("story-intermission").hidden = false;
   document.getElementById("story-skip").hidden = false;
-  bgm.setMode(episode.music);
-  bgm.playChapterChime();
+  bgm.stop();
   renderStoryPanel();
 }
 function closeStoryIntermission() {
   if (storyPanelIndex < STORY_ARC_DATA.panel_count - 1) {
     storyPanelIndex += 1;
-    sounds.playTone(540 + storyPanelIndex * 34, "triangle", 0.055, 0.11);
     renderStoryPanel();
     return;
   }
